@@ -1,38 +1,37 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>OCR UI Fixed</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>カード探索カメラ</title>
 
 <style>
   body{
     margin:0; padding:0; background:#000; color:#fff;
     font-family: -apple-system, system-ui;
+    overflow:hidden; /* ← スワイプ禁止 */
   }
 
-  /* ★ レイアウトは縦一列に全部収める */
   #wrap{
     display:flex;
     flex-direction:column;
     width:100vw;
     height:100vh;
-    padding:10px;
-    gap:10px;
+    padding:8px;
+    gap:6px;
     box-sizing:border-box;
   }
 
-  /* 🔥 カメラは小さめ（Safari の黒画面対策で最小 140px 以上） */
+  /* 🔵 カメラ：小型化しても黒画面にならない限界値 */
   #cameraBox{
-    width:160px;
-    height:120px;
+    width:150px;
+    height:95px;
     background:#111;
-    border:2px solid #333;
     border-radius:10px;
+    border:2px solid #333;
     overflow:hidden;
-    position:relative;
+    flex-shrink:0;
   }
-
   #camera{
     width:100%;
     height:100%;
@@ -40,51 +39,53 @@
     background:#000;
   }
 
-  /* 🔥 ステータスバー（大きく目立つ） */
+  /* 🟦 状態表示（待機中 / 撮影中） */
   #status{
-    padding:10px;
+    padding:6px;
     text-align:center;
-    font-size:20px;
+    font-size:18px;
     font-weight:bold;
     background:#1e3cff;
     border-radius:10px;
+    flex-shrink:0;
   }
 
-  /* 🔲 小さな正方形ボタンエリア */
+  /* 🎛 ボタン4つを1列に */
   #btnRow{
     display:flex;
-    gap:10px;
+    gap:6px;
+    flex-shrink:0;
   }
-
   .sqBtn{
-    width:70px;
-    height:70px;
+    width:55px;
+    height:55px;
+    font-size:25px;
     background:#333;
     border-radius:10px;
-    font-size:28px;
     display:flex;
-    align-items:center;
     justify-content:center;
+    align-items:center;
   }
-
   #shootBtn{ background:#b11; }
 
-  /* 🔥 情報パネル（大きく・最重要） */
+  /* 🔶 情報パネル（高さ可変。スクロール禁止） */
   #infoPanel{
     flex:1;
     background:#111;
     border-radius:10px;
     padding:10px;
-    overflow:auto;
+    overflow:hidden;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
   }
 
   .box{
     background:#222;
-    padding:12px;
+    padding:10px;
     border-radius:8px;
-    margin-bottom:12px;
-    font-size:22px;
-    line-height:1.5em;
+    font-size:20px;
+    line-height:1.2em;
   }
 
 </style>
@@ -93,152 +94,106 @@
 
 <div id="wrap">
 
-  <!-- ① カメラ（極小OKにしたが黒画面出ないよう最低サイズ確保） -->
+  <!-- 📷 カメラボックス -->
   <div id="cameraBox">
-    <video id="camera" autoplay playsinline muted></video>
+    <video id="camera" autoplay playsinline></video>
   </div>
 
-  <!-- ② ステータス -->
-  <div id="status">🟦 待機中</div>
+  <!-- 🟦 ステータス表示 -->
+  <div id="status">待機中</div>
 
-  <!-- ③ ボタン群 -->
+  <!-- 🎛 ボタン -->
   <div id="btnRow">
-    <div id="btnTopic"  class="sqBtn">📸</div>
-    <div id="btnSearch" class="sqBtn">🔍</div>
-    <div id="btnTest"   class="sqBtn">♻️</div>
-    <div id="shootBtn"  class="sqBtn">●</div>
+    <div class="sqBtn" id="btnOni">📸</div>
+    <div class="sqBtn" id="btnSearch">🔍</div>
+    <div class="sqBtn" id="btnReset">♻️</div>
+    <div class="sqBtn" id="shootBtn">●</div>
   </div>
 
-  <!-- ④ 情報表示 -->
+  <!-- 📝 情報パネル（お題 & 候補TOP3） -->
   <div id="infoPanel">
-    <div class="box" id="topicBox">お題：—</div>
-    <div class="box" id="candBox">候補TOP3：—</div>
+    <div class="box">
+      <b>お題（3桁）：</b><br>
+      <span id="odai">―</span>
+    </div>
+    <div class="box">
+      <b>候補 TOP3：</b><br>
+      <span id="top1">―</span><br>
+      <span id="top2">―</span><br>
+      <span id="top3">―</span>
+    </div>
   </div>
 
 </div>
 
-
 <script>
-/* ----------------------------------------
-   📷 カメラ起動（iOS 黒画面対策 すべて適用）
----------------------------------------- */
-const video = document.getElementById("camera");
-let stream = null;
-
+/* =====================
+   📷 カメラ起動処理
+===================== */
 async function startCamera(){
   try{
-    if(stream){
-      stream.getTracks().forEach(t=>t.stop());
-    }
-
-    stream = await navigator.mediaDevices.getUserMedia({
+    const stream = await navigator.mediaDevices.getUserMedia({
       video:{
-        facingMode:{ ideal:"environment" },
-        width:{ ideal:640 },
-        height:{ ideal:480 }
+        facingMode:"environment",
+        width:{ideal:640},
+        height:{ideal:480}
       },
       audio:false
     });
-
-    /* iOS 再生対策：明示的に play() する */
-    video.srcObject = stream;
-    video.muted = true;
-    video.setAttribute("playsinline", true);
-
-    setTimeout(()=> video.play(), 200);
-
+    const cam = document.getElementById("camera");
+    cam.srcObject = stream;
   }catch(e){
-    alert("カメラ起動失敗: " + e);
+    console.log("カメラエラー:", e);
   }
 }
+startCamera();
 
-startCamera(); // 起動
+/* =====================
+   🎦 長押し撮影処理
+===================== */
+let shootTimer = null;
+const shootBtn = document.getElementById("shootBtn");
+const statusBar = document.getElementById("status");
 
-/* ----------------------------------------
-   🔧 状態関連
----------------------------------------- */
-const s = id => document.getElementById(id);
-let mode = "topic";
-let topics = [];
-let candidateCounts = {};
-let holdTimer = null;
-let holding = false;
+shootBtn.addEventListener("touchstart", () => {
+  statusBar.textContent = "撮影中";
+  statusBar.style.background = "#ff3333";
 
-function statusBlue(msg){
-  s("status").textContent = msg;
-  s("status").style.background = "#1e3cff";
-}
-function statusRed(msg){
-  s("status").textContent = msg;
-  s("status").style.background = "#b11";
-}
+  shootTimer = setTimeout(()=>{
+    captureImage();
+  }, 800); // 長押し 0.8秒
+});
 
-/* ----------------------------------------
-   🔘 ボタン
----------------------------------------- */
-s("btnTopic").onclick  = ()=>{ mode="topic";  statusBlue("📸 お題撮影モード"); };
-s("btnSearch").onclick = ()=>{ mode="search"; statusBlue("🔍 カード探索モード"); };
-s("btnTest").onclick   = ()=>{ startCamera(); statusBlue("♻️ カメラ再起動"); };
+shootBtn.addEventListener("touchend", () => {
+  clearTimeout(shootTimer);
+  statusBar.textContent = "待機中";
+  statusBar.style.background = "#1e3cff";
+});
 
-/* ----------------------------------------
-   📸 長押し撮影
----------------------------------------- */
-const shootBtn = s("shootBtn");
+/* =====================
+   📸 撮影して画像データ取得
+===================== */
+function captureImage(){
+  const video = document.getElementById("camera");
+  const canvas = document.createElement("canvas");
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
 
-shootBtn.addEventListener("mousedown", startHold);
-shootBtn.addEventListener("touchstart", startHold);
-shootBtn.addEventListener("mouseup", endHold);
-shootBtn.addEventListener("mouseleave", endHold);
-shootBtn.addEventListener("touchend", endHold);
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(video, 0, 0);
 
-function startHold(e){
-  e.preventDefault();
-  if(holding) return;
-  holding = true;
-  statusRed("● 撮影中");
+  const imgData = canvas.toDataURL("image/jpeg");
 
-  holdTimer = setInterval(()=> processFrame(), 700);
-}
+  // 実際はOCR処理へ送信する部分
+  console.log("撮影データ:", imgData);
 
-function endHold(e){
-  e.preventDefault();
-  holding = false;
-  clearInterval(holdTimer);
-  statusBlue("🟦 待機中");
+  // テスト用にランダム反映
+  document.getElementById("odai").textContent = String(Math.floor(Math.random()*900+100));
+  document.getElementById("top1").textContent = "候補1";
+  document.getElementById("top2").textContent = "候補2";
+  document.getElementById("top3").textContent = "候補3";
 }
 
-/* ----------------------------------------
-   📷 OCR処理（仮でランダム3桁）
----------------------------------------- */
-function processFrame(){
-  if(!video.videoWidth) return;
-
-  const num = String(100 + Math.floor(Math.random()*900));
-  handleResult(num);
-}
-
-function handleResult(n){
-  if(mode === "topic"){
-    if(!topics.includes(n)) topics.push(n);
-  }else{
-    candidateCounts[n] = (candidateCounts[n] || 0) + 1;
-  }
-  updateUI();
-}
-
-/* ----------------------------------------
-   📊 UI更新
----------------------------------------- */
-function updateUI(){
-  s("topicBox").textContent = "お題：" + (topics.length ? topics.join(" / ") : "—");
-
-  const top3 = Object.keys(candidateCounts)
-    .sort((a,b)=>candidateCounts[b]-candidateCounts[a])
-    .slice(0,3);
-
-  s("candBox").textContent =
-    "候補TOP3：" + (top3.length ? top3.join(" / ") : "—");
-}
 </script>
 
 </body>
