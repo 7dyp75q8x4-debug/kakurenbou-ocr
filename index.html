@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>かくれんぼOCR – 横画面UIテスト</title>
+<title>かくれんぼOCR – モード拡張版UI</title>
 <style>
     body {
         margin: 0;
@@ -35,7 +35,7 @@
         width: 100vw;
     }
 
-    /* 左：カメラ映像エリア（後で中身を追加） */
+    /* 左：カメラ映像（後で中身実装） */
     #cameraArea {
         flex: 2;
         background: #222;
@@ -57,7 +57,7 @@
 
     button {
         padding: 20px;
-        font-size: 2.3vw;
+        font-size: 2vw;
         border-radius: 10px;
         border: none;
         background: #555;
@@ -72,7 +72,7 @@
     }
 
     #progress {
-        font-size: 2vw;
+        font-size: 1.8vw;
         text-align: center;
     }
 
@@ -82,7 +82,7 @@
 
 <div class="container">
 
-    <!-- カメラ映像が入る（まだ空） -->
+    <!-- カメラ映像領域（まだ未実装） -->
     <div id="cameraArea">
         <div style="font-size:3vw;color:#bbb;">カメラ未起動</div>
     </div>
@@ -90,11 +90,14 @@
     <!-- 操作パネル -->
     <div id="controlArea">
 
-        <div id="modeDisplay">現在：お題モード</div>
+        <div id="modeDisplay">現在：お題撮影モード</div>
 
-        <button id="toggleModeBtn">▶ ゲームモードに切り替え</button>
+        <!-- === モード切替ボタン === -->
+        <button class="modeBtn" onclick="setMode('odai')">📸 お題撮影モード</button>
+        <button class="modeBtn" onclick="setMode('search')">🔍 カード探索モード</button>
+        <button class="modeBtn" onclick="setMode('cameraTest')">🎥 カメラテストモード</button>
 
-        <button id="startCapture">🔴 長押しで撮影（まだ動作なし）</button>
+        <button id="startCapture">🔴 長押しで撮影（動作未実装）</button>
 
         <div id="progress">撮影待機中…</div>
 
@@ -102,19 +105,19 @@
 </div>
 
 <script>
-let mode = "odai"; // odai or game
+let mode = "odai";
 
-document.getElementById("toggleModeBtn").onclick = () => {
-    if (mode === "odai") {
-        mode = "game";
-        document.getElementById("modeDisplay").innerText = "現在：ゲームモード";
-        document.getElementById("toggleModeBtn").innerText = "▶ お題モードに切り替え";
-    } else {
-        mode = "odai";
-        document.getElementById("modeDisplay").innerText = "現在：お題モード";
-        document.getElementById("toggleModeBtn").innerText = "▶ ゲームモードに切り替え";
-    }
-};
+function setMode(newMode) {
+    mode = newMode;
+
+    const modeText = {
+        "odai": "現在：お題撮影モード",
+        "search": "現在：カード探索モード",
+        "cameraTest": "現在：カメラテストモード"
+    };
+
+    document.getElementById("modeDisplay").innerText = modeText[newMode];
+}
 </script>
 
 </body>
