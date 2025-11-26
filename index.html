@@ -1,149 +1,202 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>カメラアプリ完全版</title>
 <style>
-body {
+html, body {
   margin: 0;
+  padding: 0;
   overflow: hidden;
   background: #000;
 }
 
-/* カメラ領域：幅を55vwに縮小してUIを隠さない */
-#camera-container {
-  position: fixed;
+/* カメラ映像（右のUI分だけ幅を残す） */
+#camera {
+  position: absolute;
   top: 0;
   left: 0;
-  width: 55vw;
+  width: calc(100vw - 260px);
   height: 100vh;
+  object-fit: cover;
   background: #000;
-  overflow: hidden;
 }
 
-/* 解析結果（左上に小さく） */
-#result-panel {
-  position: fixed;
-  top: 10px;
-  left: 10px;
-  width: 48vw;
-  max-width: 420px;
-  padding: 12px;
-  background: rgba(0,0,0,0.35);
+/* 右側 UI パネル */
+#ui-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 260px;
+  height: 100vh;
+  background: #111;
   color: #fff;
-  backdrop-filter: blur(6px);
-  border-radius: 12px;
-  font-size: 1.2rem;
-  z-index: 50;
-}
-
-/* ステータス（右上） */
-#status-box {
-  position: fixed;
-  top: 10px;
-  right: 10px;
-  width: 35vw;
-  max-width: 360px;
-  padding: 15px;
-  background: rgba(0,0,0,0.5);
-  color: white;
-  text-align: center;
-  font-size: 1.6rem;
-  border-radius: 12px;
-  z-index: 100;
-}
-
-/* 右側ボタンエリア */
-#right-buttons {
-  position: fixed;
-  top: 120px;
-  right: 10px;
-  width: 35vw;
-  max-width: 360px;
+  padding: 12px;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  z-index: 90;
+  gap: 12px;
+  overflow-y: auto;
 }
 
-/* ボタン行 */
-.button-row {
-  display: flex;
-  gap: 14px;
-}
-
-/* 正方形ボタン */
-.square-btn {
-  flex: 1;
-  aspect-ratio: 1 / 1;
-  background: #2e2e2e;
-  border-radius: 18px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
+/* ステータス表示 */
+#statusDisplay {
+  background: #1e3cff;
   color: white;
-  font-size: 1.4rem;
+  padding: 14px;
+  text-align: center;
+  border-radius: 8px;
+  font-size: 20px;
 }
 
-/* 赤ボタン */
-.red-btn {
-  background: #b40000;
+/* ボタン */
+.mode-btn, #shootBtn {
+  width: 100%;
+  height: 100px;
+  background: #333;
+  color: #fff;
+  border: none;
+  border-radius: 14px;
+  font-size: 20px;
 }
 
-/* 黒ボタン */
-.black-btn {
-  background: #111;
+#shootBtn {
+  background: #c22;
+}
+
+/* 結果表示エリア */
+#resultBox {
+  background: #222;
+  padding: 10px;
+  border-radius: 8px;
+}
+
+.section-title {
+  font-size: 18px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid #555;
+  padding-bottom: 4px;
 }
 </style>
-
+</head>
 <body>
 
-<div id="camera-container">
-  <video id="camera" autoplay playsinline></video>
-</div>
+<!-- カメラ映像 -->
+<video id="camera" autoplay playsinline muted></video>
 
-<!-- 解析結果 -->
-<div id="result-panel">
-  <b>📋解析結果</b><br><br>
-  <b>お題（3桁）</b><br>
-  <span id="all-questions">なし</span><br><br>
+<!-- UI パネル -->
+<div id="ui-panel">
 
-  <b>正解候補トップ3</b><br>
-  <span id="top3">なし</span>
-</div>
+  <div id="statusDisplay">待機中</div>
 
-<!-- ステータス表示 -->
-<div id="status-box">
-  現在：<span id="status-text">お題撮影モード</span>
-</div>
+  <button class="mode-btn" onclick="setMode('topic')">📸 お題撮影</button>
+  <button class="mode-btn" onclick="setMode('search')">🔍 カード探索</button>
 
-<!-- 右側ボタン -->
-<div id="right-buttons">
-  <div class="button-row">
-    <div class="square-btn" id="btn-quiz">📷 お題撮影</div>
-    <div class="square-btn" id="btn-card">🔍 カード探索</div>
+  <button id="shootBtn"
+    onmousedown="startHold()" onmouseup="stopHold()"
+    ontouchstart="startHold()" ontouchend="stopHold()">
+    📸 長押し撮影
+  </button>
+
+  <div id="resultBox">
+    <div class="section-title">📘 読み取ったお題</div>
+    <div id="topicText">（まだありません）</div>
+
+    <div class="section-title" style="margin-top:12px;">🏆 カード探索候補TOP3</div>
+    <div id="candidates">
+      1位: ー<br>
+      2位: ー<br>
+      3位: ー
+    </div>
   </div>
-  <div class="button-row">
-    <div class="square-btn black-btn" id="btn-test">🎥 テスト</div>
-    <div class="square-btn red-btn" id="btn-long">📸 長押し撮影</div>
-  </div>
+
 </div>
 
 <script>
-// ▼ OCR結果 → 3桁数字だけ抽出する関数
-function extractThreeDigitNumbers(text) {
-  const matches = text.match(/\b\d{3}\b/g);
-  return matches ? matches : [];
+let stream = null;
+let holding = false;
+let holdTimer = null;
+let mode = "topic";
+
+/* --------------------
+   カメラ起動（真っ暗対策済）
+--------------------- */
+async function startCamera() {
+  if (stream) {
+    stream.getTracks().forEach(t => t.stop());
+  }
+
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: { exact: "environment" },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 }
+      },
+      audio: false
+    });
+
+    const video = document.getElementById("camera");
+    video.srcObject = stream;
+
+  } catch (err) {
+    console.error("カメラエラー:", err);
+    alert("カメラが起動できません。\n設定からカメラ許可をオンにしてください。");
+  }
+}
+startCamera();
+
+/* --------------------
+   モード切替
+--------------------- */
+function setMode(newMode) {
+  mode = newMode;
+  document.getElementById("statusDisplay").textContent = "待機中";
 }
 
-// ▼ OCR処理後に呼ばれる部分（あなたのコードに組み込むだけで動く）
-function onOCRResult(rawText) {
-  const numbers = extractThreeDigitNumbers(rawText);
+/* --------------------
+   長押し撮影
+--------------------- */
+function startHold() {
+  holding = true;
+  document.getElementById("statusDisplay").textContent = "撮影中…";
 
-  // お題一覧
-  document.getElementById("all-questions").textContent =
-    numbers.length ? numbers.join(" / ") : "なし";
+  holdTimer = setTimeout(() => {
+    if (holding) captureFrame();
+  }, 500); // 0.5秒以上長押しで撮影
+}
 
-  // 正解候補トップ3（例：OCRの信頼度順などでソートするならここ）
-  const top3 = numbers.slice(0, 3);
-  document.getElementById("top3").textContent =
-    top3.length ? top3.join(" / ") : "なし";
+function stopHold() {
+  holding = false;
+  clearTimeout(holdTimer);
+  document.getElementById("statusDisplay").textContent = "待機中";
+}
+
+/* --------------------
+   撮影 → OCR や解析へ
+--------------------- */
+function captureFrame() {
+  const video = document.getElementById("camera");
+
+  const canvas = document.createElement("canvas");
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(video, 0, 0);
+
+  const imageData = canvas.toDataURL("image/jpeg");
+
+  console.log("撮影しました:", imageData);
+
+  // 仮の表示（本番は OCR → 結果をここに表示）
+  if (mode === "topic") {
+    document.getElementById("topicText").textContent = "（例）撮影されたお題テキスト";
+  } else {
+    document.getElementById("candidates").innerHTML =
+      "1位: 候補A<br>2位: 候補B<br>3位: 候補C";
+  }
 }
 </script>
-
 </body>
+</html>
