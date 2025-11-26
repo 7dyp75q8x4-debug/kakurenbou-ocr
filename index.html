@@ -1,18 +1,45 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<title>かくれんぼ OCR Finder</title>
+<meta charset="UTF-8" />
+<title>かくれんぼ OCR Finder (GitHub Pages版)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
-
 <style>
-body { background:#111; color:#fff; text-align:center; font-family:sans-serif; }
-button { padding:10px 20px; margin:10px; font-size:18px; }
-video { width:90%; max-width:600px; background:#000; }
+body {
+    background: #111;
+    color: #fff;
+    text-align: center;
+    font-family: sans-serif;
+}
+video {
+    width: 90%;
+    max-width: 600px;
+    margin-top: 10px;
+    border: 2px solid #555;
+    border-radius: 10px;
+}
+button {
+    font-size: 20px;
+    padding: 10px 20px;
+    margin: 15px;
+    border-radius: 10px;
+}
+#result {
+    margin-top: 20px;
+    font-size: 22px;
+    white-space: pre-wrap;
+}
+#errorBox {
+    background: #222;
+    padding: 10px;
+    margin: 10px;
+    border-radius: 8px;
+    display: none;
+}
 </style>
 </head>
+
 <body>
 
 <h1>かくれんぼ OCR Finder<br>(GitHub Pages版)</h1>
@@ -20,21 +47,49 @@ video { width:90%; max-width:600px; background:#000; }
 <button onclick="startCamera()">カメラを起動</button>
 <button onclick="stopCamera()">停止</button>
 
-<video id="video" autoplay playsinline></video>
-<canvas id="canvas" style="display:none;"></canvas>
+<div id="errorBox"></div>
 
-<p id="result">（ここに認識結果が表示されます）</p>
+<video id="video" autoplay playsinline></video>
+
+<div id="result">(ここに認識結果が表示されます)</div>
+
+<script src="https://unpkg.com/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
 
 <script>
-
 let stream = null;
+let video = document.getElementById("video");
+let resultBox = document.getElementById("result");
+let errorBox = document.getElementById("errorBox");
 
+function showError(err) {
+    errorBox.style.display = "block";
+    errorBox.innerText = "エラー: " + err;
+}
+
+function hideError() {
+    errorBox.style.display = "none";
+}
+
+/* ============================
+   📸 外カメラを優先して起動する
+   ============================ */
 async function startCamera() {
+    hideError();
+
     try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        document.getElementById("video").srcObject = stream;
-    } catch (e) {
-        alert("カメラが起動できません。HTTPS で開いているか確認してください。\n\n詳細:\n" + e);
+        stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+                facingMode: { ideal: "environment" },   // ← 外カメラ優先
+                width: { ideal: 1280 },
+                height: { ideal: 720 }
+            },
+            audio: false
+        });
+
+        video.srcObject = stream;
+
+    } catch (error) {
+        showError(error);
     }
 }
 
@@ -44,33 +99,32 @@ function stopCamera() {
     }
 }
 
-async function captureAndRecognize() {
+/* ============================
+   📘 OCR 処理（カメラ映像を解析）
+   ============================ */
+setInterval(async () => {
+    if (!video.srcObject) return;
 
-    const video = document.getElementById("video");
-    const canvas = document.getElementById("canvas");
-    const ctx = canvas.getContext("2d");
-
+    const canvas = document.createElement("canvas");
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
 
+    const ctx = canvas.getContext("2d");
     ctx.drawImage(video, 0, 0);
-    const imageData = canvas.toDataURL("image/png");
 
-    const resultText = document.getElementById("result");
-    resultText.innerHTML = "読み取り中…";
+    try {
+        const worker = await Tesseract.createWorker("jpn");
+        const ret = await worker.recognize(canvas);
+        await worker.terminate();
 
-    const worker = await Tesseract.createWorker("jpn");
+        resultBox.innerText = ret.data.text;
 
-    const { data } = await worker.recognize(imageData);
-
-    resultText.innerHTML = "結果: " + data.text;
-
-    await worker.terminate();
-}
-
-// 3秒ごとに OCR 読み取り
-setInterval(captureAndRecognize, 3000);
+    } catch (e) {
+        showError(e);
+    }
+}, 2500);
 
 </script>
+
 </body>
 </html>
