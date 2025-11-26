@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<title>カメラアプリ完全版</title>
+<meta charset="UTF-8" />
+<title>カメラテスト完全版</title>
+
 <style>
 html, body {
   margin: 0;
@@ -11,19 +12,19 @@ html, body {
   background: #000;
 }
 
-/* カメラ映像（右のUI分だけ幅を残す） */
+/* カメラ画面（左側） */
 #camera {
   position: absolute;
   top: 0;
   left: 0;
   width: calc(100vw - 260px);
   height: 100vh;
+  background: black;
   object-fit: cover;
-  background: #000;
 }
 
-/* 右側 UI パネル */
-#ui-panel {
+/* 右の UI パネル */
+#ui {
   position: absolute;
   top: 0;
   right: 0;
@@ -36,102 +37,84 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  overflow-y: auto;
-}
-
-/* ステータス表示 */
-#statusDisplay {
-  background: #1e3cff;
-  color: white;
-  padding: 14px;
-  text-align: center;
-  border-radius: 8px;
-  font-size: 20px;
 }
 
 /* ボタン */
-.mode-btn, #shootBtn {
+.btn {
   width: 100%;
-  height: 100px;
+  height: 70px;
   background: #333;
-  color: #fff;
   border: none;
-  border-radius: 14px;
-  font-size: 20px;
+  color: white;
+  border-radius: 10px;
+  font-size: 18px;
 }
 
 #shootBtn {
   background: #c22;
 }
 
-/* 結果表示エリア */
-#resultBox {
-  background: #222;
-  padding: 10px;
-  border-radius: 8px;
+/* ステータス */
+#status {
+  background: #1e3cff;
+  padding: 12px;
+  text-align: center;
+  border-radius: 10px;
+  font-size: 20px;
 }
 
-.section-title {
-  font-size: 18px;
-  margin-bottom: 6px;
-  border-bottom: 1px solid #555;
-  padding-bottom: 4px;
+/* 結果表示 */
+#resultBox {
+  background: #222;
+  padding: 8px;
+  border-radius: 10px;
+  margin-top: 10px;
+  height: 200px;
+  overflow-y: auto;
 }
 </style>
 </head>
+
 <body>
 
-<!-- カメラ映像 -->
+<!-- ★ カメラ映像（これが映らないときはカメラ権限か facingMode が原因） -->
 <video id="camera" autoplay playsinline muted></video>
 
-<!-- UI パネル -->
-<div id="ui-panel">
+<!-- UIパネル -->
+<div id="ui">
+  <div id="status">待機中</div>
+  <button class="btn" onclick="setMode('topic')">📸 お題撮影</button>
+  <button class="btn" onclick="setMode('search')">🔍 カード探索</button>
 
-  <div id="statusDisplay">待機中</div>
-
-  <button class="mode-btn" onclick="setMode('topic')">📸 お題撮影</button>
-  <button class="mode-btn" onclick="setMode('search')">🔍 カード探索</button>
-
-  <button id="shootBtn"
+  <button id="shootBtn" class="btn"
     onmousedown="startHold()" onmouseup="stopHold()"
-    ontouchstart="startHold()" ontouchend="stopHold()">
-    📸 長押し撮影
-  </button>
+    ontouchstart="startHold()" ontouchend="stopHold()">📸 長押し撮影</button>
 
   <div id="resultBox">
-    <div class="section-title">📘 読み取ったお題</div>
-    <div id="topicText">（まだありません）</div>
-
-    <div class="section-title" style="margin-top:12px;">🏆 カード探索候補TOP3</div>
-    <div id="candidates">
-      1位: ー<br>
-      2位: ー<br>
-      3位: ー
-    </div>
+    <div><b>お題:</b> <span id="topicText">なし</span></div>
+    <div style="margin-top:10px;"><b>候補TOP3:</b></div>
+    <div id="candidates">ー</div>
   </div>
-
 </div>
 
 <script>
 let stream = null;
-let holding = false;
-let holdTimer = null;
 let mode = "topic";
+let holding = false;
+let timer = null;
 
-/* --------------------
-   カメラ起動（真っ暗対策済）
---------------------- */
+/* ============================
+   📌 iPhone で最も確実に映るカメラ起動
+============================ */
 async function startCamera() {
-  if (stream) {
-    stream.getTracks().forEach(t => t.stop());
-  }
+  if (stream) stream.getTracks().forEach(t => t.stop());
 
   try {
     stream = await navigator.mediaDevices.getUserMedia({
       video: {
-        facingMode: { exact: "environment" },
-        width: { ideal: 1920 },
-        height: { ideal: 1080 }
+        facingMode: { ideal: "environment" },  // ← iOSはidealが最強
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
       },
       audio: false
     });
@@ -139,43 +122,38 @@ async function startCamera() {
     const video = document.getElementById("camera");
     video.srcObject = stream;
 
-  } catch (err) {
-    console.error("カメラエラー:", err);
-    alert("カメラが起動できません。\n設定からカメラ許可をオンにしてください。");
+  } catch (e) {
+    console.error("カメラエラー:", e);
+    alert("カメラを起動できません。設定→このサイト→カメラを許可してください。");
   }
 }
+
 startCamera();
 
-/* --------------------
-   モード切替
---------------------- */
-function setMode(newMode) {
-  mode = newMode;
-  document.getElementById("statusDisplay").textContent = "待機中";
+/* --- モード切替 --- */
+function setMode(m) {
+  mode = m;
+  document.getElementById("status").textContent = "待機中";
 }
 
-/* --------------------
-   長押し撮影
---------------------- */
+/* --- 長押し撮影処理 --- */
 function startHold() {
   holding = true;
-  document.getElementById("statusDisplay").textContent = "撮影中…";
+  document.getElementById("status").textContent = "撮影中…";
 
-  holdTimer = setTimeout(() => {
-    if (holding) captureFrame();
-  }, 500); // 0.5秒以上長押しで撮影
+  timer = setTimeout(() => {
+    if (holding) takePhoto();
+  }, 500);
 }
 
 function stopHold() {
   holding = false;
-  clearTimeout(holdTimer);
-  document.getElementById("statusDisplay").textContent = "待機中";
+  clearTimeout(timer);
+  document.getElementById("status").textContent = "待機中";
 }
 
-/* --------------------
-   撮影 → OCR や解析へ
---------------------- */
-function captureFrame() {
+/* --- 撮影 --- */
+function takePhoto() {
   const video = document.getElementById("camera");
 
   const canvas = document.createElement("canvas");
@@ -185,18 +163,19 @@ function captureFrame() {
   const ctx = canvas.getContext("2d");
   ctx.drawImage(video, 0, 0);
 
-  const imageData = canvas.toDataURL("image/jpeg");
+  const imgData = canvas.toDataURL("image/jpeg");
 
-  console.log("撮影しました:", imageData);
+  console.log("撮影完了:", imgData);
 
-  // 仮の表示（本番は OCR → 結果をここに表示）
+  // 仮の処理（OCR まだ入れてないので固定値）
   if (mode === "topic") {
-    document.getElementById("topicText").textContent = "（例）撮影されたお題テキスト";
+    document.getElementById("topicText").textContent = "123"; // ← 本来は OCR 結果
   } else {
     document.getElementById("candidates").innerHTML =
-      "1位: 候補A<br>2位: 候補B<br>3位: 候補C";
+      "1位: りんご<br>2位: バナナ<br>3位: メロン";
   }
 }
 </script>
+
 </body>
 </html>
