@@ -1,181 +1,306 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8" />
-<title>カメラテスト完全版</title>
-
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>かくれんぼ OCR — 情報優先レイアウト</title>
 <style>
-html, body {
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-  background: #000;
-}
+  :root{
+    --ui-width: 34vw;   /* 右側UI幅（調整可） */
+    --cam-width: calc(100vw - var(--ui-width));
+    --accent: #1e3cff;
+    --bg: #0f0f0f;
+  }
+  html,body{height:100%;margin:0;background:#000;font-family:system-ui,-apple-system,Segoe UI,Roboto,"Hiragino Kaku Gothic ProN",Meiryo,"Yu Gothic",sans-serif;color:#fff}
+  /* --- カメラ領域（左） --- */
+  #cameraWrap{
+    position:fixed; left:0; top:0;
+    width:var(--cam-width); height:100vh;
+    background:#000; display:flex; align-items:center; justify-content:center;
+    overflow:hidden;
+  }
+  video#camera{
+    width:100%; height:100%; object-fit:cover; background:#000;
+  }
 
-/* カメラ画面（左側） */
-#camera {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: calc(100vw - 260px);
-  height: 100vh;
-  background: black;
-  object-fit: cover;
-}
+  /* --- 右UI --- */
+  #ui {
+    position:fixed; right:0; top:0;
+    width:var(--ui-width); height:100vh;
+    background: linear-gradient(180deg,#111 0%, #0b0b0b 100%);
+    box-shadow: -8px 0 18px rgba(0,0,0,0.6);
+    padding:12px; box-sizing:border-box; display:flex; flex-direction:column; gap:12px;
+  }
 
-/* 右の UI パネル */
-#ui {
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: 260px;
-  height: 100vh;
-  background: #111;
-  color: #fff;
-  padding: 12px;
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
+  /* ステータス */
+  #status {
+    background:var(--accent); color:#fff; font-weight:600;
+    padding:10px; text-align:center; border-radius:10px; font-size:18px;
+  }
 
-/* ボタン */
-.btn {
-  width: 100%;
-  height: 70px;
-  background: #333;
-  border: none;
-  color: white;
-  border-radius: 10px;
-  font-size: 18px;
-}
+  /* 操作用ボタン群（小さめに） */
+  .btnRow { display:flex; gap:10px; }
+  .smallBtn {
+    flex:1; height:72px; border-radius:12px; border:0;
+    background:#2b2b2b; color:#fff; font-size:16px; font-weight:600;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .smallBtn:active{ transform:translateY(1px); filter:brightness(1.05); }
 
-#shootBtn {
-  background: #c22;
-}
+  #shootBtn { background:#c33; }
 
-/* ステータス */
-#status {
-  background: #1e3cff;
-  padding: 12px;
-  text-align: center;
-  border-radius: 10px;
-  font-size: 20px;
-}
+  /* 情報パネル（大きく） */
+  #infoPanel {
+    margin-top:6px; background:rgba(20,20,20,0.9); border-radius:12px;
+    padding:12px; flex:1; overflow:auto; box-shadow:inset 0 1px 0 rgba(255,255,255,0.02);
+  }
+  .sectionTitle { font-weight:700; font-size:16px; margin-bottom:8px; color:#ffd; }
+  .dataBox { background:rgba(0,0,0,0.2); padding:10px; border-radius:8px; font-size:15px; line-height:1.5; color:#eee; }
 
-/* 結果表示 */
-#resultBox {
-  background: #222;
-  padding: 8px;
-  border-radius: 10px;
-  margin-top: 10px;
-  height: 200px;
-  overflow-y: auto;
-}
+  /* サムネール列（撮影履歴） */
+  #thumbs { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+  .thumb { width:72px; height:50px; object-fit:cover; border-radius:6px; border:2px solid rgba(255,255,255,0.04); }
+
+  /* レスポンシブ微調整（極端に小さい横幅向け） */
+  @media (max-width:900px){
+    :root{ --ui-width: 36vw; }
+    .smallBtn{ height:64px; font-size:15px; }
+    .thumb{ width:60px; height:42px; }
+  }
 </style>
 </head>
-
 <body>
 
-<!-- ★ カメラ映像（これが映らないときはカメラ権限か facingMode が原因） -->
-<video id="camera" autoplay playsinline muted></video>
+<!-- 左：カメラ -->
+<div id="cameraWrap">
+  <video id="camera" autoplay playsinline muted></video>
+</div>
 
-<!-- UIパネル -->
+<!-- 右：UI（上：ステータス/ボタン、下：情報パネル大） -->
 <div id="ui">
-  <div id="status">待機中</div>
-  <button class="btn" onclick="setMode('topic')">📸 お題撮影</button>
-  <button class="btn" onclick="setMode('search')">🔍 カード探索</button>
+  <div id="status">🟦 待機中</div>
 
-  <button id="shootBtn" class="btn"
-    onmousedown="startHold()" onmouseup="stopHold()"
-    ontouchstart="startHold()" ontouchend="stopHold()">📸 長押し撮影</button>
+  <div class="btnRow">
+    <button id="btnTopic" class="smallBtn">📷 お題撮影</button>
+    <button id="btnSearch" class="smallBtn">🔍 カード探索</button>
+  </div>
 
-  <div id="resultBox">
-    <div><b>お題:</b> <span id="topicText">なし</span></div>
-    <div style="margin-top:10px;"><b>候補TOP3:</b></div>
-    <div id="candidates">ー</div>
+  <div class="btnRow">
+    <button id="btnTest" class="smallBtn">🎥 カメラテスト</button>
+    <button id="shootBtn" class="smallBtn">📸 長押し撮影</button>
+  </div>
+
+  <!-- 大きな情報パネル（相当重要） -->
+  <div id="infoPanel">
+    <div class="sectionTitle">📋 読み取り結果（重要領域）</div>
+
+    <div style="margin-bottom:8px">
+      <div style="font-weight:700; color:#ffd; margin-bottom:6px">お題（3桁の数字・スキャン一覧）</div>
+      <div id="topics" class="dataBox">（まだありません）</div>
+    </div>
+
+    <div style="margin-top:10px">
+      <div style="font-weight:700; color:#ffd; margin-bottom:6px">カード探索 — 候補 TOP 3</div>
+      <div id="candidates" class="dataBox">（まだありません）</div>
+    </div>
+
+    <div style="margin-top:12px">
+      <div style="font-weight:700; color:#ffd; margin-bottom:6px">撮影履歴（最大10枚）</div>
+      <div id="thumbs"></div>
+    </div>
   </div>
 </div>
 
 <script>
+/* -----------------------------
+   安定して映るカメラ起動（iOS 対策）
+   - facingMode: ideal "environment"
+   - playsinline / muted / autoplay
+----------------------------- */
+const video = document.getElementById('camera');
 let stream = null;
-let mode = "topic";
-let holding = false;
-let timer = null;
 
-/* ============================
-   📌 iPhone で最も確実に映るカメラ起動
-============================ */
 async function startCamera() {
-  if (stream) stream.getTracks().forEach(t => t.stop());
-
+  if (stream) {
+    stream.getTracks().forEach(t => t.stop());
+    stream = null;
+  }
   try {
     stream = await navigator.mediaDevices.getUserMedia({
       video: {
-        facingMode: { ideal: "environment" },  // ← iOSはidealが最強
+        facingMode: { ideal: "environment" },
         width: { ideal: 1280 },
         height: { ideal: 720 }
       },
       audio: false
     });
-
-    const video = document.getElementById("camera");
     video.srcObject = stream;
-
-  } catch (e) {
-    console.error("カメラエラー:", e);
-    alert("カメラを起動できません。設定→このサイト→カメラを許可してください。");
+    document.getElementById('status').textContent = '🟦 待機中';
+  } catch (err) {
+    console.error('カメラ起動エラー:', err);
+    alert('カメラが起動できません。サイトのカメラ権限を確認してください。');
+    document.getElementById('status').textContent = '⚠ カメラエラー';
   }
 }
-
 startCamera();
 
-/* --- モード切替 --- */
-function setMode(m) {
-  mode = m;
-  document.getElementById("status").textContent = "待機中";
-}
+/* -----------------------------
+   状態・データ管理
+----------------------------- */
+let mode = 'topic'; // 'topic' or 'search'
+let isHolding = false;
+let holdInterval = null;
+let captureHistory = []; // blob urls for thumbs (max 10)
+let topics = [];         // array of strings (3-digit numbers)
+let candidateCounts = {}; // map num->score for simple ranking
 
-/* --- 長押し撮影処理 --- */
-function startHold() {
-  holding = true;
-  document.getElementById("status").textContent = "撮影中…";
+/* UI refs */
+const statusEl = document.getElementById('status');
+const topicsEl = document.getElementById('topics');
+const candidatesEl = document.getElementById('candidates');
+const thumbsEl = document.getElementById('thumbs');
 
-  timer = setTimeout(() => {
-    if (holding) takePhoto();
+/* ボタンイベント */
+document.getElementById('btnTopic').addEventListener('click', () => { mode='topic'; statusEl.textContent='🟦 お題撮影モード'; });
+document.getElementById('btnSearch').addEventListener('click', () => { mode='search'; statusEl.textContent='🟦 カード探索モード'; });
+document.getElementById('btnTest').addEventListener('click', () => { startCamera(); statusEl.textContent='🟦 カメラテスト'; });
+
+/* 長押し撮影（0.5秒で1枚撮影。押し続けたら 1 秒ごとの連写に自動移行） */
+const shootBtn = document.getElementById('shootBtn');
+shootBtn.addEventListener('touchstart', onHoldStart, {passive:false});
+shootBtn.addEventListener('mousedown', onHoldStart);
+shootBtn.addEventListener('touchend', onHoldEnd);
+shootBtn.addEventListener('mouseup', onHoldEnd);
+shootBtn.addEventListener('mouseleave', onHoldEnd);
+
+function onHoldStart(e){
+  e.preventDefault();
+  if (isHolding) return;
+  isHolding = true;
+  statusEl.textContent = '🔴 撮影中';
+  // 0.5秒で1枚撮る → その後毎秒1枚
+  holdInterval = setTimeout(() => {
+    if (!isHolding) return;
+    captureAndProcess();
+    // start interval every 1s
+    holdInterval = setInterval(() => captureAndProcess(), 1000);
   }, 500);
+  // also capture immediate short press behaviour (optional): capture on start
+  // captureAndProcess();
 }
 
-function stopHold() {
-  holding = false;
-  clearTimeout(timer);
-  document.getElementById("status").textContent = "待機中";
-}
-
-/* --- 撮影 --- */
-function takePhoto() {
-  const video = document.getElementById("camera");
-
-  const canvas = document.createElement("canvas");
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-
-  const ctx = canvas.getContext("2d");
-  ctx.drawImage(video, 0, 0);
-
-  const imgData = canvas.toDataURL("image/jpeg");
-
-  console.log("撮影完了:", imgData);
-
-  // 仮の処理（OCR まだ入れてないので固定値）
-  if (mode === "topic") {
-    document.getElementById("topicText").textContent = "123"; // ← 本来は OCR 結果
-  } else {
-    document.getElementById("candidates").innerHTML =
-      "1位: りんご<br>2位: バナナ<br>3位: メロン";
+function onHoldEnd(e){
+  e && e.preventDefault && e.preventDefault();
+  if (!isHolding) return;
+  isHolding = false;
+  statusEl.textContent = '🟦 待機中';
+  if (holdInterval) {
+    clearTimeout(holdInterval);
+    holdInterval = null;
   }
 }
-</script>
 
+/* -----------------------------
+   キャプチャ＆簡易解析
+   - 現時点は「画像を撮ってサムネ載せ」「画像から3桁を抽出する場所を用意」
+   - 実運用はここに OCR ライブラリ（e.g. Tesseract.js）を導入して
+     OCR 結果テキストから 3桁を抽出してください
+----------------------------- */
+function captureAndProcess(){
+  if (!video || !video.videoWidth) { console.warn('video not ready'); return; }
+
+  const canvas = document.createElement('canvas');
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0);
+
+  // プレビュー用サムネイル
+  canvas.toBlob(blob => {
+    const url = URL.createObjectURL(blob);
+    pushThumb(url);
+  }, 'image/jpeg', 0.8);
+
+  // === OCR を入れる場所ここ ===
+  // 例: tesseract を入れたら OCR を呼び、戻り文字列から 3桁のみを抜く
+  // 今はデモのため「画像内に埋められた数字の文字列を仮に '123' とする」か、
+  // ユーザーが手動で入れられるUIを追加する方法があります。
+  //
+  // 仮処理（デモ）：カメラからの解析結果をランダムで生成（本番はOCRに置換）
+  //
+  const demoCandidates = generateDemo3Digit(); // デモ用 — 本番はOCRで置き換え
+  handleDetectedNumbers(demoCandidates);
+}
+
+/* demo：ランダムに 3桁数字を返す（OCR 実装前の仮） */
+function generateDemo3Digit(){
+  const n = Math.floor(Math.random()*900)+100;
+  return [String(n)];
+}
+
+/* 抽出結果の扱い：
+   - mode === 'topic' → topics[] に追加（3桁のみ）
+   - mode === 'search' → 候補スコアを増やし上位3を更新
+*/
+function handleDetectedNumbers(arrNums){
+  if (!Array.isArray(arrNums) || arrNums.length===0) return;
+  for (const s of arrNums){
+    const m = s.match(/^\d{3}$/);
+    if (!m) continue; // 3桁以外は除外
+    if (mode === 'topic'){
+      // 重複を避けつつ追加（最近が右）
+      if (!topics.includes(s)) topics.push(s);
+      if (topics.length>20) topics.shift();
+    } else {
+      // カード探索：スコアを簡易集計
+      candidateCounts[s] = (candidateCounts[s]||0) + 1;
+    }
+  }
+  refreshUI();
+}
+
+/* UI更新：topics と candidates を表示 */
+function refreshUI(){
+  topicsEl.textContent = topics.length ? topics.join('  /  ') : '（なし）';
+
+  // 上位3（candidateCounts のスコア順）
+  const arr = Object.keys(candidateCounts);
+  arr.sort((a,b)=> (candidateCounts[b]||0)-(candidateCounts[a]||0));
+  const top3 = arr.slice(0,3);
+  if (top3.length===0){
+    candidatesEl.textContent = '（なし）';
+  } else {
+    candidatesEl.innerHTML = top3.map((k,i)=>`${i+1}位: ${k} （${candidateCounts[k]}）`).join('<br>');
+  }
+}
+
+/* サムネ管理（最大10枚） */
+function pushThumb(url){
+  captureHistory.unshift(url);
+  if (captureHistory.length>10){
+    const last = captureHistory.pop();
+    URL.revokeObjectURL(last);
+  }
+  renderThumbs();
+}
+
+function renderThumbs(){
+  thumbsEl.innerHTML = '';
+  for (const u of captureHistory){
+    const img = document.createElement('img');
+    img.src = u; img.className='thumb';
+    thumbsEl.appendChild(img);
+  }
+}
+
+/* -----------------------------
+   便利：OCR を導入する場合のヒント（コメント）
+   - Tesseract.js を CDN で読み込んで OCR
+     (例) <script src="https://unpkg.com/tesseract.js@v2.1.5/dist/tesseract.min.js"></script>
+   - captureAndProcess() 内で canvas を blob にして Tesseract.recognize(blob, 'eng') などを呼ぶ
+   - 返ってきたテキストから /\b\d{3}\b/g で 3桁を抜き出し handleDetectedNumbers() に渡す
+----------------------------- */
+
+</script>
 </body>
 </html>
