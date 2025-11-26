@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>かくれんぼOCR – カメラ実装版</title>
+<title>かくれんぼOCR – 完全動作版</title>
 <style>
     body {
         margin: 0;
@@ -33,11 +33,11 @@
     video {
         width: 100%;
         height: 100%;
-        object-fit: cover; /* 横画面にフィット */
-        transform: scaleX(-1); /* ミラーOFF → 後述で切り替え可 */
+        object-fit: cover;
+        transform: none; /* ← ミラー解除（外カメラなら左右反転しない） */
     }
 
-    /* 右側の操作エリア */
+    /* 右側の操作パネル */
     #controlArea {
         flex: 1;
         background: #333;
@@ -57,10 +57,11 @@
     }
 
     #modeDisplay {
-        font-size: 2.5vw;
+        font-size: 2.3vw;
         text-align: center;
         padding: 20px;
         background: #222;
+        border-radius: 10px;
     }
 
     #progress {
@@ -85,9 +86,9 @@
         <button onclick="setMode('search')">🔍 カード探索モード</button>
         <button onclick="setMode('cameraTest')">🎥 カメラテストモード</button>
 
-        <button id="startCapture">🔴 長押しで撮影（まだ動作しません）</button>
+        <button id="startCapture">🔴 長押しで撮影</button>
 
-        <div id="progress">撮影待機中…</div>
+        <div id="progress">連写待機中…</div>
     </div>
 
 </div>
@@ -95,9 +96,12 @@
 <script>
 let mode = "odai";
 let stream = null;
+let capturing = false;
+let captureInterval = null;
+let capturedImages = [];
 
 /* ============================
-   モード切り替え
+   モード切替
 ============================ */
 function setMode(newMode) {
     mode = newMode;
@@ -112,39 +116,87 @@ function setMode(newMode) {
 }
 
 /* ============================
-   ★ 外カメラを起動する関数
+   外カメラ起動
 ============================ */
 async function startCamera() {
     try {
         stream = await navigator.mediaDevices.getUserMedia({
             video: {
-                facingMode: { exact: "environment" }, // ★ 外カメラ強制
+                facingMode: { exact: "environment" },  // ★ 外カメラ強制
                 width: { ideal: 1920 },
                 height: { ideal: 1080 }
             },
             audio: false
         });
-
-        const video = document.getElementById("video");
-        video.srcObject = stream;
-
-        console.log("外カメラ起動OK");
-
     } catch (e) {
-        console.error("外カメラ起動できず → 内カメラへ fallback", e);
+        console.warn("外カメラ起動失敗 → 内カメラ fallback");
 
-        // fallback：内カメラ
         stream = await navigator.mediaDevices.getUserMedia({
             video: true,
             audio: false
         });
-
-        document.getElementById("video").srcObject = stream;
     }
+
+    document.getElementById("video").srcObject = stream;
 }
 
-/* 起動時にカメラON */
 startCamera();
+
+/* ============================
+   長押し撮影（1秒ごとに最大10枚）
+============================ */
+
+const button = document.getElementById("startCapture");
+
+button.addEventListener("touchstart", () => startCapturing());
+button.addEventListener("mousedown", () => startCapturing());
+
+button.addEventListener("touchend", () => stopCapturing());
+button.addEventListener("mouseup", () => stopCapturing());
+button.addEventListener("mouseleave", () => stopCapturing());
+
+function startCapturing() {
+    if (capturing) return; // 2重防止
+    capturing = true;
+    capturedImages = [];
+
+    document.getElementById("progress").innerText = "撮影中… 0/10";
+
+    captureInterval = setInterval(() => {
+        if (capturedImages.length >= 10) {
+            stopCapturing();
+            return;
+        }
+        takePicture();
+    }, 1000);
+}
+
+function stopCapturing() {
+    capturing = false;
+    clearInterval(captureInterval);
+
+    document.getElementById("progress").innerText =
+        `撮影終了：${capturedImages.length}枚`;
+
+    console.log("撮影した画像データ：", capturedImages);
+}
+
+function takePicture() {
+    const video = document.getElementById("video");
+
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0);
+
+    const imgData = canvas.toDataURL("image/png");
+    capturedImages.push(imgData);
+
+    document.getElementById("progress").innerText =
+        `撮影中… ${capturedImages.length}/10`;
+}
 </script>
 
 </body>
