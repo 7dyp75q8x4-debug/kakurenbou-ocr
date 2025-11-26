@@ -3,452 +3,548 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>かくれんぼ OCR — 最終版</title>
+<title>かくれんぼ OCR — Web版</title>
 
-<!-- Tesseract.js CDN -->
-<script src="https://unpkg.com/tesseract.js@4.1.1/dist/tesseract.min.js"></script>
+<!-- Tesseract.js v2 CDN (簡単に使えるAPI) -->
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@2.1.5/dist/tesseract.min.js"></script>
 
 <style>
   :root{
-    --bg:#000;
-    --panel:#0f0f10;
-    --card:#121212;
-    --accent:#c42b2b;
-    --glass: rgba(255,255,255,0.03);
-    --white: #fff;
+    --bg:#090909;
+    --card:#0f0f0f;
+    --accent:#0fbf5a;
+    --danger:#d23b3b;
+    --panel:#1a1a1a;
+    --muted:#9aa0a6;
+    --white:#fff;
   }
-  html,body{height:100%; margin:0; background:var(--bg); color:var(--white); font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN","Yu Gothic","Noto Sans JP",sans-serif; -webkit-font-smoothing:antialiased;}
-  /* Outer grid: left(固定幅) / center(フレキシブル) / right(25%) */
-  #root{
-    height:100vh; display:grid; grid-template-columns: 100px 1fr 25vw; gap:8px; padding:8px; box-sizing:border-box; align-items:stretch;
-  }
-
-  /* Left column (5 squares stacked) */
-  .left{
-    display:flex; flex-direction:column; gap:8px;
-  }
-  .topicCell{
-    flex:1 1 0; /* equal height for 5 cells */
-    min-height:0;
-    background:var(--panel); border-radius:8px; border:3px solid #b71c1c; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden;
-  }
-  .topicLabel{ position:absolute; left:8px; top:8px; font-weight:800; font-size:18px; }
-  .topicCell img{ width:100%; height:100%; object-fit:cover; display:block; }
-
-  /* Center column: candidate blocks stacked (may scroll if many) */
-  .center{
-    display:flex; flex-direction:column; gap:8px; overflow-y:auto; padding-right:4px;
+  html,body{height:100%; margin:0; background:var(--bg); color:var(--white); font-family: -apple-system, "Hiragino Kaku Gothic ProN", "Yu Gothic", "Segoe UI", Roboto, sans-serif;}
+  .app {
+    height:100vh;
+    display:grid;
+    grid-template-columns: 140px 1fr 320px; /* 左:お題縦列 / 中央:候補並び / 右:controls+camera */
+    gap:12px;
+    padding:12px;
     box-sizing:border-box;
   }
-  .candidateBlock{
-    background:var(--card); border-radius:10px; padding:10px; border:2px solid #222; display:flex; gap:8px; align-items:center;
-    height:calc((100vh - 16px*2 - 8px*4) / 5 - 8px); /* attempt to match left heights (approx) */
+
+  /* Left column: 5 topic boxes vertically */
+  .topics {
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+    align-items:stretch;
+  }
+  .topic {
+    background:var(--panel);
+    border-radius:10px;
+    border:3px solid #b71c1c;
+    height: calc((100vh - 12*5 - 24) / 5); /* evenly distributed */
+    min-height:72px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    position:relative;
+    overflow:hidden;
+  }
+  .topic .label { position:absolute; left:8px; top:8px; font-weight:700; font-size:15px; }
+  .topic img { width:100%; height:100%; object-fit:cover; display:block; }
+
+  /* Center column: rows, each with 3 candidate boxes */
+  .center {
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+    align-items:stretch;
+  }
+  .candidateRow {
+    display:flex;
+    gap:12px;
+    align-items:center;
+    background:transparent;
+    padding:6px;
+    border-radius:8px;
+    height: calc((100vh - 12*5 - 24 - 0) / 5); /* match left */
     box-sizing:border-box;
   }
-  .candidateItem{ background:#111; border-radius:8px; padding:8px; width:33%; display:flex; gap:8px; align-items:center; box-sizing:border-box; border:1px solid var(--glass); }
-  .candidateItem img{ width:64px; height:64px; object-fit:cover; border-radius:6px; background:#000; }
-  .candidateLabel{ font-size:16px; line-height:1.0; }
-
-  /* Right column */
-  .right{
-    display:flex; flex-direction:column; gap:8px; box-sizing:border-box; align-items:stretch; justify-content:flex-start;
+  .candidate {
+    flex:1;
+    background:#111;
+    border-radius:8px;
+    border:2px solid #2a2a2a;
+    min-height:48px;
+    display:flex;
+    gap:8px;
+    align-items:center;
+    padding:8px;
+    box-sizing:border-box;
+    justify-content:flex-start;
   }
-
-  /* Top small controls: 2x2 grid of square buttons */
-  .controls{
-    display:grid; grid-template-columns: 1fr 1fr; gap:8px;
+  .candidate img.crop {
+    width:84px; height:84px; object-fit:cover; border-radius:6px; border:2px solid #222;
   }
-  .controlBtn{
-    aspect-ratio:1/1; /* square */
-    background:#222; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:20px; cursor:pointer; border:2px solid var(--glass); color:var(--white);
+  .candidate .meta {
+    margin-left:8px;
+    display:flex; flex-direction:column;
+  }
+  .candidate .meta .num { font-size:20px; font-weight:700; color:var(--accent); }
+  .candidate .meta .txt { font-size:14px; color:var(--muted); }
+
+  /* Right column: controls, status, camera */
+  .controls {
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+    align-items:stretch;
+  }
+  .status {
+    background:#121212;
+    padding:12px;
+    border-radius:10px;
+    text-align:center;
+    font-weight:700;
+    font-size:18px;
+    color:var(--muted);
+  }
+  .status.wait { color:#1e90ff; } /* blue */
+  .status.capture { color:var(--danger); } /* red */
+
+  .btnGrid {
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+  }
+  .btn {
+    background:#222;
+    border-radius:10px;
+    border:2px solid #333;
+    padding:12px;
+    text-align:center;
+    font-weight:800;
+    font-size:14px;
+    cursor:pointer;
     user-select:none;
   }
-  .controlBtn.active{ outline:3px solid rgba(30,140,255,0.25); box-shadow:0 2px 8px rgba(0,0,0,0.4); }
+  .btn.primary { background:linear-gradient(180deg,#0a6bff,#075fd9); color:white; }
+  .btn.danger { background:linear-gradient(180deg,#d64545,#b33a3a); color:white; }
+  .btn.toggle { background:#2b2b2b; }
 
-  /* Status badge near top of right column */
-  #statusBadge{
-    margin-top:6px; background:linear-gradient(180deg,#1e3cff,#1848ff); color:#fff; padding:8px 10px; border-radius:10px; text-align:center; font-weight:700;
+  .cameraBox {
+    background:#111;
+    border-radius:8px;
+    border:3px solid #2a2a2a;
+    overflow:hidden;
+    position:relative;
+    aspect-ratio: 1 / 1;
+    min-height:180px;
+  }
+  video#preview {
+    width:100%;
+    height:100%;
+    object-fit:cover;
+    transform:scaleX(-1); /* mirror to look natural; removed for env cam below */
   }
 
-  /* Right bottom: small camera preview block */
-  .camWrap{ margin-top:auto; display:flex; flex-direction:column; gap:8px; align-items:center; }
-  .camBox{ width:100%; background:#000; border-radius:10px; overflow:hidden; border:3px solid #333; display:flex; align-items:center; justify-content:center; }
-  /* camera width = 100% of right column (which is 25vw). We asked small: A(25% of screen), so right column was 25vw already */
-  #camera{ width:100%; height:160px; object-fit:cover; display:block; background:#000; }
-
-  /* bottom small hint */
-  .hint{ font-size:12px; opacity:0.8; text-align:center; padding:4px 0; color:#ddd; }
-
-  /* responsive small adjustments */
-  @media(max-width:900px){
-    /* reduce camera height a bit on small screens */
-    #camera{ height:140px; }
-    .candidateBlock{ height:120px; }
-    .candidateItem img{ width:56px; height:56px; }
+  /* result area */
+  .results {
+    background:linear-gradient(180deg,#0d0d0d,#0a0a0a);
+    padding:10px;
+    border-radius:8px;
+    min-height:120px;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
   }
-  @media(max-height:600px){
-    .candidateBlock{ height:100px; }
+  .results .row { font-weight:700; color:var(--muted); }
+
+  /* small helper */
+  .small { font-size:13px; color:var(--muted); }
+
+  /* responsive tweak */
+  @media (max-width:1000px){
+    .app { grid-template-columns: 110px 1fr 260px; padding:8px; gap:8px; }
+    .candidate img.crop { width:72px; height:72px; }
   }
 </style>
 </head>
 <body>
-<div id="root">
-  <!-- LEFT: topics 1..5 -->
-  <div class="left" id="leftCol">
-    <div class="topicCell" id="t1"><div class="topicLabel">お題1</div><img id="img_t1" alt=""></div>
-    <div class="topicCell" id="t2"><div class="topicLabel">お題2</div><img id="img_t2" alt=""></div>
-    <div class="topicCell" id="t3"><div class="topicLabel">お題3</div><img id="img_t3" alt=""></div>
-    <div class="topicCell" id="t4"><div class="topicLabel">お題4</div><img id="img_t4" alt=""></div>
-    <div class="topicCell" id="t5"><div class="topicLabel">お題5</div><img id="img_t5" alt=""></div>
+<div class="app">
+
+  <!-- LEFT: topics -->
+  <div class="topics" id="topics">
+    <!-- 5 topic slots -->
+    <div class="topic" data-index="0"><div class="label">お題1</div><div class="placeholder small">未セット</div></div>
+    <div class="topic" data-index="1"><div class="label">お題2</div><div class="placeholder small">未セット</div></div>
+    <div class="topic" data-index="2"><div class="label">お題3</div><div class="placeholder small">未セット</div></div>
+    <div class="topic" data-index="3"><div class="label">お題4</div><div class="placeholder small">未セット</div></div>
+    <div class="topic" data-index="4"><div class="label">お題5</div><div class="placeholder small">未セット</div></div>
   </div>
 
-  <!-- CENTER: candidate top3 blocks for each topic -->
-  <div class="center" id="centerCol">
-    <div class="candidateBlock" id="cand1">
-      <div class="candidateItem"><img id="c1_1_img"><div class="candidateLabel" id="c1_1_txt">—</div></div>
-      <div class="candidateItem"><img id="c1_2_img"><div class="candidateLabel" id="c1_2_txt">—</div></div>
-      <div class="candidateItem"><img id="c1_3_img"><div class="candidateLabel" id="c1_3_txt">—</div></div>
+  <!-- CENTER: candidate rows -->
+  <div class="center" id="center">
+    <div class="candidateRow" data-index="0">
+      <div class="candidate" data-cand="0"><img class="crop" src="" alt="" /><div class="meta"><div class="num">-</div><div class="txt">候補1</div></div></div>
+      <div class="candidate" data-cand="1"><img class="crop" src="" alt="" /><div class="meta"><div class="num">-</div><div class="txt">候補2</div></div></div>
+      <div class="candidate" data-cand="2"><img class="crop" src="" alt="" /><div class="meta"><div class="num">-</div><div class="txt">候補3</div></div></div>
     </div>
-
-    <div class="candidateBlock" id="cand2">
-      <div class="candidateItem"><img id="c2_1_img"><div class="candidateLabel" id="c2_1_txt">—</div></div>
-      <div class="candidateItem"><img id="c2_2_img"><div class="candidateLabel" id="c2_2_txt">—</div></div>
-      <div class="candidateItem"><img id="c2_3_img"><div class="candidateLabel" id="c2_3_txt">—</div></div>
+    <div class="candidateRow" data-index="1">
+      <div class="candidate" data-cand="0"><img class="crop" src="" alt="" /><div class="meta"><div class="num">-</div><div class="txt">候補1</div></div></div>
+      <div class="candidate" data-cand="1"><img class="crop" src="" alt="" /><div class="meta"><div class="num">-</div><div class="txt">候補2</div></div></div>
+      <div class="candidate" data-cand="2"><img class="crop" src="" alt="" /><div class="meta"><div class="num">-</div><div class="txt">候補3</div></div></div>
     </div>
-
-    <div class="candidateBlock" id="cand3">
-      <div class="candidateItem"><img id="c3_1_img"><div class="candidateLabel" id="c3_1_txt">—</div></div>
-      <div class="candidateItem"><img id="c3_2_img"><div class="candidateLabel" id="c3_2_txt">—</div></div>
-      <div class="candidateItem"><img id="c3_3_img"><div class="candidateLabel" id="c3_3_txt">—</div></div>
+    <div class="candidateRow" data-index="2">
+      <div class="candidate" data-cand="0"><img class="crop" src="" alt="" /><div class="meta"><div class="num">-</div><div class="txt">候補1</div></div></div>
+      <div class="candidate" data-cand="1"><img class="crop" src="" alt="" /><div class="meta"><div class="num">-</div><div class="txt">候補2</div></div></div>
+      <div class="candidate" data-cand="2"><img class="crop" src="" alt="" /><div class="meta"><div class="num">-</div><div class="txt">候補3</div></div></div>
     </div>
-
-    <div class="candidateBlock" id="cand4">
-      <div class="candidateItem"><img id="c4_1_img"><div class="candidateLabel" id="c4_1_txt">—</div></div>
-      <div class="candidateItem"><img id="c4_2_img"><div class="candidateLabel" id="c4_2_txt">—</div></div>
-      <div class="candidateItem"><img id="c4_3_img"><div class="candidateLabel" id="c4_3_txt">—</div></div>
+    <div class="candidateRow" data-index="3">
+      <div class="candidate" data-cand="0"><img class="crop" src="" alt="" /><div class="meta"><div class="num">-</div><div class="txt">候補1</div></div></div>
+      <div class="candidate" data-cand="1"><img class="crop" src="" alt="" /><div class="meta"><div class="num">-</div><div class="txt">候補2</div></div></div>
+      <div class="candidate" data-cand="2"><img class="crop" src="" alt="" /><div class="meta"><div class="num">-</div><div class="txt">候補3</div></div></div>
     </div>
-
-    <div class="candidateBlock" id="cand5">
-      <div class="candidateItem"><img id="c5_1_img"><div class="candidateLabel" id="c5_1_txt">—</div></div>
-      <div class="candidateItem"><img id="c5_2_img"><div class="candidateLabel" id="c5_2_txt">—</div></div>
-      <div class="candidateItem"><img id="c5_3_img"><div class="candidateLabel" id="c5_3_txt">—</div></div>
+    <div class="candidateRow" data-index="4">
+      <div class="candidate" data-cand="0"><img class="crop" src="" alt="" /><div class="meta"><div class="num">-</div><div class="txt">候補1</div></div></div>
+      <div class="candidate" data-cand="1"><img class="crop" src="" alt="" /><div class="meta"><div class="num">-</div><div class="txt">候補2</div></div></div>
+      <div class="candidate" data-cand="2"><img class="crop" src="" alt="" /><div class="meta"><div class="num">-</div><div class="txt">候補3</div></div></div>
     </div>
   </div>
 
-  <!-- RIGHT: controls (2x2 small square buttons) and camera at bottom right -->
-  <div class="right" id="rightCol">
-    <div class="controls" id="controlsGrid">
-      <div class="controlBtn" id="btnTopic" title="お題撮影モード">📸</div>
-      <div class="controlBtn" id="btnSearch" title="カード探索モード">🔍</div>
-      <div class="controlBtn" id="btnReset" title="リセット">♻️</div>
-      <div class="controlBtn" id="btnShoot" title="長押しで撮影">●</div>
+  <!-- RIGHT: controls and camera -->
+  <div class="controls">
+    <div id="status" class="status wait">状態: 待機中</div>
+
+    <div class="btnGrid">
+      <div id="modeTopic" class="btn toggle">📷 お題撮影モード</div>
+      <div id="modeSearch" class="btn toggle">🔎 番号検索モード</div>
+
+      <div id="captureBtn" class="btn danger">🔴 長押しで撮影</div>
+      <div id="resetBtn" class="btn">♻️ お題リセット</div>
     </div>
 
-    <div id="statusBadge">モデル読み込み中…</div>
+    <div class="cameraBox" id="cameraBox" title="カメラ映像">
+      <video id="preview" autoplay playsinline></video>
+    </div>
 
-    <div class="camWrap">
-      <div class="camBox"><video id="camera" autoplay playsinline muted></video></div>
-      <div class="hint">長押しで連続撮影（1s間隔）・離すと停止</div>
+    <div class="results" id="results">
+      <div class="row">お題一覧(左に表示済み): <span id="topicList" class="small">—</span></div>
+      <div class="row">候補TOP3（各お題の右に表示）</div>
+      <div class="row small">※ 認識は環境依存です。暗い/遠い/ブレに弱い。</div>
     </div>
   </div>
+
 </div>
 
+<!-- Hidden canvas for captures -->
+<canvas id="captureCanvas" style="display:none;"></canvas>
+
 <script>
-/* =========================
-   定数・状態
-   ========================= */
-const SCAN_INTERVAL_MS = 1000; // 1000ms: 1秒ごとにOCR（負荷が高ければ1500〜2000に）
+/*
+  主要機能：
+  - カメラ起動（背面 / environment 推奨）
+  - モード: お題撮影モード / 番号検索モード
+  - 長押し撮影: pointerdown で1秒毎に連写（最大 10 枚）
+  - OCR (Tesseract.js v2) で数字の読み取り
+  - お題撮影モード: フレームから 3 桁の数字を探し、左側 slot に順にセット（最大5）
+  - 番号検索モード: フレームから全ワードを抽出。 各お題数値に近接する英字（単文字）を探し、Top3を画像付きで表示
+  - UI: ステータス表示（待機:青 / 撮影:赤）
+*/
+
 const MAX_TOPICS = 5;
+let currentMode = 'topic'; // 'topic' or 'search'
+let topics = Array(MAX_TOPICS).fill(null); // {num:"123", imgDataUrl:"data:..."} or null
+let topicIndexNext = 0; // next free topic slot
+let ocrWorker = null;
+let isCapturing = false;
+let captureIntervalId = null;
+let captureFramesLimit = 10;
+let captureIntervalMs = 1000;
 
-let mode = 'topic'; // 'topic' or 'search'
-let isHolding = false;
-let holdTimer = null;
+const preview = document.getElementById('preview');
+const canvas = document.getElementById('captureCanvas');
+const statusEl = document.getElementById('status');
+const modeTopic = document.getElementById('modeTopic');
+const modeSearch = document.getElementById('modeSearch');
+const captureBtn = document.getElementById('captureBtn');
+const resetBtn = document.getElementById('resetBtn');
 
-let topics = []; // [{num:'123', imgData:...}, ...]
-let numberMap = {}; // num -> {counts:{A:3,...}, examples:[{img,letter}]}
-
-/* Tesseract worker */
-let worker = null;
-
-/* DOM */
-const statusBadge = document.getElementById('statusBadge');
-const video = document.getElementById('camera');
-const tmpCanvas = document.createElement('canvas');
-const tmpCtx = tmpCanvas.getContext('2d');
-
-const btnTopic = document.getElementById('btnTopic');
-const btnSearch = document.getElementById('btnSearch');
-const btnReset = document.getElementById('btnReset');
-const btnShoot = document.getElementById('btnShoot');
-
-/* =========================
-   初期：UI初期化
-   ========================= */
-function clearAllUI(){
-  for(let i=1;i<=MAX_TOPICS;i++){
-    document.getElementById('img_t'+i).removeAttribute('src');
-    for(let j=1;j<=3;j++){
-      const img = document.getElementById(`c${i}_${j}_img`);
-      const txt = document.getElementById(`c${i}_${j}_txt`);
-      img.removeAttribute('src');
-      txt.textContent = '—';
-    }
-  }
-}
-clearAllUI();
-
-/* =========================
-   Tesseract 初期化
-   ========================= */
-async function initTess(){
-  statusBadge.textContent = 'モデル読み込み中…';
-  worker = Tesseract.createWorker({
-    logger: m => {
-      if(m.status) {
-        //show short status for user
-        if(m.status.includes('loaded')) statusBadge.textContent = 'モデル読み込み完了';
-      }
-    }
-  });
-  await worker.load();
-  await worker.loadLanguage('eng');
-  await worker.initialize('eng');
-  await worker.setParameters({
-    tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz',
-    preserve_interword_spaces: '0'
-  });
-  statusBadge.textContent = '準備完了（待機中）';
-}
-initTess();
-
-/* =========================
-   カメラ開始
-   ========================= */
 async function startCamera(){
   try{
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: 'environment' }, width:{ideal:1280}, height:{ideal:720} },
-      audio:false
-    });
-    video.srcObject = stream;
-    await video.play();
-    statusBadge.textContent = 'カメラ起動（待機中）';
-  }catch(err){
-    console.error(err);
-    statusBadge.textContent = 'カメラ起動失敗';
+    const constraints = { video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio:false };
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    preview.srcObject = stream;
+    // ensure preview not mirrored for env cam
+    preview.style.transform = 'scaleX(1)';
+  }catch(e){
+    alert('カメラ起動に失敗しました: ' + e.message);
+    console.error(e);
   }
 }
-startCamera();
 
-/* =========================
-   OCRヘルパー：フレームを解析して単語配列を返す
-   ========================= */
-async function ocrFrame(canvas){
-  if(!worker) return [];
+// small helper to set status
+function setStatus(stateText, stateClass){
+  statusEl.textContent = '状態: ' + stateText;
+  statusEl.className = 'status ' + stateClass;
+}
+
+// take single snapshot from video -> returns dataURL and ImageBitmap
+function snapshot(){
+  const v = preview;
+  const w = v.videoWidth;
+  const h = v.videoHeight;
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(v, 0, 0, w, h);
+  return canvas.toDataURL('image/jpeg', 0.9);
+}
+
+// run OCR on an image dataURL and return result.data.words
+async function runOCR(dataURL){
+  // Tesseract.recognize returns a promise
+  // we'll whitelist digits+letters to help
   try{
-    const res = await worker.recognize(canvas);
-    const words = (res && res.data && res.data.words) ? res.data.words.map(w=>({
-      text: (w.text||'').replace(/\s+/g,''),
-      bbox: { x0:w.bbox.x0, y0:w.bbox.y0, x1:w.bbox.x1, y1:w.bbox.y1 },
-      conf: w.confidence
-    })) : [];
-    return words;
+    const res = await Tesseract.recognize(dataURL, 'eng', {
+      tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
+    });
+    // res.data.words includes bbox info and text/confidence
+    return res.data;
   }catch(e){
     console.error('OCR error', e);
-    return [];
+    return null;
   }
 }
 
-/* =========================
-   切り抜きユーティリティ
-   bbox = {x0,y0,x1,y1}
-   expand = fraction
-   ========================= */
-function cropSquareDataURL(canvas, bbox, expand=0.25){
+// utility: extract 3-digit numbers from OCR words
+function extractThreeDigitNumbers(wordsData){
+  if(!wordsData || !wordsData.words) return [];
+  const found = [];
+  for(const w of wordsData.words){
+    const txt = (w.text || '').replace(/\s+/g,'');
+    const match = txt.match(/^0?\d{2,3}$/) || txt.match(/^\d{3}$/);
+    // We only want exactly 3 digits (including leading zeros if shown). Accept "062" etc.
+    if(/^\d{3}$/.test(txt)){
+      found.push({text:txt, bbox:w.bbox, conf: w.confidence || w.conf});
+    }
+  }
+  // dedupe by text
+  const unique = [];
+  const seen = new Set();
+  for(const f of found){
+    if(!seen.has(f.text)){ seen.add(f.text); unique.push(f); }
+  }
+  return unique;
+}
+
+// helper: crop area from current canvas based on bbox and return dataURL
+function cropFromCanvas(bbox, padding = 10){
+  // bbox: {x0,y0,x1,y1} in Tesseract v2 it's like bbox.x0,y0,x1,y1
   const w = canvas.width, h = canvas.height;
-  const bw = bbox.x1 - bbox.x0;
-  const bh = bbox.y1 - bbox.y0;
-  const cx = (bbox.x0 + bbox.x1)/2;
-  const cy = (bbox.y0 + bbox.y1)/2;
-  const size = Math.max(bw,bh) * (1 + expand);
-  const sx = Math.max(0, Math.round(cx - size/2));
-  const sy = Math.max(0, Math.round(cy - size/2));
-  const sW = Math.min(w - sx, Math.round(size));
-  const sH = Math.min(h - sy, Math.round(size));
+  const x0 = Math.max(0, Math.floor(bbox.x0 - padding));
+  const y0 = Math.max(0, Math.floor(bbox.y0 - padding));
+  const x1 = Math.min(w, Math.ceil(bbox.x1 + padding));
+  const y1 = Math.min(h, Math.ceil(bbox.y1 + padding));
+  const cw = x1 - x0, ch = y1 - y0;
   const tmp = document.createElement('canvas');
-  tmp.width = sW; tmp.height = sH;
-  tmp.getContext('2d').drawImage(canvas, sx, sy, sW, sH, 0,0, sW, sH);
-  // normalize to square small size
-  const out = document.createElement('canvas');
-  const S = 220; // display size for left column elems (square)
-  out.width = S; out.height = S;
-  out.getContext('2d').drawImage(tmp, 0,0, S,S);
-  return out.toDataURL('image/jpeg', 0.9);
+  tmp.width = cw; tmp.height = ch;
+  const ctx = tmp.getContext('2d');
+  ctx.drawImage(preview, x0, y0, cw, ch, 0, 0, cw, ch);
+  return tmp.toDataURL('image/jpeg', 0.9);
 }
 
-/* =========================
-   スキャン本体（1フレーム）: topic / search 共通入口
-   ========================= */
-async function scanOnce(){
-  if(!video || !video.videoWidth) return;
-  tmpCanvas.width = video.videoWidth;
-  tmpCanvas.height = video.videoHeight;
-  tmpCtx.drawImage(video, 0, 0, tmpCanvas.width, tmpCanvas.height);
-
-  const words = await ocrFrame(tmpCanvas);
-  if(!words || words.length===0) return;
-
-  const threeDigits = words.filter(w => /^\d{3}$/.test(w.text));
-  if(threeDigits.length === 0) return;
-
-  if(mode === 'topic'){
-    for(const w of threeDigits){
-      const n = w.text;
-      // avoid duplicate topic num
-      if(topics.find(t=>t.num===n)) continue;
-      if(topics.length >= MAX_TOPICS) break;
-      const dataUrl = cropSquareDataURL(tmpCanvas, w.bbox, 0.4);
-      topics.push({num:n, img:dataUrl});
-      updateTopicsUI();
-      if(topics.length >= MAX_TOPICS) break;
-    }
-  } else if(mode === 'search'){
-    const letters = words.filter(w=>/^[A-Za-z]$/.test(w.text));
-    for(const w of threeDigits){
-      const num = w.text;
-      const cx = (w.bbox.x0 + w.bbox.x1)/2;
-      const cy = (w.bbox.y0 + w.bbox.y1)/2;
-      let nearest=null; let bestD=Infinity;
-      for(const L of letters){
-        const lx=(L.bbox.x0+L.bbox.x1)/2;
-        const ly=(L.bbox.y0+L.bbox.y1)/2;
-        const d = Math.hypot(lx-cx, ly-cy);
-        if(d<bestD){ bestD=d; nearest=L; }
-      }
-      const diag = Math.hypot(tmpCanvas.width, tmpCanvas.height);
-      let letter = '-';
-      if(nearest && bestD < diag*0.18) letter = nearest.text.toUpperCase();
-      const imgExample = cropSquareDataURL(tmpCanvas, w.bbox, 0.5);
-      if(!numberMap[num]) numberMap[num] = {counts:{}, examples:[]};
-      if(letter !== '-') numberMap[num].counts[letter] = (numberMap[num].counts[letter]||0) + 1;
-      numberMap[num].examples.unshift({letter, img: imgExample});
-    }
-    updateCandidatesUI();
+// assign topic: number string + img crop
+function assignTopic(numText, imgDataUrl){
+  if(topicIndexNext >= MAX_TOPICS) {
+    console.log('すでに最大数 (5) が設定されています');
+    return false;
   }
+  topics[topicIndexNext] = {num: numText, img: imgDataUrl};
+  topicIndexNext++;
+  refreshTopicsUI();
+  return true;
 }
 
-/* =========================
-   UI update: left topics
-   ========================= */
-function updateTopicsUI(){
-  for(let i=1;i<=MAX_TOPICS;i++){
-    const el = document.getElementById('img_t'+i);
-    if(topics[i-1]) el.src = topics[i-1].img;
-    else el.removeAttribute('src');
-  }
-}
-
-/* =========================
-   UI update: candidates center
-   ========================= */
-function updateCandidatesUI(){
+function refreshTopicsUI(){
+  // left topics
+  const topicEls = document.querySelectorAll('.topic');
   for(let i=0;i<MAX_TOPICS;i++){
-    const topic = topics[i];
-    for(let j=1;j<=3;j++){
-      const imgEl = document.getElementById(`c${i+1}_${j}_img`);
-      const txtEl = document.getElementById(`c${i+1}_${j}_txt`);
-      if(!topic){
-        imgEl.removeAttribute('src');
-        txtEl.textContent = '—';
-        continue;
-      }
-      const info = numberMap[topic.num];
-      if(!info){
-        imgEl.removeAttribute('src');
-        txtEl.textContent = '—';
-        continue;
-      }
-      // sort counts
-      const pairs = Object.entries(info.counts).map(([k,v])=>({k,v}));
-      pairs.sort((a,b)=>b.v-a.v);
-      if(pairs[j-1]){
-        const letter = pairs[j-1].k;
-        const ex = info.examples.find(e=>e.letter===letter) || info.examples[0];
-        imgEl.src = ex ? ex.img : '';
-        txtEl.textContent = `${letter} (${(info.counts[letter]||0)})`;
-      } else {
-        // fallback to examples
-        const ex = info.examples[j-1] || info.examples[0];
-        if(ex){
-          imgEl.src = ex.img;
-          txtEl.textContent = ex.letter==='-' ? '候補' : ex.letter;
-        } else {
-          imgEl.removeAttribute('src');
-          txtEl.textContent = '—';
+    const t = topicEls[i];
+    const data = topics[i];
+    t.innerHTML = '<div class="label">お題' + (i+1) + '</div>';
+    if(data){
+      const img = document.createElement('img');
+      img.src = data.img;
+      t.appendChild(img);
+    } else {
+      const ph = document.createElement('div');
+      ph.className = 'placeholder small';
+      ph.textContent = '未セット';
+      t.appendChild(ph);
+    }
+  }
+  // center candidate top summary: topicList text
+  const topicList = topics.map(t => t ? t.num : '—').join(' / ');
+  document.getElementById('topicList').textContent = topicList;
+}
+
+// set candidate UI for a given topic index with array of candidates [{letter:'A', img:..., conf:...}, ...]
+function setCandidatesForTopic(topicIdx, candidates){
+  const row = document.querySelector('.candidateRow[data-index="'+topicIdx+'"]');
+  if(!row) return;
+  for(let i=0;i<3;i++){
+    const candEl = row.querySelector('.candidate[data-cand="'+i+'"]');
+    const imgEl = candEl.querySelector('img.crop');
+    const numEl = candEl.querySelector('.num');
+    const txtEl = candEl.querySelector('.txt');
+    if(candidates && candidates[i]){
+      imgEl.src = candidates[i].img || '';
+      numEl.textContent = candidates[i].letter || '-';
+      txtEl.textContent = 'conf:'+ (Math.round((candidates[i].conf||0)*10)/10);
+    } else {
+      imgEl.src = '';
+      numEl.textContent = '-';
+      txtEl.textContent = '—';
+    }
+  }
+}
+
+// reset all topics and candidates
+function resetAll(){
+  topics = Array(MAX_TOPICS).fill(null);
+  topicIndexNext = 0;
+  for(let i=0;i<MAX_TOPICS;i++) setCandidatesForTopic(i, null);
+  refreshTopicsUI();
+}
+
+// long press capture handling
+let holdStart = null;
+let capturedCount = 0;
+async function startLongPressCapture(){
+  if(isCapturing) return;
+  isCapturing = true;
+  capturedCount = 0;
+  setStatus('撮影中', 'capture');
+  captureIntervalId = setInterval(async ()=>{
+    if(capturedCount >= captureFramesLimit) {
+      stopLongPressCapture();
+      return;
+    }
+    capturedCount++;
+    // snapshot
+    const dataUrl = snapshot();
+    // show small feedback (could flash)
+    console.log('captured frame', capturedCount);
+    // depending on mode, do different things:
+    if(currentMode === 'topic'){
+      // run OCR and try extract 3-digit numbers; set topics automatically (first-come)
+      const ocr = await runOCR(dataUrl);
+      const nums = extractThreeDigitNumbers(ocr);
+      console.log('nums found', nums);
+      for(const n of nums){
+        // crop area around numeric bbox for topic image
+        const crop = cropFromCanvas(n.bbox, 18);
+        // assign if slot available and not duplicate
+        if(topicIndexNext < MAX_TOPICS && !topics.some(t=>t && t.num === n.text)){
+          assignTopic(n.text, crop);
         }
       }
+    } else {
+      // in search mode: run OCR and for each existing topic, find nearby letter tiles
+      const ocr = await runOCR(dataUrl);
+      // build list of letter boxes (single-letter words)
+      if(!ocr) { console.log('ocr empty'); return; }
+      const words = ocr.words || [];
+      // create array of letter words with bbox and confidence and text filtered to 1-letter alpha
+      const letters = words.filter(w=>{
+        const t = (w.text||'').trim();
+        return /^[A-Z]$/i.test(t) && w.bbox;
+      }).map(w=>({letter: w.text.trim().toUpperCase(), bbox: w.bbox, conf:w.confidence || w.conf}));
+      // for each topic, find nearest letters by euclidean distance between centers
+      for(let ti=0; ti<MAX_TOPICS; ti++){
+        const top = topics[ti];
+        if(!top) continue;
+        // For this topic, we try to locate the numeric tile on the game screen by looking for words that equal the number.
+        const nums = words.filter(w=>{
+          const t = (w.text||'').replace(/\s+/g,'');
+          return /^\d{3}$/.test(t);
+        });
+        // If we can find the exact number on the game screen, use its bbox as anchor, else fallback: search across whole screen and pick nearest letters by position
+        let anchor = null;
+        for(const nn of nums){
+          if(nn.text && nn.text.replace(/\s+/g,'') === top.num){
+            anchor = nn.bbox;
+            break;
+          }
+        }
+        // If no anchor, skip or try to find similar numbers
+        if(!anchor){
+          // skip for now
+          continue;
+        }
+        // compute centers
+        function center(b){ return {x: (b.x0 + b.x1)/2, y: (b.y0 + b.y1)/2}; }
+        const aC = center(anchor);
+        // measure distance to each letter
+        const lettersWithDist = letters.map(l=>{
+          const c = center(l.bbox);
+          const dx = c.x - aC.x, dy = c.y - aC.y;
+          const d = Math.sqrt(dx*dx + dy*dy);
+          return {...l, dist:d};
+        }).sort((a,b)=>a.dist - b.dist);
+        // take top3
+        const top3 = lettersWithDist.slice(0,3).map(item=>{
+          // crop area around letter bbox
+          const img = cropFromCanvas(item.bbox, 14);
+          return {letter:item.letter, img:img, conf:item.confidence || item.conf};
+        });
+        setCandidatesForTopic(ti, top3);
+      }
     }
-  }
+  }, captureIntervalMs);
 }
 
-/* =========================
-   長押し（撮影）制御
-   ========================= */
-function startHolding(){
-  if(isHolding) return;
-  isHolding = true;
-  statusBadge.textContent = '撮影中…';
-  btnShoot.classList.add('active');
-  // immediate first scan then interval
-  scanOnce();
-  holdTimer = setInterval(scanOnce, SCAN_INTERVAL_MS);
-}
-function stopHolding(){
-  if(!isHolding) return;
-  isHolding = false;
-  statusBadge.textContent = '待機中';
-  btnShoot.classList.remove('active');
-  clearInterval(holdTimer); holdTimer = null;
+function stopLongPressCapture(){
+  if(!isCapturing) return;
+  clearInterval(captureIntervalId);
+  isCapturing = false;
+  setStatus('待機中', 'wait');
+  captureIntervalId = null;
 }
 
-/* events */
-btnShoot.addEventListener('touchstart', e=>{ e.preventDefault(); startHolding(); });
-btnShoot.addEventListener('mousedown', e=>{ e.preventDefault(); startHolding(); });
-document.addEventListener('touchend', ()=> stopHolding());
-document.addEventListener('mouseup', ()=> stopHolding());
-
-/* =========================
-   Mode buttons & reset
-   ========================= */
-btnTopic.addEventListener('click', ()=>{
-  mode='topic';
-  btnTopic.classList.add('active'); btnSearch.classList.remove('active');
-  statusBadge.textContent = 'モード: お題撮影（topic）';
+// UI binding
+modeTopic.addEventListener('click', ()=>{
+  currentMode = 'topic';
+  modeTopic.classList.add('primary'); modeSearch.classList.remove('primary');
+  setStatus('待機中（お題撮影モード）', 'wait');
 });
-btnSearch.addEventListener('click', ()=>{
-  mode='search';
-  btnSearch.classList.add('active'); btnTopic.classList.remove('active');
-  statusBadge.textContent = 'モード: カード探索（search）';
-});
-btnReset.addEventListener('click', ()=>{
-  topics = []; numberMap = {};
-  updateTopicsUI(); updateCandidatesUI();
-  statusBadge.textContent = 'データをクリアしました（待機中）';
+modeSearch.addEventListener('click', ()=>{
+  currentMode = 'search';
+  modeSearch.classList.add('primary'); modeTopic.classList.remove('primary');
+  setStatus('待機中（番号検索モード）', 'wait');
 });
 
-/* init default mode */
-btnTopic.classList.add('active');
-
-/* =========================
-   cleanup on unload
-   ========================= */
-window.addEventListener('beforeunload', async ()=>{
-  if(worker) {
-    try{ await worker.terminate(); }catch(e){}
-  }
-  const tracks = video.srcObject ? (video.srcObject.getTracks ? video.srcObject.getTracks() : []) : [];
-  tracks.forEach(t=>t.stop && t.stop());
+captureBtn.addEventListener('pointerdown', (e)=>{
+  // start long press capture
+  startLongPressCapture();
 });
+captureBtn.addEventListener('pointerup', (e)=>{
+  stopLongPressCapture();
+});
+captureBtn.addEventListener('pointerleave', (e)=>{
+  stopLongPressCapture();
+});
+
+resetBtn.addEventListener('click', ()=>{
+  if(confirm('本当にお題をリセットしますか？')) resetAll();
+});
+
+// initialize
+(async function init(){
+  // start camera
+  await startCamera();
+  // default UI
+  modeTopic.classList.add('primary'); setStatus('待機中', 'wait');
+  refreshTopicsUI();
+})();
 </script>
 </body>
 </html>
