@@ -12,21 +12,7 @@
         overflow: hidden;
     }
 
-    /* 横画面強制 */
-    @media screen and (orientation: portrait) {
-        body::before {
-            content: "スマホを横向きにしてください";
-            position: fixed;
-            width: 100%;
-            height: 100%;
-            background: #000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 5vw;
-            z-index: 9999;
-        }
-    }
+    /* ※縦向き警告は一旦削除（ここが黒画面の原因だった） */
 
     .container {
         display: flex;
@@ -35,7 +21,6 @@
         width: 100vw;
     }
 
-    /* 左：カメラ映像（後で中身実装） */
     #cameraArea {
         flex: 2;
         background: #222;
@@ -45,7 +30,6 @@
         position: relative;
     }
 
-    /* 右：操作パネル */
     #controlArea {
         flex: 1;
         background: #333;
@@ -82,17 +66,14 @@
 
 <div class="container">
 
-    <!-- カメラ映像領域（まだ未実装） -->
     <div id="cameraArea">
         <div style="font-size:3vw;color:#bbb;">カメラ未起動</div>
     </div>
 
-    <!-- 操作パネル -->
     <div id="controlArea">
 
         <div id="modeDisplay">現在：お題撮影モード</div>
 
-        <!-- === モード切替ボタン === -->
         <button class="modeBtn" onclick="setMode('odai')">📸 お題撮影モード</button>
         <button class="modeBtn" onclick="setMode('search')">🔍 カード探索モード</button>
         <button class="modeBtn" onclick="setMode('cameraTest')">🎥 カメラテストモード</button>
