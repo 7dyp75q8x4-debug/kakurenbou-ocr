@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-<title>横画面カメラ版（正方形ボタン）</title>
+<title>横画面カメラ版（お題＋候補表示付き）</title>
 
 <style>
     body {
@@ -16,24 +16,21 @@
         height: 100vh;
     }
 
-    /* 左：カメラ映像 */
+    /* 左カメラ領域 */
     #cameraContainer {
         width: 60vw;
         height: 100vh;
         background: #000;
         position: relative;
-        display: flex;
-        justify-content: center;
-        align-items: center;
+        overflow: hidden;
     }
     #video {
         width: 100%;
         height: 100%;
         object-fit: cover;
-        transform: scaleX(1);
     }
 
-    /* 撮影中バッジ */
+    /* 撮影中ステータス */
     #status {
         position: absolute;
         top: 10px;
@@ -45,21 +42,48 @@
         display: none;
     }
 
-    /* 右側メニュー（固定サイズ） */
+    /* お題＆候補の表示領域（左上） */
+    #infoPanel {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        width: calc(60vw - 20px);
+        background: rgba(0,0,0,0.55);
+        padding: 10px;
+        border-radius: 8px;
+        font-size: 16px;
+        line-height: 1.3;
+        pointer-events: none;
+        max-height: 45vh;
+        overflow-y: auto;
+    }
+
+    #titleInfo {
+        font-size: 18px;
+        font-weight: bold;
+        margin-bottom: 6px;
+    }
+
+    .label {
+        font-weight: bold;
+        margin-top: 4px;
+        margin-bottom: 2px;
+        font-size: 15px;
+        color: #ffd;
+    }
+
+    /* 右側メニュー */
     #sideMenu {
         width: 40vw;
         height: 100vh;
         padding: 10px;
         box-sizing: border-box;
-
         display: flex;
         flex-direction: column;
-        justify-content: flex-start;
-        align-items: center;
         gap: 10px;
+        align-items: center;
     }
 
-    /* 現在のモード表示 */
     #modeDisplay {
         width: 100%;
         height: 55px;
@@ -72,16 +96,14 @@
         font-weight: bold;
     }
 
-    /* 正方形ボタン配置（2×2） */
+    /* ボタングリッド */
     #buttonGrid {
         width: 100%;
         display: grid;
         grid-template-columns: 1fr 1fr;
         grid-template-rows: 1fr 1fr;
         gap: 10px;
-
-        /* ここ重要！左右の正方形が確実に収まる */
-        height: calc(40vw * 0.5); /* 40vw の半分の高さ */
+        height: calc(40vw * 0.5);
     }
 
     .squareBtn {
@@ -94,30 +116,39 @@
         font-weight: bold;
         text-align: center;
         user-select: none;
-
-        /* 正方形を保証する */
         aspect-ratio: 1 / 1;
     }
     .squareBtn:active {
         background: #555;
     }
-
     #shootBtn {
         background: #aa2222;
         color: #fff;
     }
+
 </style>
 </head>
 
 <body>
 
-<!-- 左側：カメラ映像 -->
+<!-- 左：カメラ -->
 <div id="cameraContainer">
     <video id="video" autoplay playsinline></video>
     <div id="status">📸 撮影中…</div>
+
+    <!-- お題 + 候補表示 -->
+    <div id="infoPanel">
+        <div id="titleInfo">📋 解析結果</div>
+        
+        <div class="label">お題（スキャンした全て）</div>
+        <div id="questList">なし</div>
+
+        <div class="label">正解候補トップ3</div>
+        <div id="candidateList">なし</div>
+    </div>
 </div>
 
-<!-- 右側：モード＋ボタン -->
+<!-- 右：ボタン -->
 <div id="sideMenu">
 
     <div id="modeDisplay">現在：お題撮影モード</div>
@@ -132,7 +163,7 @@
 </div>
 
 <script>
-/* ===== カメラ起動（背面優先） ===== */
+/* ===== カメラ起動 ===== */
 async function startCamera() {
     try {
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -147,32 +178,62 @@ async function startCamera() {
 }
 startCamera();
 
-/* ===== 長押し撮影 ===== */
+
+/* ===== 状態管理 ===== */
+let mode = "quest";  // "quest" | "search"
 let isShooting = false;
 let timer = null;
-let images = [];
 
-function takePhoto() {
-    if (images.length >= 10) return;
+let questScanned = [];      // お題撮影で読み取った全ワード
+let searchCandidates = [];  // カード探索 → 候補トップ3
+
+
+/* ===== ダミーOCR（ここ後で本物に差し替え） ===== */
+function fakeOcr() {
+    const words = ["リンゴ", "サル", "テント", "タヌキ", "メガネ", "おばけ", "まくら"];
+    return words[Math.floor(Math.random() * words.length)];
+}
+
+/* ===== 撮影して解析 ===== */
+function captureAndAnalyze() {
     const canvas = document.createElement("canvas");
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     const ctx = canvas.getContext("2d");
     ctx.drawImage(video, 0, 0);
-    canvas.toBlob((b) => images.push(b), "image/jpeg");
+
+    // 仮のOCR
+    const text = fakeOcr();
+
+    if (mode === "quest") {
+        questScanned.push(text);
+        updateInfoPanel();
+    } else if (mode === "search") {
+        searchCandidates.unshift(text);
+        searchCandidates = searchCandidates.slice(0, 3);
+        updateInfoPanel();
+    }
 }
 
+/* ===== 左上の表示更新 ===== */
+function updateInfoPanel() {
+    questList.textContent =
+        questScanned.length ? questScanned.join(" / ") : "なし";
+
+    candidateList.textContent =
+        searchCandidates.length ? searchCandidates.join(" / ") : "なし";
+}
+
+
+/* ===== 長押し撮影 ===== */
 function startHold(e) {
     e.preventDefault();
     if (isShooting) return;
     isShooting = true;
-
     status.style.display = "block";
-    takePhoto();
-    timer = setInterval(() => {
-        takePhoto();
-        if (images.length >= 10) stopHold();
-    }, 1000);
+
+    captureAndAnalyze();
+    timer = setInterval(captureAndAnalyze, 1000);
 }
 function stopHold() {
     if (!isShooting) return;
@@ -181,16 +242,26 @@ function stopHold() {
     clearInterval(timer);
 }
 
-shootBtn.addEventListener("mousedown", startHold);
-shootBtn.addEventListener("touchstart", startHold);
-shootBtn.addEventListener("mouseup", stopHold);
-shootBtn.addEventListener("mouseleave", stopHold);
-shootBtn.addEventListener("touchend", stopHold);
+shootBtn.onmousedown = startHold;
+shootBtn.onmouseup = stopHold;
+shootBtn.onmouseleave = stopHold;
+shootBtn.ontouchstart = startHold;
+shootBtn.ontouchend = stopHold;
+
 
 /* ===== モード切替 ===== */
-modeQuest.onclick = () => modeDisplay.textContent = "現在：お題撮影モード";
-modeSearch.onclick = () => modeDisplay.textContent = "現在：カード探索モード";
-cameraTest.onclick = () => modeDisplay.textContent = "現在：カメラテストモード";
+modeQuest.onclick = () => {
+    mode = "quest";
+    modeDisplay.textContent = "現在：お題撮影モード";
+};
+modeSearch.onclick = () => {
+    mode = "search";
+    modeDisplay.textContent = "現在：カード探索モード";
+};
+cameraTest.onclick = () => {
+    mode = "test";
+    modeDisplay.textContent = "現在：カメラテストモード";
+};
 </script>
 
 </body>
