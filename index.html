@@ -3,36 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <title>かくれんぼ OCR Finder</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
 
 <style>
-body {
-    background: #111;
-    color: #fff;
-    text-align: center;
-    font-family: sans-serif;
-}
-button {
-    font-size: 22px;
-    padding: 15px 30px;
-    margin: 10px;
-    border-radius: 10px;
-}
-#video {
-    width: 90%;
-    border: 2px solid #fff;
-}
-#result {
-    margin-top: 20px;
-    font-size: 26px;
-    font-weight: bold;
-    white-space: pre-wrap;
-}
+body { background:#111; color:#fff; text-align:center; font-family:sans-serif; }
+button { padding:10px 20px; margin:10px; font-size:18px; }
+video { width:90%; max-width:600px; background:#000; }
 </style>
-
-<!-- ⭐ Tesseract.js v5（最新版） -->
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-
 </head>
 <body>
 
@@ -41,72 +20,57 @@ button {
 <button onclick="startCamera()">カメラを起動</button>
 <button onclick="stopCamera()">停止</button>
 
-<br><br>
-
 <video id="video" autoplay playsinline></video>
+<canvas id="canvas" style="display:none;"></canvas>
 
-<div id="result">（ここに認識結果が表示されます）</div>
+<p id="result">（ここに認識結果が表示されます）</p>
 
 <script>
-const video = document.getElementById("video");
-let stream;
-let ocrRunning = false;
 
-/* --- カメラ起動 --- */
+let stream = null;
+
 async function startCamera() {
     try {
-        stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: "environment" }
-        });
-        video.srcObject = stream;
-
-        startOCR();
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        document.getElementById("video").srcObject = stream;
     } catch (e) {
-        alert("カメラが起動できません。\nHTTPS で開いているか確認してください。\n\n詳細:\n" + e);
+        alert("カメラが起動できません。HTTPS で開いているか確認してください。\n\n詳細:\n" + e);
     }
 }
 
-/* --- カメラ停止 --- */
 function stopCamera() {
     if (stream) {
-        stream.getTracks().forEach(t => t.stop());
+        stream.getTracks().forEach(track => track.stop());
     }
-    ocrRunning = false;
 }
 
-/* --- OCR 開始 --- */
-async function startOCR() {
-    if (ocrRunning) return;
-    ocrRunning = true;
+async function captureAndRecognize() {
 
-    const worker = await Tesseract.createWorker();  // ★ v5 の正しい初期化
-
-    await worker.loadLanguage('eng');
-    await worker.initialize('eng');
-
-    const canvas = document.createElement("canvas");
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("canvas");
     const ctx = canvas.getContext("2d");
 
-    async function loop() {
-        if (!ocrRunning) {
-            await worker.terminate();
-            return;
-        }
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
 
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        ctx.drawImage(video, 0, 0);
+    ctx.drawImage(video, 0, 0);
+    const imageData = canvas.toDataURL("image/png");
 
-        const { data: { text } } = await worker.recognize(canvas);
+    const resultText = document.getElementById("result");
+    resultText.innerHTML = "読み取り中…";
 
-        document.getElementById("result").textContent = text;
+    const worker = await Tesseract.createWorker("jpn");
 
-        requestAnimationFrame(loop);
-    }
+    const { data } = await worker.recognize(imageData);
 
-    loop();
+    resultText.innerHTML = "結果: " + data.text;
+
+    await worker.terminate();
 }
-</script>
 
+// 3秒ごとに OCR 読み取り
+setInterval(captureAndRecognize, 3000);
+
+</script>
 </body>
 </html>
