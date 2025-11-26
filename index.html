@@ -1,64 +1,175 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>UI Fix</title>
-<link rel="stylesheet" href="style.css" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UI Layout Test</title>
+<style>
+    body {
+        margin: 0;
+        padding: 0;
+        display: flex;
+        height: 100vh;
+        overflow: hidden;
+        font-family: sans-serif;
+    }
+
+    /* =====================
+       左側：お題スロット
+    ====================== */
+    #left {
+        width: 180px;  
+        padding: 5px;
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        grid-template-rows: repeat(5, 1fr);
+        gap: 3px;
+    }
+
+    .slot {
+        width: 100%;
+        height: 45px;
+        background: #ddd;
+        border: 1px solid #888;
+        font-size: 10px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+
+    /* =====================
+       右側：カメラ・ログ・ボタン
+    ====================== */
+    #right {
+        width: 210px;
+        padding: 5px;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        gap: 6px;
+    }
+
+    /* カメラ部分：画面の1/4（縦） */
+    #cameraContainer {
+        width: 100%;
+        height: 25vh;
+        background: #000;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+    video {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    /* ログ */
+    #logBox {
+        height: 80px;
+        background: #f1f1f1;
+        border: 1px solid #aaa;
+        font-size: 10px;
+        padding: 4px;
+        overflow-y: auto;
+    }
+
+    /* ボタン（4つ） */
+    .btn {
+        width: 100%;
+        padding: 8px 0;
+        font-size: 12px;
+        background: white;
+        border: 1px solid #666;
+        border-radius: 5px;
+    }
+
+    #modeRead { background: #fff; }
+    #modeSearch { background: #fff; }
+</style>
 </head>
 <body>
 
-<div id="container">
+<!-- 左側：スロット（1a〜5d） -->
+<div id="left">
+    <!-- 5行 × 4列（1a〜5d） -->
+    <div class="slot">1a</div><div class="slot">1b</div><div class="slot">1c</div><div class="slot">1d</div>
+    <div class="slot">2a</div><div class="slot">2b</div><div class="slot">2c</div><div class="slot">2d</div>
+    <div class="slot">3a</div><div class="slot">3b</div><div class="slot">3c</div><div class="slot">3d</div>
+    <div class="slot">4a</div><div class="slot">4b</div><div class="slot">4c</div><div class="slot">4d</div>
+    <div class="slot">5a</div><div class="slot">5b</div><div class="slot">5c</div><div class="slot">5d</div>
+</div>
 
-    <!-- 左側：スロット -->
-    <div id="left">
-        <div class="slot-grid">
-            <!-- 4行×4列 -->
-            <!-- 行1 -->
-            <div class="slot title">1a</div>
-            <div class="slot">1b</div>
-            <div class="slot">1c</div>
-            <div class="slot">1d</div>
+<!-- 右側：カメラ・ログ・ボタン -->
+<div id="right">
 
-            <!-- 行2 -->
-            <div class="slot title">2a</div>
-            <div class="slot">2b</div>
-            <div class="slot">2c</div>
-            <div class="slot">2d</div>
-
-            <!-- 行3 -->
-            <div class="slot title">3a</div>
-            <div class="slot">3b</div>
-            <div class="slot">3c</div>
-            <div class="slot">3d</div>
-
-            <!-- 行4 -->
-            <div class="slot title">4a</div>
-            <div class="slot">4b</div>
-            <div class="slot">4c</div>
-            <div class="slot">4d</div>
-        </div>
+    <!-- カメラ -->
+    <div id="cameraContainer">
+        <video id="camera" autoplay playsinline></video>
     </div>
 
-    <!-- 右側：ボタン・ステータス・カメラ -->
-    <div id="right">
+    <!-- ログ -->
+    <div id="logBox"></div>
 
-        <div id="status">状態：お題モード（待機中）</div>
-
-        <div id="mode-buttons">
-            <button id="searchBtn" class="mode-btn white">探索モード</button>
-            <button id="themeBtn" class="mode-btn red">お題モード</button>
-            <button id="resetBtn" class="mode-btn white">リセット</button>
-        </div>
-
-        <div id="camera-area">
-            <video id="camera" autoplay muted playsinline></video>
-        </div>
-
-    </div>
+    <!-- ボタン -->
+    <button class="btn" id="modeRead">お題読み取りモード</button>
+    <button class="btn" id="modeSearch">探索モード</button>
+    <button class="btn" id="startCam">カメラ開始</button>
+    <button class="btn" id="stopCam">カメラ停止</button>
 
 </div>
 
-<script src="main.js"></script>
+<script>
+/* ======================
+   カメラ機能
+====================== */
+let stream = null;
+const video = document.getElementById("camera");
+const logBox = document.getElementById("logBox");
+
+function log(msg){
+    logBox.innerHTML += msg + "<br>";
+    logBox.scrollTop = logBox.scrollHeight;
+}
+
+document.getElementById("startCam").onclick = async () => {
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        video.srcObject = stream;
+        log("カメラ起動");
+    } catch (e) {
+        log("カメラエラー:" + e);
+    }
+};
+
+document.getElementById("stopCam").onclick = () => {
+    if(stream){
+        stream.getTracks().forEach(t => t.stop());
+        log("カメラ停止");
+    }
+};
+
+/* ======================
+   モード切り替え（色変更）
+====================== */
+const readBtn = document.getElementById("modeRead");
+const searchBtn = document.getElementById("modeSearch");
+
+function setMode(mode){
+    if(mode === "read"){
+        readBtn.style.background = "white";
+        searchBtn.style.background = "#f88";  // 赤
+        log("モード：お題読み取りモード");
+    } else {
+        readBtn.style.background = "#8f8";   // 緑
+        searchBtn.style.background = "white";
+        log("モード：探索モード");
+    }
+}
+
+readBtn.onclick = () => setMode("read");
+searchBtn.onclick = () => setMode("search");
+
+</script>
+
 </body>
 </html>
