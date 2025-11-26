@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<title>かくれんぼ OCR Finder</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+body {
+  background: #111;
+  color: #fff;
+  text-align: center;
+  font-family: sans-serif;
+}
+video {
+  width: 90%;
+  max-width: 600px;
+  margin-top: 10px;
+  border: 2px solid #555;
+}
+canvas {
+  display: none;
+}
+button {
+  padding: 10px 20px;
+  font-size: 18px;
+  margin: 8px;
+  border-radius: 8px;
+}
+#resultBox {
+  margin-top: 20px;
+  padding: 15px;
+  background: #222;
+  border-radius: 5px;
+  width: 90%;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+</style>
+
+<!-- Tesseract.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
+
+</head>
+<body>
+
+<h2>かくれんぼ OCR Finder（GitHub Pages版）</h2>
+
+<button id="startBtn">カメラを起動</button>
+<button id="stopBtn">停止</button>
+
+<br>
+
+<video id="video" autoplay playsinline></video>
+<canvas id="captureCanvas"></canvas>
+
+<div id="resultBox">
+  <h3>認識結果</h3>
+  <div id="results">（ここに認識結果が表示されます）</div>
+</div>
+
+<script>
+const video = document.getElementById("video");
+const canvas = document.getElementById("captureCanvas");
+const ctx = canvas.getContext("2d");
+let stream = null;
+let timer = null;
+
+// ★ OCR Worker を準備
+const worker = Tesseract.createWorker({
+  logger: m => console.log(m)
+});
+
+// ----------------------
+// カメラ起動
+// ----------------------
+document.getElementById("startBtn").onclick = async () => {
+  try {
+    await worker.load();
+    await worker.loadLanguage('eng');
+    await worker.initialize('eng');
+
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "environment" }
+    });
+
+    video.srcObject = stream;
+
+    // 1秒ごとにキャプチャしてOCR
+    timer = setInterval(captureAndRecognize, 1000);
+
+  } catch (err) {
+    alert("カメラが起動できません。\nHTTPS で開いているか確認してください。\n\n詳細:\n" + err);
+  }
+};
+
+// ----------------------
+// 停止
+// ----------------------
+document.getElementById("stopBtn").onclick = () => {
+  if (stream) {
+    stream.getTracks().forEach(t => t.stop());
+  }
+  if (timer) clearInterval(timer);
+  document.getElementById("results").innerHTML = "停止しました";
+};
+
+// ----------------------
+// キャプチャして OCR
+// ----------------------
+async function captureAndRecognize() {
+  if (!video.videoWidth) return;
+
+  // canvas を動画と同じサイズに
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  ctx.drawImage(video, 0, 0);
+
+  const imageData = canvas.toDataURL("image/png");
+
+  // OCR 実行
+  const { data: { text } } = await worker.recognize(imageData);
+
+  // 数字(000〜400) を抽出
+  const matchedNums = [...text.matchAll(/\b\d{3}\b/g)].map(m => m[0]);
+
+  // 英字（A〜Z, 1文字）抽出
+  const letters = [...text.matchAll(/\b[A-Z]\b/g)].map(m => m[0]);
+
+  let html = "";
+  html += `<p>検出された3桁数字:</p><p>${matchedNums.join(", ") || "なし"}</p>`;
+  html += `<p>検出された英字:</p><p>${letters.join(", ") || "なし"}</p>`;
+
+  document.getElementById("results").innerHTML = html;
+}
+</script>
+
+</body>
+</html>
