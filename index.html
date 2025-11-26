@@ -1,233 +1,121 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-<title>Kakurenbo OCR横画面版</title>
-
+<meta charset="UTF-8">
+<title>かくれんぼOCR – 横画面UIテスト</title>
 <style>
     body {
         margin: 0;
-        overflow: hidden;
-        background: #000;
+        background: #111;
         color: white;
         font-family: sans-serif;
+        overflow: hidden;
+    }
+
+    /* 横画面強制 */
+    @media screen and (orientation: portrait) {
+        body::before {
+            content: "スマホを横向きにしてください";
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 5vw;
+            z-index: 9999;
+        }
+    }
+
+    .container {
         display: flex;
         flex-direction: row;
         height: 100vh;
+        width: 100vw;
     }
 
-    /* 左側：カメラ映像エリア */
+    /* 左：カメラ映像エリア（後で中身を追加） */
     #cameraArea {
-        flex: 3;
-        background: black;
+        flex: 2;
+        background: #222;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         position: relative;
     }
 
-    video {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        transform: rotate(0deg);
-    }
-
-    /* 右側：操作エリア */
-    #uiArea {
+    /* 右：操作パネル */
+    #controlArea {
         flex: 1;
-        background: rgba(20,20,20,0.95);
+        background: #333;
+        padding: 20px;
         display: flex;
         flex-direction: column;
-        padding: 10px;
-        box-sizing: border-box;
+        gap: 20px;
     }
 
     button {
-        width: 100%;
-        padding: 15px;
-        margin-bottom: 15px;
-        font-size: 18px;
+        padding: 20px;
+        font-size: 2.3vw;
+        border-radius: 10px;
         border: none;
-        border-radius: 8px;
-        background: #333;
-        color: #fff;
-    }
-    button:active {
-        background: #666;
+        background: #555;
+        color: white;
     }
 
-    #statusBox {
-        margin-top: 20px;
-        font-size: 20px;
-        line-height: 1.6;
-        white-space: pre-line;
+    #modeDisplay {
+        font-size: 2.5vw;
+        text-align: center;
+        padding: 20px;
+        background: #222;
     }
+
+    #progress {
+        font-size: 2vw;
+        text-align: center;
+    }
+
 </style>
 </head>
-
 <body>
+
+<div class="container">
+
+    <!-- カメラ映像が入る（まだ空） -->
     <div id="cameraArea">
-        <video id="video" autoplay playsinline></video>
+        <div style="font-size:3vw;color:#bbb;">カメラ未起動</div>
     </div>
 
-    <div id="uiArea">
-        <button id="modeOdaBtn">お題読み取りモード</button>
-        <button id="modeCardBtn">カード探索モード</button>
-        <button id="shootBtn">長押しで撮影</button>
+    <!-- 操作パネル -->
+    <div id="controlArea">
 
-        <div id="statusBox">
-            モード：待機中
-        </div>
+        <div id="modeDisplay">現在：お題モード</div>
+
+        <button id="toggleModeBtn">▶ ゲームモードに切り替え</button>
+
+        <button id="startCapture">🔴 長押しで撮影（まだ動作なし）</button>
+
+        <div id="progress">撮影待機中…</div>
+
     </div>
-
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
+</div>
 
 <script>
-/* -----------------------------------------
-    変数
------------------------------------------ */
-let currentMode = "none"; // "oda" or "card"
-let isHolding = false;
-let captureCount = 0;
-const maxCaptures = 10;
-let stream = null;
-let video = document.getElementById("video");
-let statusBox = document.getElementById("statusBox");
+let mode = "odai"; // odai or game
 
-let odaList = []; // お題で抽出した3桁数字リスト
-
-/* -----------------------------------------
-    カメラ起動（外カメラ）
------------------------------------------ */
-async function startCamera() {
-    try {
-        stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: { exact: "environment" } },
-            audio: false
-        });
-    } catch (e) {
-        // 外カメラがダメな場合 内カメラ fallback
-        stream = await navigator.mediaDevices.getUserMedia({
-            video: true,
-            audio: false
-        });
+document.getElementById("toggleModeBtn").onclick = () => {
+    if (mode === "odai") {
+        mode = "game";
+        document.getElementById("modeDisplay").innerText = "現在：ゲームモード";
+        document.getElementById("toggleModeBtn").innerText = "▶ お題モードに切り替え";
+    } else {
+        mode = "odai";
+        document.getElementById("modeDisplay").innerText = "現在：お題モード";
+        document.getElementById("toggleModeBtn").innerText = "▶ ゲームモードに切り替え";
     }
-    video.srcObject = stream;
-}
-
-startCamera();
-
-/* -----------------------------------------
-    モード変更
------------------------------------------ */
-document.getElementById("modeOdaBtn").onclick = () => {
-    currentMode = "oda";
-    statusBox.textContent = "モード：お題読み取り\n待機中";
 };
-
-document.getElementById("modeCardBtn").onclick = () => {
-    currentMode = "card";
-    statusBox.textContent = "モード：カード探索\n待機中";
-};
-
-/* -----------------------------------------
-    長押し撮影
------------------------------------------ */
-const shootBtn = document.getElementById("shootBtn");
-
-shootBtn.addEventListener("mousedown", startLongPress);
-shootBtn.addEventListener("touchstart", startLongPress);
-
-shootBtn.addEventListener("mouseup", stopLongPress);
-shootBtn.addEventListener("mouseleave", stopLongPress);
-shootBtn.addEventListener("touchend", stopLongPress);
-
-function startLongPress(e) {
-    e.preventDefault();
-    if (isHolding) return;
-    isHolding = true;
-    captureCount = 0;
-
-    statusBox.textContent = `モード：${currentMode === "oda" ? "お題読み取り" : "カード探索"}\n撮影開始`;
-    shootLoop();
-}
-
-function stopLongPress() {
-    isHolding = false;
-    statusBox.textContent += `\n撮影停止`;
-}
-
-/* -----------------------------------------
-    1秒ごとの連写
------------------------------------------ */
-async function shootLoop() {
-    if (!isHolding) return;
-
-    if (captureCount >= maxCaptures) {
-        statusBox.textContent += `\n最大${maxCaptures}枚で停止`;
-        isHolding = false;
-        return;
-    }
-
-    captureCount++;
-
-    const percent = Math.floor((captureCount / maxCaptures) * 100);
-
-    statusBox.textContent = 
-        `モード：${currentMode === "oda" ? "お題読み取り" : "カード探索"}\n` +
-        `撮影中… ${captureCount}/${maxCaptures} (${percent}%)`;
-
-    await analyzeFrame();
-
-    setTimeout(shootLoop, 1000);
-}
-
-/* -----------------------------------------
-    OCR処理
------------------------------------------ */
-async function analyzeFrame() {
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
-
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-    let dataUrl = canvas.toDataURL("image/png");
-
-    const result = await Tesseract.recognize(dataUrl, "eng", {
-        tessedit_char_whitelist: "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-    });
-
-    let text = result.data.text.replace(/\s+/g, "");
-
-    if (currentMode === "oda") {
-        // 3桁数字だけ抽出
-        let nums = text.match(/\d{3}/g);
-        if (nums) {
-            odaList = nums;
-            statusBox.textContent += `\nお題更新：${JSON.stringify(odaList)}`;
-        }
-    }
-
-    if (currentMode === "card") {
-        // 3桁数字＋1文字アルファベット
-        let pairs = text.match(/\d{3}[A-Z]/g);
-        if (!pairs) return;
-
-        let found = [];
-        for (let p of pairs) {
-            let num = p.slice(0, 3);
-            let alpha = p.slice(3);
-            if (odaList.includes(num)) {
-                found.push(`${num} → ${alpha}`);
-            }
-        }
-
-        if (found.length > 0) {
-            statusBox.textContent += "\n" + found.join("\n");
-        }
-    }
-}
 </script>
+
 </body>
 </html>
