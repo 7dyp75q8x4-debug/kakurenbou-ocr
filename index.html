@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-<title>横画面カメラ版（お題＋候補表示付き）</title>
+<title>横画面カメラ・完全修正版</title>
 
 <style>
     body {
@@ -14,15 +14,15 @@
         display: flex;
         flex-direction: row;
         height: 100vh;
+        width: 100vw;
     }
 
-    /* 左カメラ領域 */
+    /* カメラ部分（左）*/
     #cameraContainer {
         width: 60vw;
         height: 100vh;
         background: #000;
         position: relative;
-        overflow: hidden;
     }
     #video {
         width: 100%;
@@ -30,45 +30,36 @@
         object-fit: cover;
     }
 
-    /* 撮影中ステータス */
-    #status {
+    /* ステータス表示（左上）*/
+    #statusWait, #statusShoot {
         position: absolute;
         top: 10px;
         left: 10px;
-        padding: 8px 12px;
-        background: rgba(255,0,0,0.8);
+        padding: 7px 12px;
+        font-size: 17px;
         border-radius: 8px;
-        font-size: 18px;
         display: none;
     }
+    #statusWait { background: rgba(0,80,255,0.8); }
+    #statusShoot { background: rgba(255,0,0,0.8); }
 
-    /* お題＆候補の表示領域（左上） */
+    /* 左上の情報枠 */
     #infoPanel {
         position: absolute;
-        top: 10px;
+        bottom: 10px;
         left: 10px;
         width: calc(60vw - 20px);
+        max-height: 40vh;
         background: rgba(0,0,0,0.55);
         padding: 10px;
         border-radius: 8px;
-        font-size: 16px;
-        line-height: 1.3;
-        pointer-events: none;
-        max-height: 45vh;
         overflow-y: auto;
-    }
-
-    #titleInfo {
-        font-size: 18px;
-        font-weight: bold;
-        margin-bottom: 6px;
+        pointer-events: none;
     }
 
     .label {
         font-weight: bold;
-        margin-top: 4px;
-        margin-bottom: 2px;
-        font-size: 15px;
+        margin: 4px 0 2px 0;
         color: #ffd;
     }
 
@@ -77,13 +68,15 @@
         width: 40vw;
         height: 100vh;
         padding: 10px;
-        box-sizing: border-box;
         display: flex;
         flex-direction: column;
-        gap: 10px;
+        justify-content: flex-start;
         align-items: center;
+        gap: 12px;
+        box-sizing: border-box;
     }
 
+    /* mode 表示 */
     #modeDisplay {
         width: 100%;
         height: 55px;
@@ -92,63 +85,60 @@
         display: flex;
         justify-content: center;
         align-items: center;
-        font-size: 20px;
+        font-size: 19px;
         font-weight: bold;
     }
 
-    /* ボタングリッド */
+    /* ボタン 2x2 グリッド */
     #buttonGrid {
         width: 100%;
         display: grid;
         grid-template-columns: 1fr 1fr;
-        grid-template-rows: 1fr 1fr;
-        gap: 10px;
-        height: calc(40vw * 0.5);
+        gap: 12px;
     }
 
     .squareBtn {
+        width: 100%;
+        aspect-ratio: 1 / 1;
         background: #333;
         border-radius: 12px;
         display: flex;
         justify-content: center;
         align-items: center;
-        font-size: 17px;
-        font-weight: bold;
         text-align: center;
+        font-size: 16px;
+        font-weight: bold;
+        padding: 5px;
+        box-sizing: border-box;
         user-select: none;
-        aspect-ratio: 1 / 1;
     }
-    .squareBtn:active {
-        background: #555;
-    }
+    .squareBtn:active { background: #555; }
+
     #shootBtn {
         background: #aa2222;
         color: #fff;
     }
-
 </style>
 </head>
 
 <body>
 
-<!-- 左：カメラ -->
+<!-- 左カメラ -->
 <div id="cameraContainer">
     <video id="video" autoplay playsinline></video>
-    <div id="status">📸 撮影中…</div>
 
-    <!-- お題 + 候補表示 -->
+    <div id="statusWait">🟦 待機中</div>
+    <div id="statusShoot">🔴 撮影中</div>
+
     <div id="infoPanel">
-        <div id="titleInfo">📋 解析結果</div>
-        
-        <div class="label">お題（スキャンした全て）</div>
+        <div class="label">お題一覧</div>
         <div id="questList">なし</div>
-
         <div class="label">正解候補トップ3</div>
         <div id="candidateList">なし</div>
     </div>
 </div>
 
-<!-- 右：ボタン -->
+<!-- 右メニュー -->
 <div id="sideMenu">
 
     <div id="modeDisplay">現在：お題撮影モード</div>
@@ -156,8 +146,8 @@
     <div id="buttonGrid">
         <div id="modeQuest" class="squareBtn">📷 お題撮影</div>
         <div id="modeSearch" class="squareBtn">🔍 カード探索</div>
-        <div id="cameraTest" class="squareBtn">🎥 カメラ<br>テスト</div>
-        <div id="shootBtn" class="squareBtn">📸<br>長押し撮影</div>
+        <div id="cameraTest" class="squareBtn">🎥 テスト</div>
+        <div id="shootBtn" class="squareBtn">📸 長押し撮影</div>
     </div>
 
 </div>
@@ -165,6 +155,8 @@
 <script>
 /* ===== カメラ起動 ===== */
 async function startCamera() {
+    const video = document.getElementById("video");
+
     try {
         const stream = await navigator.mediaDevices.getUserMedia({
             video: { facingMode: { exact: "environment" } },
@@ -175,70 +167,57 @@ async function startCamera() {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
         video.srcObject = stream;
     }
+
+    // 待機中表示ON
+    statusWait.style.display = "block";
 }
 startCamera();
 
 
 /* ===== 状態管理 ===== */
-let mode = "quest";  // "quest" | "search"
+let mode = "quest";
 let isShooting = false;
 let timer = null;
 
-let questScanned = [];      // お題撮影で読み取った全ワード
-let searchCandidates = [];  // カード探索 → 候補トップ3
+let questScanned = [];
+let searchCandidates = [];
 
-
-/* ===== ダミーOCR（ここ後で本物に差し替え） ===== */
+/* ダミーOCR（後で本物に変更できる） */
 function fakeOcr() {
-    const words = ["リンゴ", "サル", "テント", "タヌキ", "メガネ", "おばけ", "まくら"];
-    return words[Math.floor(Math.random() * words.length)];
+    const dummy = ["ハト", "サル", "リンゴ", "メガネ", "くつ", "テント"];
+    return dummy[Math.floor(Math.random() * dummy.length)];
 }
 
-/* ===== 撮影して解析 ===== */
+/* ===== 撮影（1回ごと） ===== */
 function captureAndAnalyze() {
-    const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext("2d");
-    ctx.drawImage(video, 0, 0);
-
-    // 仮のOCR
     const text = fakeOcr();
 
     if (mode === "quest") {
         questScanned.push(text);
-        updateInfoPanel();
+        questList.textContent = questScanned.join(" / ");
     } else if (mode === "search") {
         searchCandidates.unshift(text);
         searchCandidates = searchCandidates.slice(0, 3);
-        updateInfoPanel();
+        candidateList.textContent = searchCandidates.join(" / ");
     }
 }
-
-/* ===== 左上の表示更新 ===== */
-function updateInfoPanel() {
-    questList.textContent =
-        questScanned.length ? questScanned.join(" / ") : "なし";
-
-    candidateList.textContent =
-        searchCandidates.length ? searchCandidates.join(" / ") : "なし";
-}
-
 
 /* ===== 長押し撮影 ===== */
 function startHold(e) {
     e.preventDefault();
     if (isShooting) return;
+
     isShooting = true;
-    status.style.display = "block";
+    statusShoot.style.display = "block";
 
     captureAndAnalyze();
     timer = setInterval(captureAndAnalyze, 1000);
 }
+
 function stopHold() {
     if (!isShooting) return;
     isShooting = false;
-    status.style.display = "none";
+    statusShoot.style.display = "none";
     clearInterval(timer);
 }
 
@@ -247,7 +226,6 @@ shootBtn.onmouseup = stopHold;
 shootBtn.onmouseleave = stopHold;
 shootBtn.ontouchstart = startHold;
 shootBtn.ontouchend = stopHold;
-
 
 /* ===== モード切替 ===== */
 modeQuest.onclick = () => {
