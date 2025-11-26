@@ -2,193 +2,194 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OCR Tool</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>UI Base - Improved Right Side</title>
 
 <style>
-  body {
-    margin: 0;
-    display: flex;
-    height: 100vh;
-    overflow: hidden;
-    background: #fafafa;
-    font-family: sans-serif;
-  }
+    body {
+        margin: 0;
+        padding: 0;
+        display: flex;
+        height: 100vh;
+        overflow: hidden;
+        background: #f5f5f5;
+        font-family: sans-serif;
+    }
 
-  /* 左側（スロット） */
-  #left-side {
-    width: 55vw;
-    padding: 8px;
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    grid-template-rows: repeat(4, 1fr);
-    gap: 4px;
-    height: 100%;
-    box-sizing: border-box;
-  }
+    /* 全体を左右２エリアに分割 */
+    #leftArea {
+        width: 52%; /* 左は現状キープ */
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        grid-template-rows: repeat(5, 1fr);
+        gap: 4px;
+        padding: 8px;
+        box-sizing: border-box;
+    }
 
-  .slot {
-    background: #eee;
-    border-radius: 6px;
-    font-size: 20px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-  }
+    .slot {
+        background: #fff;
+        border: 1px solid #ccc;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        border-radius: 4px;
+    }
 
-  /* 右側 UI */
-  #right-side {
-    width: 45vw;
-    padding: 8px;
-    display: flex;
-    flex-direction: column;
-    box-sizing: border-box;
-  }
+    /* 右側 */
+    #rightArea {
+        width: 48%; /* カメラを広げるため増量 */
+        display: flex;
+        flex-direction: column;
+        padding: 8px;
+        box-sizing: border-box;
+    }
 
-  /* カメラ映像（少し大きくした） */
-  #cameraContainer {
-    width: 100%;
-    height: 28vh;
-    background: #222;
-    border-radius: 8px;
-    overflow: hidden;
-    margin-bottom: 10px;
-  }
+    /* カメラ：右側を広げたので高さを拡大 */
+    #cameraContainer {
+        width: 100%;
+        height: 32%; /* B案：少し縦に伸ばした */
+        background: #000;
+        border-radius: 6px;
+        overflow: hidden;
+        margin-bottom: 6px;
+    }
 
-  video {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
+    video {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
 
-  /* ログ */
-  #logArea {
-    width: 100%;
-    height: 16vh;
-    background: #ddd;
-    border-radius: 8px;
-    margin-bottom: 10px;
-    overflow-y: auto;
-    font-size: 14px;
-    padding: 6px;
-    box-sizing: border-box;
-  }
+    /* ログ */
+    #log {
+        flex: 1;
+        background: #fff;
+        border: 1px solid #bbb;
+        border-radius: 6px;
+        padding: 6px;
+        font-size: 13px;
+        overflow-y: auto;
+        margin-bottom: 8px;
+    }
 
-  /* ボタンを 2×2 の正方形に */
-  #buttonGrid {
-    display: grid;
-    width: 100%;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-  }
+    /* ボタンエリア：2×2 */
+    #buttonGrid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: 1fr 1fr;
+        gap: 6px;
+        height: 26%;
+    }
 
-  .modeBtn {
-    width: 100%;
-    padding: 20px 0;
-    border-radius: 12px;
-    font-size: 18px;
-    font-weight: bold;
-    border: none;
-    cursor: pointer;
-  }
+    button {
+        width: 100%;
+        height: 100%;
+        font-size: 14px;
+        border-radius: 6px;
+        border: none;
+        background: #ddd;
+    }
 
-  #readBtn { background-color: #cc0000; color: white; }
-  #searchBtn { background-color: #00aa00; color: white; }
-  #shootBtn { background-color: white; color: black; }
-  #resetBtn { background-color: white; color: black; }
+    /* モード切り替えの色 */
+    .active-red {
+        background: #ff4b4b !important;
+        color: #fff;
+    }
+    .active-green {
+        background: #00b44b !important;
+        color: #fff;
+    }
 </style>
 </head>
 
 <body>
 
-<!-- 左側：スロット -->
-<div id="left-side">
-  <div class="slot">1</div><div class="slot">2</div><div class="slot">3</div><div class="slot">4</div><div class="slot">5</div>
-  <div class="slot">6</div><div class="slot">7</div><div class="slot">8</div><div class="slot">9</div><div class="slot">10</div>
-  <div class="slot">11</div><div class="slot">12</div><div class="slot">13</div><div class="slot">14</div><div class="slot">15</div>
-  <div class="slot">16</div><div class="slot">17</div><div class="slot">18</div><div class="slot">19</div><div class="slot">20</div>
+<!-- 左側：5×4スロット（絶対変更しない） -->
+<div id="leftArea">
+    <div class="slot">1a</div><div class="slot">1b</div><div class="slot">1c</div><div class="slot">1d</div>
+    <div class="slot">2a</div><div class="slot">2b</div><div class="slot">2c</div><div class="slot">2d</div>
+    <div class="slot">3a</div><div class="slot">3b</div><div class="slot">3c</div><div class="slot">3d</div>
+    <div class="slot">4a</div><div class="slot">4b</div><div class="slot">4c</div><div class="slot">4d</div>
+    <div class="slot">5a</div><div class="slot">5b</div><div class="slot">5c</div><div class="slot">5d</div>
 </div>
 
-<!-- 右側 UI -->
-<div id="right-side">
+<!-- 右側：カメラ → ログ → ボタン2×2 -->
+<div id="rightArea">
 
-  <!-- カメラ -->
-  <div id="cameraContainer">
-    <video id="camera" autoplay playsinline></video>
-  </div>
+    <div id="cameraContainer">
+        <video id="camera" autoplay playsinline></video>
+    </div>
 
-  <!-- ログ -->
-  <div id="logArea"></div>
+    <div id="log"></div>
 
-  <!-- 2×2 ボタン -->
-  <div id="buttonGrid">
-    <button id="readBtn" class="modeBtn">お題読み取り</button>
-    <button id="searchBtn" class="modeBtn">探索モード</button>
-    <button id="shootBtn" class="modeBtn">撮影（長押し）</button>
-    <button id="resetBtn" class="modeBtn">リセット</button>
-  </div>
+    <div id="buttonGrid">
+        <button id="modeRead">お題読み取り</button>
+        <button id="modeSearch">探索モード</button>
+        <button id="photoBtn">撮影(長押し)</button>
+        <button id="clearLog">ログ削除</button>
+    </div>
 
 </div>
-
 
 <script>
-/* --------------------------
-   カメラ起動
---------------------------- */
-const video = document.getElementById("camera");
+    const logBox = document.getElementById("log");
+    function addLog(msg) {
+        logBox.innerHTML += msg + "<br>";
+        logBox.scrollTop = logBox.scrollHeight;
+    }
 
-async function startCamera() {
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "environment" },
-      audio: false
-    });
-    video.srcObject = stream;
-    log("カメラ起動 OK");
-  } catch (e) {
-    log("カメラ起動エラー: " + e);
-  }
-}
+    /* カメラ起動 */
+    const video = document.getElementById("camera");
+    async function startCamera() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: "environment" },
+                audio: false
+            });
+            video.srcObject = stream;
+            addLog("カメラ起動しました");
+        } catch (e) {
+            addLog("カメラ起動失敗: " + e);
+        }
+    }
+    startCamera();
 
-startCamera();
 
-/* --------------------------
-   ログ表示
---------------------------- */
-function log(msg) {
-  const logArea = document.getElementById("logArea");
-  logArea.innerHTML += msg + "<br>";
-  logArea.scrollTop = logArea.scrollHeight;
-}
+    /* モード切り替え */
+    const modeRead = document.getElementById("modeRead");
+    const modeSearch = document.getElementById("modeSearch");
 
-/* --------------------------
-   モードボタン（色はCSS）
---------------------------- */
-document.getElementById("readBtn").onclick = () => {
-  log("お題読み取りモード");
-};
+    let currentMode = "read";
 
-document.getElementById("searchBtn").onclick = () => {
-  log("探索モード");
-};
+    function updateModeButtons() {
+        if (currentMode === "read") {
+            modeRead.classList.add("active-red");
+            modeSearch.classList.remove("active-green");
+        } else {
+            modeRead.classList.remove("active-red");
+            modeSearch.classList.add("active-green");
+        }
+    }
+    updateModeButtons();
 
-/* 撮影（長押し） */
-let pressTimer;
-const shootBtn = document.getElementById("shootBtn");
+    modeRead.onclick = () => {
+        currentMode = "read";
+        addLog("モード：お題読み取り");
+        updateModeButtons();
+    };
 
-shootBtn.addEventListener("mousedown", () => {
-  pressTimer = setTimeout(() => {
-    log("長押し撮影 実行");
-  }, 600);
-});
-shootBtn.addEventListener("mouseup", () => clearTimeout(pressTimer));
-shootBtn.addEventListener("mouseleave", () => clearTimeout(pressTimer));
+    modeSearch.onclick = () => {
+        currentMode = "search";
+        addLog("モード：探索");
+        updateModeButtons();
+    };
 
-/* リセット */
-document.getElementById("resetBtn").onclick = () => {
-  document.getElementById("logArea").innerHTML = "";
-  log("リセットしました");
-};
+    /* ログ削除 */
+    document.getElementById("clearLog").onclick = () => {
+        logBox.innerHTML = "";
+    };
 </script>
 
 </body>
