@@ -1,187 +1,189 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>かくれんぼOCR</title>
-
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <style>
     body {
         margin: 0;
         padding: 0;
-        background: #000;
-        color: #fff;
-        font-family: -apple-system, BlinkMacSystemFont, sans-serif;
         overflow: hidden;
+        font-family: sans-serif;
     }
 
-    /* --------------- 画面全体の左右レイアウト --------------- */
+    /* 画面を左右 2 分割 */
     .container {
         display: flex;
-        flex-direction: row;
+        height: 100vh;
         width: 100vw;
-        height: 100vh;
     }
 
-    /* ------------------- 左側（スロット） ------------------- */
-    .left-area {
-        width: 48vw;
-        height: 100vh;
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        grid-template-rows: repeat(5, 1fr);
-        gap: 6px;
-        padding: 6px;
-        box-sizing: border-box;
-    }
-
-    .slot {
-        border: 1px solid #555;
-        border-radius: 6px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 18px;
-        background: #222;
-    }
-
-    /* ------------------- 右側エリア ------------------- */
-    .right-area {
-        width: 52vw;
-        height: 100vh;
+    /* 左スロットエリア */
+    .left {
+        width: 48%;
         display: flex;
         flex-direction: column;
-        padding: 8px;
+        justify-content: flex-start;
+        padding: 4px;
         box-sizing: border-box;
     }
 
-    /* カメラ領域（画面上から1/4） */
-    #camera-area {
-        width: 100%;
-        height: 25vh;
-        background: #111;
-        border-radius: 8px;
-        overflow: hidden;
+    /* スロット行（1a〜1d など） */
+    .slot-row {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 4px;
     }
 
-    video {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-    }
-
-    /* ログ（高さ25%） */
-    #log-area {
-        width: 100%;
-        height: 25vh;
-        background: #222;
-        border-radius: 8px;
-        margin-top: 8px;
-        padding: 6px;
-        overflow-y: auto;
+    /* スロットの見た目 */
+    .slot {
+        width: 22%;
+        aspect-ratio: 1 / 0.9;
+        background: #ddd;
+        border: 1px solid #aaa;
+        display: flex;
+        justify-content: center;
+        align-items: center;
         font-size: 14px;
     }
 
-    /* ボタン 4つ */
-    .btn {
+    /* 右 UI エリア */
+    .right {
+        width: 52%;
+        padding: 4px;
+        display: flex;
+        flex-direction: column;
+        box-sizing: border-box;
+    }
+
+    /* カメラ映像（高さ1/4固定） */
+    #cameraPreview {
         width: 100%;
-        padding: 14px 0;
-        border-radius: 10px;
+        height: 22vh; /* iPhone12Pro で1/4より少し余裕 */
+        background: black;
+    }
+
+    /* ログ */
+    #logBox {
+        width: 100%;
+        height: 18vh;
+        margin-top: 4px;
+        background: #eee;
+        overflow-y: scroll;
+        font-size: 12px;
+        padding: 4px;
+        box-sizing: border-box;
+    }
+
+    /* ボタン共通 */
+    .button {
+        width: 100%;
+        padding: 10px;
+        margin-top: 6px;
+        font-size: 15px;
+        border-radius: 6px;
+        border: 1px solid #888;
+        background: white;
         text-align: center;
-        font-size: 16px;
-        margin-top: 10px;
-        background: #fff;
-        color: #000;
     }
 
-    /* モードボタン色 */
-    #btn-odai {
-        background: #d93434; /* 赤 */
-        color: #fff;
+    /* モード切り替え色 */
+    #btnOni {
+        background: red;
+        color: white;
     }
-    #btn-tansaku {
-        background: #1fb043; /* 緑 */
-        color: #fff;
+    #btnSearch {
+        background: white;
+        color: green;
+        border: 2px solid green;
     }
-
 </style>
 </head>
-
 <body>
 
 <div class="container">
 
-    <!-- ------------------ 左スロット ------------------ -->
-    <div class="left-area">
-        <div class="slot">1a</div><div class="slot">1b</div><div class="slot">1c</div><div class="slot">1d</div>
-        <div class="slot">2a</div><div class="slot">2b</div><div class="slot">2c</div><div class="slot">2d</div>
-        <div class="slot">3a</div><div class="slot">3b</div><div class="slot">3c</div><div class="slot">3d</div>
-        <div class="slot">4a</div><div class="slot">4b</div><div class="slot">4c</div><div class="slot">4d</div>
-        <div class="slot">5a</div><div class="slot">5b</div><div class="slot">5c</div><div class="slot">5d</div>
+    <!-- 左側：5×4 スロット -->
+    <div class="left">
+        <div class="slot-row">
+            <div class="slot">1a</div><div class="slot">1b</div><div class="slot">1c</div><div class="slot">1d</div>
+        </div>
+        <div class="slot-row">
+            <div class="slot">2a</div><div class="slot">2b</div><div class="slot">2c</div><div class="slot">2d</div>
+        </div>
+        <div class="slot-row">
+            <div class="slot">3a</div><div class="slot">3b</div><div class="slot">3c</div><div class="slot">3d</div>
+        </div>
+        <div class="slot-row">
+            <div class="slot">4a</div><div class="slot">4b</div><div class="slot">4c</div><div class="slot">4d</div>
+        </div>
+        <div class="slot-row">
+            <div class="slot">5a</div><div class="slot">5b</div><div class="slot">5c</div><div class="slot">5d</div>
+        </div>
     </div>
 
-    <!-- ------------------ 右側 UI ------------------ -->
-    <div class="right-area">
+    <!-- 右側：カメラ・ログ・ボタン -->
+    <div class="right">
 
-        <!-- カメラ表示 -->
-        <div id="camera-area">
-            <video id="camera" autoplay playsinline></video>
-        </div>
+        <!-- カメラ -->
+        <video id="cameraPreview" autoplay playsinline></video>
 
         <!-- ログ -->
-        <div id="log-area"></div>
+        <div id="logBox"></div>
 
         <!-- ボタン4つ -->
-        <div id="btn-odai" class="btn">お題読み取りモード</div>
-        <div id="btn-tansaku" class="btn">探索モード</div>
-        <div id="btn-camera" class="btn">撮影（長押し）</div>
-        <div id="btn-reset" class="btn">リセット</div>
+        <button id="btnOni" class="button">お題読み取りモード</button>
+        <button id="btnSearch" class="button">探索モード</button>
+        <button id="btnCapture" class="button">撮影（長押し）</button>
+        <button id="btnOther" class="button">その他</button>
 
     </div>
+
 </div>
 
 <script>
-/* ---------------- カメラ起動 ---------------- */
+/* カメラ起動 */
 async function startCamera() {
+    const video = document.getElementById("cameraPreview");
     try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: "environment" },
-            audio: false
-        });
-        document.getElementById("camera").srcObject = stream;
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        video.srcObject = stream;
         addLog("カメラ起動");
     } catch (e) {
-        addLog("カメラ起動失敗");
+        addLog("カメラエラー: " + e);
     }
 }
+startCamera();
 
-/* ---------------- ログ追加 ---------------- */
-function addLog(text) {
-    const log = document.getElementById("log-area");
-    log.innerHTML += text + "<br>";
-    log.scrollTop = log.scrollHeight;
+/* ログ追記 */
+function addLog(msg) {
+    const box = document.getElementById("logBox");
+    box.innerHTML += msg + "<br>";
+    box.scrollTop = box.scrollHeight;
 }
 
-/* ---------------- ボタンイベント ---------------- */
-document.getElementById("btn-odai").onclick = () => {
-    addLog("モード切替：お題読み取り");
-    document.getElementById("btn-odai").style.background = "#d93434";
-    document.getElementById("btn-tansaku").style.background = "#fff";
-    document.getElementById("btn-tansaku").style.color = "#000";
-};
-document.getElementById("btn-tansaku").onclick = () => {
-    addLog("モード切替：探索モード");
-    document.getElementById("btn-tansaku").style.background = "#1fb043";
-    document.getElementById("btn-tansaku").style.color = "#fff";
-    document.getElementById("btn-odai").style.background = "#fff";
-    document.getElementById("btn-odai").style.color = "#000";
-};
+/* モード切り替え */
+document.getElementById("btnOni").addEventListener("click", () => {
+    document.getElementById("btnOni").style.background = "red";
+    document.getElementById("btnOni").style.color = "white";
 
-document.getElementById("btn-reset").onclick = () => {
-    addLog("リセット");
-};
+    document.getElementById("btnSearch").style.background = "white";
+    document.getElementById("btnSearch").style.border = "2px solid green";
+    document.getElementById("btnSearch").style.color = "green";
 
-startCamera();
+    addLog("お題読み取りモード ON");
+});
+
+document.getElementById("btnSearch").addEventListener("click", () => {
+    document.getElementById("btnSearch").style.background = "green";
+    document.getElementById("btnSearch").style.color = "white";
+    document.getElementById("btnSearch").style.border = "2px solid green";
+
+    document.getElementById("btnOni").style.background = "white";
+    document.getElementById("btnOni").style.color = "red";
+    document.getElementById("btnOni").style.border = "2px solid red";
+
+    addLog("探索モード ON");
+});
 </script>
 
 </body>
