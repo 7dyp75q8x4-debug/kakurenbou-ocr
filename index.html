@@ -1,246 +1,133 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-<title>横画面カメラ・完全修正版</title>
-
 <style>
-    body {
-        margin: 0;
-        background: #111;
-        color: #fff;
-        overflow: hidden;
-        display: flex;
-        flex-direction: row;
-        height: 100vh;
-        width: 100vw;
-    }
+/* 全体レイアウト --------------------------------------------------- */
+body {
+  margin: 0;
+  overflow: hidden;
+  background: #000;
+}
 
-    /* カメラ部分（左）*/
-    #cameraContainer {
-        width: 60vw;
-        height: 100vh;
-        background: #000;
-        position: relative;
-    }
-    #video {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-    }
+#camera-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 65vw;        /* ← 左エリアを固定 */
+  height: 100vh;
+  overflow: hidden;
+  background: #000;
+}
 
-    /* ステータス表示（左上）*/
-    #statusWait, #statusShoot {
-        position: absolute;
-        top: 10px;
-        left: 10px;
-        padding: 7px 12px;
-        font-size: 17px;
-        border-radius: 8px;
-        display: none;
-    }
-    #statusWait { background: rgba(0,80,255,0.8); }
-    #statusShoot { background: rgba(255,0,0,0.8); }
+#result-panel {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  width: 58vw;
+  max-width: 600px;
+  padding: 16px;
+  background: rgba(0,0,0,0.4);
+  backdrop-filter: blur(6px);
+  border-radius: 12px;
+  color: white;
+  font-size: 1.3rem;
+  z-index: 50;
+}
 
-    /* 左上の情報枠 */
-    #infoPanel {
-        position: absolute;
-        bottom: 10px;
-        left: 10px;
-        width: calc(60vw - 20px);
-        max-height: 40vh;
-        background: rgba(0,0,0,0.55);
-        padding: 10px;
-        border-radius: 8px;
-        overflow-y: auto;
-        pointer-events: none;
-    }
+/* ステータス表示 --------------------------------------------------- */
+#status-box {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  width: 30vw;
+  max-width: 360px;
+  padding: 15px;
+  background: rgba(0,0,0,0.55);
+  color: white;
+  text-align: center;
+  font-size: 1.6rem;
+  border-radius: 12px;
+  z-index: 100;
+}
 
-    .label {
-        font-weight: bold;
-        margin: 4px 0 2px 0;
-        color: #ffd;
-    }
+/* 右側ボタン ------------------------------------------------------- */
+#right-buttons {
+  position: fixed;
+  top: 110px;        /* ← ステータスの下にずらす */
+  right: 10px;
+  width: 30vw;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  z-index: 100;
+}
 
-    /* 右側メニュー */
-    #sideMenu {
-        width: 40vw;
-        height: 100vh;
-        padding: 10px;
-        display: flex;
-        flex-direction: column;
-        justify-content: flex-start;
-        align-items: center;
-        gap: 12px;
-        box-sizing: border-box;
-    }
+.button-row {
+  display: flex;
+  gap: 14px;
+}
 
-    /* mode 表示 */
-    #modeDisplay {
-        width: 100%;
-        height: 55px;
-        background: #222;
-        border-radius: 10px;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        font-size: 19px;
-        font-weight: bold;
-    }
+/* 正方形ボタン */
+.square-btn {
+  flex: 1;
+  aspect-ratio: 1 / 1;
+  background: #2e2e2e;
+  border-radius: 18px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: white;
+  font-size: 1.4rem;
+  user-select: none;
+}
 
-    /* ボタン 2x2 グリッド */
-    #buttonGrid {
-        width: 100%;
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 12px;
-    }
+/* 長押し撮影（赤ボタン） */
+.red-btn {
+  background: #b40000;
+}
 
-    .squareBtn {
-        width: 100%;
-        aspect-ratio: 1 / 1;
-        background: #333;
-        border-radius: 12px;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        text-align: center;
-        font-size: 16px;
-        font-weight: bold;
-        padding: 5px;
-        box-sizing: border-box;
-        user-select: none;
-    }
-    .squareBtn:active { background: #555; }
-
-    #shootBtn {
-        background: #aa2222;
-        color: #fff;
-    }
+/* カメラテスト（黒ボタン） */
+.black-btn {
+  background: #111;
+}
 </style>
-</head>
 
 <body>
 
-<!-- 左カメラ -->
-<div id="cameraContainer">
-    <video id="video" autoplay playsinline></video>
-
-    <div id="statusWait">🟦 待機中</div>
-    <div id="statusShoot">🔴 撮影中</div>
-
-    <div id="infoPanel">
-        <div class="label">お題一覧</div>
-        <div id="questList">なし</div>
-        <div class="label">正解候補トップ3</div>
-        <div id="candidateList">なし</div>
-    </div>
+<div id="camera-container">
+  <video id="camera" autoplay playsinline></video>
 </div>
 
-<!-- 右メニュー -->
-<div id="sideMenu">
+<!-- 解析結果（左側） -->
+<div id="result-panel">
+  <div style="font-size:1.5rem;">📋解析結果</div>
+  <div style="margin-top:8px;">
+    <b>お題（スキャンした全て）</b><br>
+    <span id="all-questions">なし</span>
+  </div>
 
-    <div id="modeDisplay">現在：お題撮影モード</div>
-
-    <div id="buttonGrid">
-        <div id="modeQuest" class="squareBtn">📷 お題撮影</div>
-        <div id="modeSearch" class="squareBtn">🔍 カード探索</div>
-        <div id="cameraTest" class="squareBtn">🎥 テスト</div>
-        <div id="shootBtn" class="squareBtn">📸 長押し撮影</div>
-    </div>
-
+  <div style="margin-top:10px;">
+    <b>正解候補トップ3</b><br>
+    <span id="top3">なし</span>
+  </div>
 </div>
 
-<script>
-/* ===== カメラ起動 ===== */
-async function startCamera() {
-    const video = document.getElementById("video");
+<!-- ステータス表示（右上） -->
+<div id="status-box">
+  現在：<span id="status-text">お題撮影モード</span>
+</div>
 
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: { exact: "environment" } },
-            audio: false
-        });
-        video.srcObject = stream;
-    } catch {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-        video.srcObject = stream;
-    }
+<!-- ボタン（右側） -->
+<div id="right-buttons">
 
-    // 待機中表示ON
-    statusWait.style.display = "block";
-}
-startCamera();
+  <div class="button-row">
+    <div class="square-btn" id="btn-quiz">📷 お題撮影</div>
+    <div class="square-btn" id="btn-card">🔍 カード探索</div>
+  </div>
 
+  <div class="button-row">
+    <div class="square-btn black-btn" id="btn-test">🎥 カメラテスト</div>
+    <div class="square-btn red-btn" id="btn-long">📸 長押し撮影</div>
+  </div>
 
-/* ===== 状態管理 ===== */
-let mode = "quest";
-let isShooting = false;
-let timer = null;
-
-let questScanned = [];
-let searchCandidates = [];
-
-/* ダミーOCR（後で本物に変更できる） */
-function fakeOcr() {
-    const dummy = ["ハト", "サル", "リンゴ", "メガネ", "くつ", "テント"];
-    return dummy[Math.floor(Math.random() * dummy.length)];
-}
-
-/* ===== 撮影（1回ごと） ===== */
-function captureAndAnalyze() {
-    const text = fakeOcr();
-
-    if (mode === "quest") {
-        questScanned.push(text);
-        questList.textContent = questScanned.join(" / ");
-    } else if (mode === "search") {
-        searchCandidates.unshift(text);
-        searchCandidates = searchCandidates.slice(0, 3);
-        candidateList.textContent = searchCandidates.join(" / ");
-    }
-}
-
-/* ===== 長押し撮影 ===== */
-function startHold(e) {
-    e.preventDefault();
-    if (isShooting) return;
-
-    isShooting = true;
-    statusShoot.style.display = "block";
-
-    captureAndAnalyze();
-    timer = setInterval(captureAndAnalyze, 1000);
-}
-
-function stopHold() {
-    if (!isShooting) return;
-    isShooting = false;
-    statusShoot.style.display = "none";
-    clearInterval(timer);
-}
-
-shootBtn.onmousedown = startHold;
-shootBtn.onmouseup = stopHold;
-shootBtn.onmouseleave = stopHold;
-shootBtn.ontouchstart = startHold;
-shootBtn.ontouchend = stopHold;
-
-/* ===== モード切替 ===== */
-modeQuest.onclick = () => {
-    mode = "quest";
-    modeDisplay.textContent = "現在：お題撮影モード";
-};
-modeSearch.onclick = () => {
-    mode = "search";
-    modeDisplay.textContent = "現在：カード探索モード";
-};
-cameraTest.onclick = () => {
-    mode = "test";
-    modeDisplay.textContent = "現在：カメラテストモード";
-};
-</script>
+</div>
 
 </body>
-</html>
