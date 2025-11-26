@@ -1,200 +1,341 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-<title>カード探索カメラ</title>
-
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover" />
+<title>OCR Camera (Browser) — 横画面UI</title>
 <style>
-  body{
-    margin:0; padding:0; background:#000; color:#fff;
-    font-family: -apple-system, system-ui;
-    overflow:hidden; /* ← スワイプ禁止 */
+  :root{
+    --bg:#0b0b0b; --accent:#ff3b30; --muted:#222;
+    --leftW:140px; --rightW:420px;
   }
-
-  #wrap{
-    display:flex;
-    flex-direction:column;
-    width:100vw;
-    height:100vh;
-    padding:8px;
-    gap:6px;
-    box-sizing:border-box;
-  }
-
-  /* 🔵 カメラ：小型化しても黒画面にならない限界値 */
-  #cameraBox{
-    width:150px;
-    height:95px;
-    background:#111;
-    border-radius:10px;
-    border:2px solid #333;
-    overflow:hidden;
-    flex-shrink:0;
-  }
-  #camera{
-    width:100%;
-    height:100%;
-    object-fit:cover;
-    background:#000;
-  }
-
-  /* 🟦 状態表示（待機中 / 撮影中） */
-  #status{
-    padding:6px;
-    text-align:center;
-    font-size:18px;
-    font-weight:bold;
-    background:#1e3cff;
-    border-radius:10px;
-    flex-shrink:0;
-  }
-
-  /* 🎛 ボタン4つを1列に */
-  #btnRow{
-    display:flex;
-    gap:6px;
-    flex-shrink:0;
-  }
-  .sqBtn{
-    width:55px;
-    height:55px;
-    font-size:25px;
-    background:#333;
-    border-radius:10px;
-    display:flex;
-    justify-content:center;
-    align-items:center;
-  }
-  #shootBtn{ background:#b11; }
-
-  /* 🔶 情報パネル（高さ可変。スクロール禁止） */
-  #infoPanel{
-    flex:1;
-    background:#111;
-    border-radius:10px;
-    padding:10px;
-    overflow:hidden;
-    display:flex;
-    flex-direction:column;
-    gap:10px;
-  }
-
-  .box{
-    background:#222;
-    padding:10px;
+  html,body{height:100%;margin:0;background:var(--bg);color:#fff;font-family:system-ui,-apple-system,Segoe UI,Roboto,"Hiragino Kaku Gothic ProN",Meiryo,sans-serif;}
+  /* Landscape layout container */
+  .app{height:100vh; display:flex; flex-direction:row; align-items:stretch; gap:12px; padding:12px; box-sizing:border-box;}
+  /* Left: topics */
+  .left{
+    width:var(--leftW);
+    background:#070707;
     border-radius:8px;
-    font-size:20px;
-    line-height:1.2em;
+    padding:10px;
+    box-sizing:border-box;
+    display:flex; flex-direction:column; justify-content:space-around; align-items:center;
   }
+  .topic{
+    width:92%; padding:16px; border-radius:6px; border:2px solid var(--accent); text-align:center; cursor:pointer; user-select:none;
+  }
+  .topic.active{ background:var(--accent); color:#000; font-weight:700; }
 
+  /* Center: candidates */
+  .center{
+    flex:1.2; background:transparent; overflow:auto; padding:16px; box-sizing:border-box;
+  }
+  .candidate{
+    height:120px; border-radius:8px; border:2px solid rgba(255,77,77,0.14); margin-bottom:14px; display:flex; align-items:center; justify-content:center; flex-direction:column;
+  }
+  .thumbRow{ display:flex; gap:8px; margin-top:8px; }
+  .thumb{ width:80px; height:50px; background:#222; border-radius:6px; }
+
+  /* Right: camera */
+  .right{ width:var(--rightW); display:flex; flex-direction:column; gap:12px; align-items:center; justify-content:flex-start; }
+  .cameraBox{ width:100%; height:280px; border:2px solid #fff; border-radius:10px; overflow:hidden; background:#000; position:relative; display:flex; align-items:center; justify-content:center; }
+  video#cam{ width:100%; height:100%; object-fit:cover; transform:scaleX(-1); } /* mirror for user-friendly preview */
+  .overlayFrame{ position:absolute; width:85%; height:75%; border:2px solid rgba(255,255,255,0.9); pointer-events:none; display:flex; align-items:center; justify-content:center; }
+  .frameHint{ position:absolute; bottom:6px; background:#00000066; color:#fff; padding:6px 8px; border-radius:6px; font-size:13px; }
+
+  .controls{ width:100%; display:flex; flex-direction:column; align-items:center; gap:10px; }
+  .shutter{ width:160px; height:56px; border-radius:28px; background:var(--accent); display:flex; align-items:center; justify-content:center; font-weight:800; cursor:pointer; user-select:none; }
+  .shutter.disabled{ opacity:0.5; pointer-events:none; }
+
+  .previewImg{ width:160px; height:90px; border-radius:6px; object-fit:cover; border:2px solid #333; }
+
+  /* OCR results area */
+  .ocrBox{ width:100%; background:#050505; padding:12px; border-radius:8px; margin-top:6px; min-height:88px; box-sizing:border-box; color:#ddd; font-size:14px; white-space:pre-wrap; overflow:auto; }
+
+  /* Toast */
+  .toast{ position:fixed; left:50%; transform:translateX(-50%); bottom:26px; background:var(--accent); color:#fff; padding:12px 20px; border-radius:20px; font-weight:700; box-shadow:0 6px 18px rgba(0,0,0,0.6); z-index:9999; }
+
+  /* small helper */
+  .muted{ color:#aaa; font-size:13px; }
+  @media (max-width:900px){
+    /* On narrow screens, stack columns for usability */
+    .app{ flex-direction:column; padding:8px; }
+    .left{ width:100%; flex-direction:row; gap:8px; padding:8px; overflow:auto; }
+    .right{ width:100%; }
+  }
 </style>
 </head>
 <body>
-
-<div id="wrap">
-
-  <!-- 📷 カメラボックス -->
-  <div id="cameraBox">
-    <video id="camera" autoplay playsinline></video>
+<div class="app">
+  <!-- LEFT: Topics -->
+  <div class="left" id="left">
+    <div class="topic active">お題1</div>
+    <div class="topic">お題2</div>
+    <div class="topic">お題3</div>
+    <div class="topic">お題4</div>
+    <div class="topic">お題5</div>
   </div>
 
-  <!-- 🟦 ステータス表示 -->
-  <div id="status">待機中</div>
-
-  <!-- 🎛 ボタン -->
-  <div id="btnRow">
-    <div class="sqBtn" id="btnOni">📸</div>
-    <div class="sqBtn" id="btnSearch">🔍</div>
-    <div class="sqBtn" id="btnReset">♻️</div>
-    <div class="sqBtn" id="shootBtn">●</div>
-  </div>
-
-  <!-- 📝 情報パネル（お題 & 候補TOP3） -->
-  <div id="infoPanel">
-    <div class="box">
-      <b>お題（3桁）：</b><br>
-      <span id="odai">―</span>
+  <!-- CENTER: Candidates & OCR result -->
+  <div class="center">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <div style="font-weight:800;font-size:18px;">候補 top3（写真付き）</div>
+      <div class="muted">枠内に文字を合わせて撮影してください</div>
     </div>
-    <div class="box">
-      <b>候補 TOP3：</b><br>
-      <span id="top1">―</span><br>
-      <span id="top2">―</span><br>
-      <span id="top3">―</span>
+
+    <div style="height:12px"></div>
+
+    <div class="candidate">
+      <div style="font-weight:700">お題1 候補 top3</div>
+      <div class="thumbRow">
+        <div class="thumb"></div><div class="thumb"></div><div class="thumb"></div>
+      </div>
     </div>
+
+    <div class="candidate">
+      <div style="font-weight:700">お題2 候補 top3</div>
+      <div class="thumbRow">
+        <div class="thumb"></div><div class="thumb"></div><div class="thumb"></div>
+      </div>
+    </div>
+
+    <div class="candidate">
+      <div style="font-weight:700">お題3 候補 top3</div>
+      <div class="thumbRow">
+        <div class="thumb"></div><div class="thumb"></div><div class="thumb"></div>
+      </div>
+    </div>
+
+    <div style="height:12px"></div>
+
+    <div style="font-weight:800;margin-bottom:6px;">OCR結果</div>
+    <div id="ocrBox" class="ocrBox">撮影するとここにOCRの結果が表示されます</div>
   </div>
 
+  <!-- RIGHT: Camera -->
+  <div class="right">
+    <div class="cameraBox">
+      <video id="cam" autoplay playsinline></video>
+      <div class="overlayFrame">
+        <div class="frameHint" id="frameHint">ここにお題を合わせて撮影</div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <div id="shutter" class="shutter">撮影</div>
+
+      <div style="display:flex;gap:8px;align-items:center;">
+        <img id="preview" class="previewImg" alt="preview" src="" style="display:none" />
+        <div style="display:flex;flex-direction:column;">
+          <div class="muted">撮影画像プレビュー</div>
+          <div id="status" class="muted">準備中…</div>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
+<!-- Toast -->
+<div id="toast" style="display:none" class="toast"></div>
+
+<!-- Dependencies -->
+<!-- Tesseract.js: used as fallback if API_KEY is empty -->
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.1.1/dist/tesseract.min.js"></script>
+
 <script>
-/* =====================
-   📷 カメラ起動処理
-===================== */
+/*
+  ブラウザ版 OCR Camera — single file
+  - Google Cloud Vision を使うには API_KEY を設定（下）してください
+  - API_KEY を空にすると Tesseract.js フォールバック（キー不要）を使用します
+
+  注意: Vision API をブラウザから直接呼ぶと API KEY が公開されます。ローカル検証のみ推奨。
+*/
+
+const API_KEY = ""; // ← ここに Google Cloud Vision API KEY を入れると速くて精度高め（ただし公開に注意）
+const useVision = !!API_KEY;
+
+const video = document.getElementById('cam');
+const shutter = document.getElementById('shutter');
+const preview = document.getElementById('preview');
+const status = document.getElementById('status');
+const toastEl = document.getElementById('toast');
+const ocrBox = document.getElementById('ocrBox');
+
+let stream = null;
+let processing = false;
+
+// Start camera (prefer environment-facing camera)
 async function startCamera(){
-  try{
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video:{
-        facingMode:"environment",
-        width:{ideal:640},
-        height:{ideal:480}
-      },
-      audio:false
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false
     });
-    const cam = document.getElementById("camera");
-    cam.srcObject = stream;
-  }catch(e){
-    console.log("カメラエラー:", e);
+    video.srcObject = stream;
+    status.textContent = 'カメラ準備完了';
+  } catch (e) {
+    console.error(e);
+    status.textContent = 'カメラ使用不可: ' + (e.message || e);
+    showToast('カメラの許可が必要です');
   }
 }
-startCamera();
 
-/* =====================
-   🎦 長押し撮影処理
-===================== */
-let shootTimer = null;
-const shootBtn = document.getElementById("shootBtn");
-const statusBar = document.getElementById("status");
-
-shootBtn.addEventListener("touchstart", () => {
-  statusBar.textContent = "撮影中";
-  statusBar.style.background = "#ff3333";
-
-  shootTimer = setTimeout(()=>{
-    captureImage();
-  }, 800); // 長押し 0.8秒
-});
-
-shootBtn.addEventListener("touchend", () => {
-  clearTimeout(shootTimer);
-  statusBar.textContent = "待機中";
-  statusBar.style.background = "#1e3cff";
-});
-
-/* =====================
-   📸 撮影して画像データ取得
-===================== */
-function captureImage(){
-  const video = document.getElementById("camera");
-  const canvas = document.createElement("canvas");
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-
-  const ctx = canvas.getContext("2d");
-  ctx.drawImage(video, 0, 0);
-
-  const imgData = canvas.toDataURL("image/jpeg");
-
-  // 実際はOCR処理へ送信する部分
-  console.log("撮影データ:", imgData);
-
-  // テスト用にランダム反映
-  document.getElementById("odai").textContent = String(Math.floor(Math.random()*900+100));
-  document.getElementById("top1").textContent = "候補1";
-  document.getElementById("top2").textContent = "候補2";
-  document.getElementById("top3").textContent = "候補3";
+// Helper: show toast
+function showToast(msg, duration=1800){
+  toastEl.style.display = 'block';
+  toastEl.textContent = msg;
+  setTimeout(()=> toastEl.style.display = 'none', duration);
 }
 
-</script>
+// capture current video frame to canvas and return dataURL and blob
+function captureFrame(){
+  const videoRect = video.getBoundingClientRect();
+  const canvas = document.createElement('canvas');
 
+  // match the overlay frame ratio: take center crop matching overlay frame (85% x 75%)
+  const w = video.videoWidth || 1280;
+  const h = video.videoHeight || 720;
+
+  // center crop dimensions
+  const cropW = Math.floor(w * 0.85);
+  const cropH = Math.floor(h * 0.75);
+  const sx = Math.floor((w - cropW) / 2);
+  const sy = Math.floor((h - cropH) / 2);
+
+  canvas.width = cropW;
+  canvas.height = cropH;
+  const ctx = canvas.getContext('2d');
+
+  // draw mirrored video correctly (video is mirrored in CSS). We need non-mirrored image for OCR.
+  ctx.save();
+  // If video is mirrored (we set scaleX(-1)), un-mirror
+  ctx.scale(-1,1);
+  ctx.drawImage(video, sx, sy, cropW, cropH, -cropW, 0, cropW, cropH);
+  ctx.restore();
+
+  const dataURL = canvas.toDataURL('image/jpeg', 0.9); // base64 jpeg
+  return { dataURL, canvas };
+}
+
+// Run Google Vision OCR (base64 without data: prefix)
+async function runVisionOCR(base64ImageContents) {
+  const body = {
+    requests: [{
+      image: { content: base64ImageContents },
+      features: [{ type: "TEXT_DETECTION", maxResults: 1 }]
+    }]
+  };
+  const res = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${API_KEY}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error('Vision API error: ' + txt);
+  }
+  const data = await res.json();
+  const text = data?.responses?.[0]?.fullTextAnnotation?.text || '';
+  return text.trim();
+}
+
+// Run Tesseract.js OCR on canvas
+async function runTesseract(canvas) {
+  // Tesseract.recognize returns { data: { text: "..." } }
+  const worker = Tesseract.createWorker({
+    logger: m => {
+      // console.log(m);
+      if (m.status) {
+        status.textContent = `処理中: ${m.status} ${m.progress ? Math.round(m.progress*100)+'%' : ''}`;
+      }
+    }
+  });
+  await worker.load();
+  await worker.loadLanguage('jpn+eng'); // try Japanese + English (may download language data, slow first time)
+  await worker.initialize('jpn+eng');
+  const { data } = await worker.recognize(canvas);
+  await worker.terminate();
+  return data.text || '';
+}
+
+async function doCaptureAndOCR(){
+  if (processing) return;
+  processing = true;
+  shutter.classList.add('disabled');
+  status.textContent = '撮影中...';
+  ocrBox.textContent = '';
+
+  try {
+    const { dataURL, canvas } = captureFrame();
+
+    // set preview
+    preview.src = dataURL;
+    preview.style.display = 'block';
+
+    // prepare base64 without prefix
+    const base64 = dataURL.split(',')[1];
+
+    let text = '';
+    if (useVision) {
+      status.textContent = 'OCR（Vision）実行中...';
+      try {
+        text = await runVisionOCR(base64);
+      } catch (e) {
+        console.error(e);
+        showToast('Vision APIエラー。Tesseractにフォールバックします', 2500);
+        // fall back to tesseract
+        text = await runTesseract(canvas);
+      }
+    } else {
+      status.textContent = 'OCR（Tesseract）実行中... （初回は言語データ取得で時間がかかります）';
+      text = await runTesseract(canvas);
+    }
+
+    // show result
+    if (!text || text.trim().length === 0) {
+      // nothing detected
+      navigator.vibrate && navigator.vibrate([0,200,100,200]);
+      showToast('検出できませんでした。もう一度撮影してください');
+      ocrBox.textContent = '(検出なし)';
+    } else {
+      navigator.vibrate && navigator.vibrate(120);
+      showToast('テキストを検出しました！', 1400);
+      ocrBox.textContent = text;
+    }
+
+    status.textContent = '完了';
+  } catch (err) {
+    console.error(err);
+    showToast('エラー: ' + (err.message || err), 2500);
+    status.textContent = 'エラー';
+  } finally {
+    processing = false;
+    shutter.classList.remove('disabled');
+  }
+}
+
+// set up event listeners
+shutter.addEventListener('click', doCaptureAndOCR);
+
+// Start camera on load
+startCamera();
+
+// Topic click behavior (UI-only)
+document.querySelectorAll('.topic').forEach(el=>{
+  el.addEventListener('click', ()=>{
+    document.querySelectorAll('.topic').forEach(t=>t.classList.remove('active'));
+    el.classList.add('active');
+    // update hint text to show which topic selected
+    document.getElementById('frameHint').textContent = el.textContent + ' を合わせて撮影';
+  });
+});
+
+// Prevent orientation lock in browser — just suggest landscape
+if (screen.orientation && screen.orientation.lock) {
+  screen.orientation.lock('landscape').catch(()=>{ /* ignore */ });
+} else {
+  // no-op; user agent may ignore
+}
+</script>
 </body>
 </html>
