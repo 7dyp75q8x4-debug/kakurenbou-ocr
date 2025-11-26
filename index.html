@@ -1,45 +1,46 @@
 <style>
-/* 全体レイアウト --------------------------------------------------- */
 body {
   margin: 0;
   overflow: hidden;
   background: #000;
 }
 
+/* カメラ領域：幅を55vwに縮小してUIを隠さない */
 #camera-container {
   position: fixed;
   top: 0;
   left: 0;
-  width: 65vw;        /* ← 左エリアを固定 */
+  width: 55vw;
   height: 100vh;
-  overflow: hidden;
   background: #000;
+  overflow: hidden;
 }
 
+/* 解析結果（左上に小さく） */
 #result-panel {
   position: fixed;
   top: 10px;
   left: 10px;
-  width: 58vw;
-  max-width: 600px;
-  padding: 16px;
-  background: rgba(0,0,0,0.4);
+  width: 48vw;
+  max-width: 420px;
+  padding: 12px;
+  background: rgba(0,0,0,0.35);
+  color: #fff;
   backdrop-filter: blur(6px);
   border-radius: 12px;
-  color: white;
-  font-size: 1.3rem;
+  font-size: 1.2rem;
   z-index: 50;
 }
 
-/* ステータス表示 --------------------------------------------------- */
+/* ステータス（右上） */
 #status-box {
   position: fixed;
   top: 10px;
   right: 10px;
-  width: 30vw;
+  width: 35vw;
   max-width: 360px;
   padding: 15px;
-  background: rgba(0,0,0,0.55);
+  background: rgba(0,0,0,0.5);
   color: white;
   text-align: center;
   font-size: 1.6rem;
@@ -47,19 +48,20 @@ body {
   z-index: 100;
 }
 
-/* 右側ボタン ------------------------------------------------------- */
+/* 右側ボタンエリア */
 #right-buttons {
   position: fixed;
-  top: 110px;        /* ← ステータスの下にずらす */
+  top: 120px;
   right: 10px;
-  width: 30vw;
+  width: 35vw;
   max-width: 360px;
   display: flex;
   flex-direction: column;
   gap: 14px;
-  z-index: 100;
+  z-index: 90;
 }
 
+/* ボタン行 */
 .button-row {
   display: flex;
   gap: 14px;
@@ -76,15 +78,14 @@ body {
   align-items: center;
   color: white;
   font-size: 1.4rem;
-  user-select: none;
 }
 
-/* 長押し撮影（赤ボタン） */
+/* 赤ボタン */
 .red-btn {
   background: #b40000;
 }
 
-/* カメラテスト（黒ボタン） */
+/* 黒ボタン */
 .black-btn {
   background: #111;
 }
@@ -96,38 +97,53 @@ body {
   <video id="camera" autoplay playsinline></video>
 </div>
 
-<!-- 解析結果（左側） -->
+<!-- 解析結果 -->
 <div id="result-panel">
-  <div style="font-size:1.5rem;">📋解析結果</div>
-  <div style="margin-top:8px;">
-    <b>お題（スキャンした全て）</b><br>
-    <span id="all-questions">なし</span>
-  </div>
+  <b>📋解析結果</b><br><br>
+  <b>お題（3桁）</b><br>
+  <span id="all-questions">なし</span><br><br>
 
-  <div style="margin-top:10px;">
-    <b>正解候補トップ3</b><br>
-    <span id="top3">なし</span>
-  </div>
+  <b>正解候補トップ3</b><br>
+  <span id="top3">なし</span>
 </div>
 
-<!-- ステータス表示（右上） -->
+<!-- ステータス表示 -->
 <div id="status-box">
   現在：<span id="status-text">お題撮影モード</span>
 </div>
 
-<!-- ボタン（右側） -->
+<!-- 右側ボタン -->
 <div id="right-buttons">
-
   <div class="button-row">
     <div class="square-btn" id="btn-quiz">📷 お題撮影</div>
     <div class="square-btn" id="btn-card">🔍 カード探索</div>
   </div>
-
   <div class="button-row">
-    <div class="square-btn black-btn" id="btn-test">🎥 カメラテスト</div>
+    <div class="square-btn black-btn" id="btn-test">🎥 テスト</div>
     <div class="square-btn red-btn" id="btn-long">📸 長押し撮影</div>
   </div>
-
 </div>
+
+<script>
+// ▼ OCR結果 → 3桁数字だけ抽出する関数
+function extractThreeDigitNumbers(text) {
+  const matches = text.match(/\b\d{3}\b/g);
+  return matches ? matches : [];
+}
+
+// ▼ OCR処理後に呼ばれる部分（あなたのコードに組み込むだけで動く）
+function onOCRResult(rawText) {
+  const numbers = extractThreeDigitNumbers(rawText);
+
+  // お題一覧
+  document.getElementById("all-questions").textContent =
+    numbers.length ? numbers.join(" / ") : "なし";
+
+  // 正解候補トップ3（例：OCRの信頼度順などでソートするならここ）
+  const top3 = numbers.slice(0, 3);
+  document.getElementById("top3").textContent =
+    top3.length ? top3.join(" / ") : "なし";
+}
+</script>
 
 </body>
