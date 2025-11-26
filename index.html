@@ -2,31 +2,22 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>かくれんぼOCR – 完全動作版</title>
+<title>かくれんぼOCR – 横画面版</title>
 <style>
     body {
         margin: 0;
-        background: #111;
-        color: white;
-        font-family: sans-serif;
+        background: #000;
         overflow: hidden;
     }
 
-    .container {
-        display: flex;
-        flex-direction: row;
-        height: 100vh;
-        width: 100vw;
-    }
-
-    /* カメラエリア */
+    /* 横画面で動画が大きく表示されるように */
     #cameraArea {
-        flex: 2;
-        background: #000;
-        position: relative;
+        width: 100vw;
+        height: 80vh;
+        background: black;
         display: flex;
-        align-items: center;
         justify-content: center;
+        align-items: center;
         overflow: hidden;
     }
 
@@ -34,85 +25,82 @@
         width: 100%;
         height: 100%;
         object-fit: cover;
-        transform: none; /* ← ミラー解除（外カメラなら左右反転しない） */
+        transform: none; /* ミラー解除 */
     }
 
-    /* 右側の操作パネル */
+    /* 下に操作パネルを横並びで配置 */
     #controlArea {
-        flex: 1;
-        background: #333;
-        padding: 20px;
+        width: 100vw;
+        height: 20vh;
+        background: #222;
         display: flex;
-        flex-direction: column;
-        gap: 20px;
+        flex-direction: row;
+        justify-content: space-around;
+        align-items: center;
+        padding: 10px;
     }
 
     button {
-        padding: 20px;
         font-size: 2vw;
+        padding: 10px 20px;
         border-radius: 10px;
         border: none;
-        background: #555;
+        background: #444;
         color: white;
     }
 
     #modeDisplay {
-        font-size: 2.3vw;
-        text-align: center;
-        padding: 20px;
-        background: #222;
-        border-radius: 10px;
+        color: white;
+        font-size: 2vw;
     }
 
     #progress {
+        color: #0f0;
         font-size: 1.8vw;
-        text-align: center;
     }
 </style>
 </head>
 <body>
 
-<div class="container">
+<div id="cameraArea">
+    <video id="video" autoplay playsinline></video>
+</div>
 
-    <div id="cameraArea">
-        <video id="video" autoplay playsinline></video>
+<div id="controlArea">
+    <button onclick="setMode('odai')">📸 お題モード</button>
+    <button onclick="setMode('search')">🔍 探索モード</button>
+    <button onclick="setMode('cameraTest')">🎥 テスト</button>
+
+    <button id="captureBtn">🔴 長押し撮影</button>
+
+    <div>
+        <div id="modeDisplay">現在：お題モード</div>
+        <div id="progress">待機中</div>
     </div>
-
-    <div id="controlArea">
-
-        <div id="modeDisplay">現在：お題撮影モード</div>
-
-        <button onclick="setMode('odai')">📸 お題撮影モード</button>
-        <button onclick="setMode('search')">🔍 カード探索モード</button>
-        <button onclick="setMode('cameraTest')">🎥 カメラテストモード</button>
-
-        <button id="startCapture">🔴 長押しで撮影</button>
-
-        <div id="progress">連写待機中…</div>
-    </div>
-
 </div>
 
 <script>
 let mode = "odai";
 let stream = null;
+
 let capturing = false;
-let captureInterval = null;
+let holdTimer = null;
+let intervalId = null;
 let capturedImages = [];
 
 /* ============================
    モード切替
 ============================ */
-function setMode(newMode) {
-    mode = newMode;
+function setMode(m) {
+    mode = m;
 
-    const modeText = {
-        "odai": "現在：お題撮影モード",
-        "search": "現在：カード探索モード",
+    const text = {
+        "odai": "現在：お題モード",
+        "search": "現在：探索モード",
         "cameraTest": "現在：カメラテストモード"
     };
 
-    document.getElementById("modeDisplay").innerText = modeText[newMode];
+    document.getElementById("modeDisplay").innerText = text[m];
 }
 
 /* ============================
@@ -122,82 +110,79 @@ async function startCamera() {
     try {
         stream = await navigator.mediaDevices.getUserMedia({
             video: {
-                facingMode: { exact: "environment" },  // ★ 外カメラ強制
+                facingMode: { exact: "environment" },
                 width: { ideal: 1920 },
                 height: { ideal: 1080 }
-            },
-            audio: false
+            }
         });
     } catch (e) {
-        console.warn("外カメラ起動失敗 → 内カメラ fallback");
-
         stream = await navigator.mediaDevices.getUserMedia({
-            video: true,
-            audio: false
+            video: true
         });
     }
-
     document.getElementById("video").srcObject = stream;
 }
-
 startCamera();
 
 /* ============================
-   長押し撮影（1秒ごとに最大10枚）
+   長押し撮影処理
 ============================ */
 
-const button = document.getElementById("startCapture");
+const btn = document.getElementById("captureBtn");
 
-button.addEventListener("touchstart", () => startCapturing());
-button.addEventListener("mousedown", () => startCapturing());
+function startHold() {
+    if (capturing) return;
 
-button.addEventListener("touchend", () => stopCapturing());
-button.addEventListener("mouseup", () => stopCapturing());
-button.addEventListener("mouseleave", () => stopCapturing());
+    holdTimer = setTimeout(() => {
+        capturing = true;
+        capturedImages = [];
+        document.getElementById("progress").innerText = "撮影中… 0/10";
 
-function startCapturing() {
-    if (capturing) return; // 2重防止
-    capturing = true;
-    capturedImages = [];
-
-    document.getElementById("progress").innerText = "撮影中… 0/10";
-
-    captureInterval = setInterval(() => {
-        if (capturedImages.length >= 10) {
-            stopCapturing();
-            return;
-        }
-        takePicture();
-    }, 1000);
+        intervalId = setInterval(() => {
+            if (capturedImages.length >= 10) {
+                stopCapture();
+                return;
+            }
+            takePicture();
+        }, 1000);
+    }, 500);
 }
 
-function stopCapturing() {
-    capturing = false;
-    clearInterval(captureInterval);
+function stopHold() {
+    clearTimeout(holdTimer);
+    if (capturing) stopCapture();
+}
 
+function stopCapture() {
+    capturing = false;
+    clearInterval(intervalId);
     document.getElementById("progress").innerText =
         `撮影終了：${capturedImages.length}枚`;
-
-    console.log("撮影した画像データ：", capturedImages);
 }
 
 function takePicture() {
     const video = document.getElementById("video");
-
     const canvas = document.createElement("canvas");
+
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
 
     const ctx = canvas.getContext("2d");
     ctx.drawImage(video, 0, 0);
 
-    const imgData = canvas.toDataURL("image/png");
-    capturedImages.push(imgData);
+    const data = canvas.toDataURL("image/png");
+    capturedImages.push(data);
 
     document.getElementById("progress").innerText =
         `撮影中… ${capturedImages.length}/10`;
 }
-</script>
 
+btn.addEventListener("mousedown", startHold);
+btn.addEventListener("mouseup", stopHold);
+btn.addEventListener("mouseleave", stopHold);
+
+btn.addEventListener("touchstart", startHold);
+btn.addEventListener("touchend", stopHold);
+</script>
 </body>
 </html>
