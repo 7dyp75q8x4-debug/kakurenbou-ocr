@@ -1,117 +1,111 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<title>UI A案（固定レイアウト）</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <style>
-    body {
-        margin: 0;
-        padding: 0;
-        display: flex;
-        flex-direction: row;
-        width: 100vw;
-        height: 100vh;
-        overflow: hidden;
-        box-sizing: border-box;
-        font-family: sans-serif;
-    }
+body {
+    margin: 0;
+    background: #111;
+    color: white;
+    font-family: sans-serif;
+    overflow: hidden;
+    display: flex;
+}
 
-    /* 左ペイン：5×4 スロット */
-    #leftPane {
-        width: 48vw;
-        height: 100vh;
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        grid-template-rows: repeat(5, 1fr);
-        gap: 3px;
-        padding: 5px;
-        box-sizing: border-box;
-    }
+/* ===== 左側 5×4 グリッド ===== */
+#left {
+    width: 55vw;
+    padding: 4px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: repeat(5, 1fr);
+    gap: 6px;
+}
+.slot {
+    background: #222;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.4vw;
+    user-select: none;
+}
 
-    .slot {
-        background: #eee;
-        border: 1px solid #aaa;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        font-size: 12px;
-    }
+/* ===== 右側パネル ===== */
+#right {
+    width: 45vw;
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    overflow: hidden;
+    transform-origin: top right;
+}
 
-    /* 右ペイン */
-    #rightPane {
-        width: 52vw;
-        height: 100vh;
-        display: flex;
-        flex-direction: column;
-        justify-content: flex-start;
-        padding: 5px;
-        box-sizing: border-box;
-    }
+/* ===== カメラ（16:9固定で最大化） ===== */
+#camera-container {
+    width: 100%;
+    background: #000;
+    border-radius: 6px;
+    position: relative;
+}
+#camera-view {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    background: #000;
+    border-radius: 6px;
+    object-fit: cover;
+}
 
-    /* カメラ（16:9） */
-    #cameraWrapper {
-        width: 100%;
-        aspect-ratio: 16 / 9;
-        overflow: hidden;
-        background: #000;
-        border: 1px solid #444;
-        margin-bottom: 6px;
-    }
-    #cameraFeed {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-    }
+/* ===== ログ ===== */
+#log {
+    margin-top: 8px;
+    width: 100%;
+    height: 12vh;
+    background: #222;
+    border-radius: 6px;
+    padding: 6px;
+    overflow-y: auto;
+    font-size: 1.8vw;
+}
 
-    /* ログ */
-    #logBox {
-        width: 100%;
-        height: 18vh;
-        border: 1px solid #ccc;
-        background: #fafafa;
-        font-size: 11px;
-        padding: 4px;
-        overflow-y: auto;
-        margin-bottom: 6px;
-    }
+/* ===== ボタン 2×2 ===== */
+#buttons {
+    margin-top: 8px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 8px;
+    height: 24vh;
+}
+.btn {
+    border-radius: 6px;
+    border: none;
+    font-size: 2vw;
+    font-weight: 600;
+    user-select: none;
+}
 
-    /* ボタンエリア：正方形 2×2 */
-    #buttons {
-        width: 100%;
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 6px;
-    }
+/* 赤＆緑 */
+#btn-odai { background: #ff6b6b; }
+#btn-search { background: #3cb371; }
+#btn-photo { background: #fff; color: #000; }
+#btn-reset { background: #fff; color: #000; }
 
-    .btnSquare {
-        aspect-ratio: 1 / 1;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        border: 1px solid #666;
-        background: white;
-        font-size: 12px;
-        font-weight: bold;
-        cursor: pointer;
-        user-select: none;
-    }
-
-    /* モードボタン色 */
-    .mode-active-red {
-        background: #ff8a8a !important;
-        border-color: red !important;
-    }
-    .mode-active-green {
-        background: #9cff9c !important;
-        border-color: green !important;
-    }
+/* ===== 画面高さが溢れそうなら右だけ縮小 ===== */
+@media (max-height: 800px) {
+    #right { transform: scale(0.92); }
+}
+@media (max-height: 700px) {
+    #right { transform: scale(0.85); }
+}
 </style>
 </head>
+
 <body>
 
-<!-- 左スロット -->
-<div id="leftPane">
-    <!-- 5×4 = 20 slots -->
+<!-- 左側 5×4 -->
+<div id="left">
     <div class="slot">1a</div><div class="slot">1b</div><div class="slot">1c</div><div class="slot">1d</div>
     <div class="slot">2a</div><div class="slot">2b</div><div class="slot">2c</div><div class="slot">2d</div>
     <div class="slot">3a</div><div class="slot">3b</div><div class="slot">3c</div><div class="slot">3d</div>
@@ -119,62 +113,41 @@
     <div class="slot">5a</div><div class="slot">5b</div><div class="slot">5c</div><div class="slot">5d</div>
 </div>
 
-<!-- 右 UI -->
-<div id="rightPane">
+<!-- 右側 -->
+<div id="right">
 
     <!-- カメラ -->
-    <div id="cameraWrapper">
-        <video id="cameraFeed" autoplay playsinline></video>
+    <div id="camera-container">
+        <video id="camera-view" autoplay playsinline></video>
     </div>
 
     <!-- ログ -->
-    <div id="logBox"></div>
+    <div id="log">ログ表示</div>
 
-    <!-- ボタン群 -->
+    <!-- ボタン 2×2 -->
     <div id="buttons">
-        <div id="btnModeA" class="btnSquare">お題</div>
-        <div id="btnModeB" class="btnSquare">探索</div>
-        <div id="btnShot" class="btnSquare">撮影(長押し)</div>
-        <div id="btnReset" class="btnSquare">リセット</div>
+        <button id="btn-odai" class="btn">お題</button>
+        <button id="btn-search" class="btn">探索</button>
+        <button id="btn-photo" class="btn">撮影（長押し）</button>
+        <button id="btn-reset" class="btn">リセット</button>
     </div>
-
 </div>
 
 <script>
-/* --------------------------
-   カメラ起動（基本機能のみ）
---------------------------- */
-async function startCamera() {
-    const video = document.getElementById("cameraFeed");
+/* ===== カメラ起動 ===== */
+async function initCamera() {
+    const view = document.getElementById("camera-view");
     try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        video.srcObject = stream;
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: "environment" },
+            audio: false
+        });
+        view.srcObject = stream;
     } catch (e) {
-        console.log("カメラエラー:", e);
+        console.log("Camera Error:", e);
     }
 }
-startCamera();
-
-/* --------------------------
-   モード切り替え色変更
---------------------------- */
-const btnA = document.getElementById("btnModeA");
-const btnB = document.getElementById("btnModeB");
-
-function setModeA() {
-    btnA.classList.add("mode-active-red");
-    btnB.classList.remove("mode-active-green");
-}
-function setModeB() {
-    btnB.classList.add("mode-active-green");
-    btnA.classList.remove("mode-active-red");
-}
-
-btnA.onclick = setModeA;
-btnB.onclick = setModeB;
-
-// 初期値はお題モード
-setModeA();
+initCamera();
 </script>
 
 </body>
