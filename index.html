@@ -1,115 +1,362 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<title>かくれんぼ OCR Finder</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>かくれんぼ OCR — 手動モード切替版</title>
 
 <style>
-body {
-    background: #111;
-    color: #fff;
-    text-align: center;
-    font-family: sans-serif;
-}
-video {
-    width: 90%;
-    max-width: 600px;
-    margin-top: 10px;
-    border: 2px solid #555;
-    border-radius: 10px;
-}
-button {
-    font-size: 20px;
-    padding: 10px 20px;
-    margin: 15px;
-    border-radius: 10px;
-}
-#errorBox {
-    display: none;
-    background: #300;
-    padding: 10px;
-    margin: 10px;
-    border-radius: 8px;
-}
+  body { background:#111; color:#fff; font-family:system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Kaku Gothic ProN", "Noto Sans JP"; margin:0; padding:18px; text-align:center;}
+  h1 { margin:6px 0 14px; font-size:20px; }
+  #controls { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-bottom:10px; }
+  button { padding:10px 14px; font-size:16px; border-radius:10px; border:0; background:#2a2a2a; color:#fff; }
+  button.primary { background:#2b7cff; }
+  #video { width:100%; max-width:800px; border-radius:8px; border:2px solid #2b2b2b; display:block; margin:10px auto; }
+  #result { background:#0f0f0f; padding:12px; border-radius:8px; margin-top:12px; text-align:left; max-width:1000px; margin-left:auto; margin-right:auto; white-space:pre-wrap; }
+  .small { font-size:13px; color:#cfcfcf; }
+  #crops { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+  canvas.thumb { border:1px solid #333; border-radius:6px; background:#000; }
+  label { font-size:13px; color:#ddd; margin-right:6px; }
+  input[type="number"] { width:68px; padding:6px; border-radius:6px; border:1px solid #444; background:#0e0e0e; color:#fff; }
 </style>
-</head>
 
+<!-- v4: 安定して使えるバージョン -->
+<script src="https://unpkg.com/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
+</head>
 <body>
 
-<h1>かくれんぼ OCR Finder</h1>
+<h1>かくれんぼ OCR（手動モード切替）</h1>
 
-<button onclick="startCamera()">カメラを起動（背面固定）</button>
-<button onclick="stopCamera()">停止</button>
+<div id="controls">
+  <button id="startBtn" class="primary">カメラ起動（背面優先）</button>
+  <button id="stopBtn">停止</button>
 
-<div id="errorBox"></div>
+  <button id="readQuestionBtn">お題読み取りモード（撮影）</button>
+  <button id="scanBoardBtn">カード探索モード（スキャン）</button>
+</div>
 
-<video id="video" autoplay playsinline></video>
+<div style="max-width:1000px; margin:0 auto 6px;">
+  <video id="video" autoplay playsinline></video>
+</div>
+
+<div style="max-width:1000px; margin:0 auto 10px; display:flex; gap:8px; justify-content:center; align-items:center; flex-wrap:wrap;">
+  <div>
+    <label class="small">お題エリア上Y(%)</label>
+    <input id="qTop" type="number" value="15" min="0" max="80"> 
+  </div>
+  <div>
+    <label class="small">お題エリア下Y(%)</label>
+    <input id="qBottom" type="number" value="45" min="10" max="90">
+  </div>
+  <div>
+    <label class="small">左右マージン(%)</label>
+    <input id="qMargin" type="number" value="15" min="0" max="40">
+  </div>
+  <div style="margin-left:6px;">
+    <span class="small">（位置は画面比率。必要なら微調整）</span>
+  </div>
+</div>
+
+<div id="result">
+  <div><strong>状態:</strong> <span id="status">待機中</span></div>
+  <div id="questionArea"><strong>お題（まだ読み取り無し）</strong></div>
+  <div id="mappingArea"><strong>マッピング（スキャン後に表示）</strong></div>
+  <div id="crops"></div>
+</div>
 
 <script>
+/*
+  概要:
+  - 手動モード: "お題読み取り" ボタンでモニターの上部固定領域を切り出して数字(3桁)を抽出。
+  - "カード探索" ボタンで壁面をスキャンして (番号->文字) マッピングを作る。
+  - 設計はお題領域が画面上部に固定（ユーザーが qTop/qBottom/qMargin を微調整可）
+  - 使用: Tesseract.js v4（安定）
+*/
+
+const video = document.getElementById('video');
+const startBtn = document.getElementById('startBtn');
+const stopBtn = document.getElementById('stopBtn');
+const readQuestionBtn = document.getElementById('readQuestionBtn');
+const scanBoardBtn = document.getElementById('scanBoardBtn');
+const statusSpan = document.getElementById('status');
+const questionAreaDiv = document.getElementById('questionArea');
+const mappingAreaDiv = document.getElementById('mappingArea');
+const cropsDiv = document.getElementById('crops');
+
+const qTopEl = document.getElementById('qTop');
+const qBottomEl = document.getElementById('qBottom');
+const qMarginEl = document.getElementById('qMargin');
+
 let stream = null;
-const video = document.getElementById("video");
-const errorBox = document.getElementById("errorBox");
+let worker = null;
+let savedQuestion = []; // ["062","048","329"]
+let lastMapping = {};   // { "062": "R", ... }
 
-function showError(err) {
-    errorBox.style.display = "block";
-    errorBox.innerText = "エラー: " + err;
-}
-
-// ================================
-// 🚀 外カメラを強制で起動する関数
-// ================================
-async function startCamera() {
-    try {
-        // ① カメラデバイス一覧を取得
-        const devices = await navigator.mediaDevices.enumerateDevices();
-
-        // ② 背面カメラ(“back” “environment”)を検索
-        let backCameraId = null;
-        devices.forEach(d => {
-            if (d.kind === "videoinput") {
-                const label = d.label.toLowerCase();
-                if (label.includes("back") || label.includes("environment")) {
-                    backCameraId = d.deviceId;
-                }
-            }
-        });
-
-        // ③ 見つからなければ facingMode を使う
-        let constraints = null;
-        if (backCameraId) {
-            constraints = {
-                video: {
-                    deviceId: { exact: backCameraId },
-                    width: { ideal: 1280 },
-                    height: { ideal: 720 }
-                }
-            };
-        } else {
-            constraints = {
-                video: {
-                    facingMode: { ideal: "environment" },
-                    width: { ideal: 1280 },
-                    height: { ideal: 720 }
-                }
-            };
+// カメラ起動（背面優先 - enumerateDevices 対応）
+startBtn.onclick = async () => {
+  status('カメラ起動中...');
+  try {
+    // enumerateDevices で背面カメラ探す（ラベルは権限があるときのみ取得可能）
+    let devices = await navigator.mediaDevices.enumerateDevices();
+    let backId = null;
+    devices.forEach(d => {
+      if (d.kind === 'videoinput') {
+        const label = (d.label || '').toLowerCase();
+        if (label.includes('back') || label.includes('environment') || label.includes('rear')) {
+          backId = d.deviceId;
         }
+      }
+    });
 
-        // ④ カメラを起動
-        stream = await navigator.mediaDevices.getUserMedia(constraints);
-
-        video.srcObject = stream;
-
-    } catch (err) {
-        showError(err);
+    let constraints;
+    if (backId) {
+      constraints = { video: { deviceId: { exact: backId }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio:false };
+    } else {
+      constraints = { video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio:false };
     }
+
+    stream = await navigator.mediaDevices.getUserMedia(constraints);
+    video.srcObject = stream;
+    status('カメラ起動完了');
+  } catch (e) {
+    status('カメラ起動エラー');
+    alert('カメラ起動に失敗しました。\nHTTPSで開いているか、ブラウザのカメラ権限を確認してください。\n\n' + e);
+    console.error(e);
+  }
+};
+
+// 停止
+stopBtn.onclick = () => {
+  if (stream) {
+    stream.getTracks().forEach(t => t.stop());
+    stream = null;
+  }
+  status('停止中');
+};
+
+// worker 初期化（lazy）
+async function ensureWorker() {
+  if (worker) return;
+  status('OCRワーカー起動中...');
+  worker = Tesseract.createWorker({
+    logger: m => { /* console.log(m) */ }
+  });
+  await worker.load();
+  await worker.loadLanguage('eng');
+  await worker.initialize('eng');
+  status('OCRワーカー準備完了');
 }
 
-function stopCamera() {
-    if (stream) {
-        stream.getTracks().forEach(t => t.stop());
-    }
+// ヘルパ: 状態表示
+function status(text) { statusSpan.textContent = text; }
+
+// helper: canvas from video
+function captureFrameCanvas() {
+  const w = video.videoWidth || 1280;
+  const h = video.videoHeight || 720;
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  const ctx = c.getContext('2d');
+  ctx.drawImage(video, 0, 0, w, h);
+  return c;
 }
+
+// 前処理: しきい値化（簡易） → returns new canvas
+function preprocessThreshold(srcCanvas) {
+  const w = srcCanvas.width, h = srcCanvas.height;
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const ctx = c.getContext('2d');
+  ctx.drawImage(srcCanvas,0,0);
+  const id = ctx.getImageData(0,0,w,h);
+  const d = id.data;
+  // グレースケール & コントラスト上げ & しきい値
+  for (let i=0;i<d.length;i+=4){
+    // luminance
+    let lum = 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2];
+    // contrast boost
+    lum = (lum - 128) * 1.4 + 128;
+    const v = lum > 140 ? 255 : 0;
+    d[i]=d[i+1]=d[i+2]=v;
+  }
+  ctx.putImageData(id,0,0);
+  return c;
+}
+
+/* ============================
+   お題読み取りモード（手動）
+   - 画面上部の固定領域をクロップして OCR
+   - 3桁 (000-999) を複数抽出（2〜5個）
+   ============================ */
+readQuestionBtn.onclick = async () => {
+  if (!stream) { alert('まずカメラを起動してください'); return; }
+  await ensureWorker();
+
+  status('お題領域を切り出し中...');
+  const full = captureFrameCanvas();
+  const w = full.width, h = full.height;
+
+  // 位置はユーザが微調整できる（%入力）
+  const topPct = parseFloat(qTopEl.value)/100;
+  const bottomPct = parseFloat(qBottomEl.value)/100;
+  const marginPct = parseFloat(qMarginEl.value)/100;
+
+  const cropX = Math.max(0, Math.round(w * marginPct));
+  const cropY = Math.max(0, Math.round(h * topPct));
+  const cropW = Math.max(50, Math.round(w * (1 - 2*marginPct)));
+  const cropH = Math.max(30, Math.round(h * (bottomPct - topPct)));
+
+  const qCanvas = document.createElement('canvas');
+  qCanvas.width = cropW; qCanvas.height = cropH;
+  const qCtx = qCanvas.getContext('2d');
+  qCtx.drawImage(full, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+
+  // 前処理を行いつつOCR
+  const proc = preprocessThreshold(qCanvas);
+
+  status('お題OCR中...');
+  const { data } = await worker.recognize(proc);
+
+  // words から 3桁数字を抽出（confidence > 30 のみ候補）
+  const nums = [];
+  data.words.forEach(w => {
+    const txt = (w.text || '').replace(/\s/g,'');
+    if (/^0\d{2}$/.test(txt) && w.confidence > 30) nums.push({text:txt, bbox:w.bbox, conf:w.confidence});
+  });
+
+  // X軸順に並べ替え
+  nums.sort((a,b)=> a.bbox.x0 - b.bbox.x0);
+
+  // 保存
+  savedQuestion = nums.map(n=>n.text);
+
+  // UI 表示
+  questionAreaDiv.innerHTML = `<strong>お題（検出）:</strong> ${savedQuestion.length? savedQuestion.join(', '): '検出できませんでした'}<div class="small">（詳細: ${nums.map(n=>n.text+'('+Math.round(n.conf)+')').join(', ')})</div>`;
+
+  // サムネイル表示
+  cropsDiv.innerHTML = '';
+  const thumb = document.createElement('canvas'); thumb.className='thumb';
+  thumb.width = Math.min(600, cropW); thumb.height = Math.round(thumb.width * (cropH/cropW));
+  thumb.getContext('2d').drawImage(proc, 0, 0, proc.width, proc.height, 0, 0, thumb.width, thumb.height);
+  cropsDiv.appendChild(thumb);
+
+  status('お題読み取り完了');
+};
+
+
+/* ============================
+   カード探索モード（手動）
+   - 壁面全体をOCR
+   - 3桁番号と1文字アルファベットを組み合わせる
+   - savedQuestion と照合して結果表示
+   ============================ */
+scanBoardBtn.onclick = async () => {
+  if (!stream) { alert('まずカメラを起動してください'); return; }
+  if (!worker) await ensureWorker();
+  status('壁面スキャン中... (OCRに時間がかかります)');
+  const full = captureFrameCanvas();
+
+  // まず前処理してOCR（しきい値化→認識）
+  const proc = preprocessThreshold(full);
+  const { data } = await worker.recognize(proc);
+
+  // words 解析: bbox と text（大文字化）
+  const words = data.words.map(w => ({
+    text: (w.text || '').trim(),
+    conf: w.confidence,
+    bbox: w.bbox
+  })).filter(w => w.text.length>0);
+
+  // 収集: numbers と letters
+  const numbers = []; // {text, bbox, conf, cx,cy}
+  const letters = []; // {text, bbox, conf, cx,cy}
+  words.forEach(w => {
+    const t = w.text.replace(/[^0-9A-Za-z]/g,'');
+    if (/^\d{3}$/.test(t) && w.conf > 30) {
+      const cx = (w.bbox.x0 + w.bbox.x1)/2;
+      const cy = (w.bbox.y0 + w.bbox.y1)/2;
+      numbers.push({text:t, bbox:w.bbox, conf:w.conf, cx,cy});
+    } else if (/^[A-Za-z]$/.test(t) && w.conf > 30) {
+      const tx = t.toUpperCase();
+      const cx = (w.bbox.x0 + w.bbox.x1)/2;
+      const cy = (w.bbox.y0 + w.bbox.y1)/2;
+      letters.push({text:tx, bbox:w.bbox, conf:w.conf, cx,cy});
+    }
+  });
+
+  // マッピング: 各 number に最も近い letter を割り当てる（距離で）
+  const mapping = {};
+  numbers.forEach(num => {
+    let best = null;
+    let bestDist = 1e9;
+    letters.forEach(l => {
+      // まず縦の相対位置（letter が number の下にあることを重視）
+      const dy = l.cy - num.cy;
+      const dx = l.cx - num.cx;
+      const dist = Math.hypot(dx, dy);
+      // prefer letters slightly below number (dy> -30)
+      let score = dist;
+      if (dy < -40) score *= 1.5; // letter is above -> penalize
+      if (dy > 200) score *= 1.2; // too far below
+      if (score < bestDist) { bestDist = score; best = l; }
+    });
+    if (best) mapping[num.text] = { letter: best.text, conf_num: Math.round(num.conf), conf_letter: Math.round(best.conf) };
+  });
+
+  lastMapping = mapping;
+
+  // savedQuestion と照合
+  let output = '';
+  if (!savedQuestion || savedQuestion.length === 0) {
+    output += '※ お題が未設定です。先に「お題読み取りモード」で撮影してください。\n\n';
+  } else {
+    output += `お題: ${savedQuestion.join(', ')}\n\n`;
+    savedQuestion.forEach(q => {
+      if (mapping[q]) {
+        output += `${q} → ${mapping[q].letter}  (numConf:${mapping[q].conf_num}, letterConf:${mapping[q].conf_letter})\n`;
+      } else {
+        output += `${q} → 見つかりません\n`;
+      }
+    });
+  }
+
+  // 追加情報: 検出された数と文字サマリ
+  output += `\n検出: 番号 ${Object.keys(mapping).length} 件, 文字 ${letters.length} 件\n`;
+
+  mappingAreaDiv.innerHTML = `<pre>${output}</pre>`;
+
+  // サムネイル: 切り出した全体と、各検出番号の周辺を小さく表示
+  cropsDiv.innerHTML = '';
+  const thumbFull = document.createElement('canvas'); thumbFull.className='thumb';
+  thumbFull.width = Math.min(700, proc.width); thumbFull.height = Math.round(thumbFull.width * proc.height / proc.width);
+  thumbFull.getContext('2d').drawImage(proc,0,0,proc.width,proc.height, 0,0,thumbFull.width,thumbFull.height);
+  cropsDiv.appendChild(thumbFull);
+
+  // show small crops for each savedQuestion number for user confirmation
+  if (savedQuestion && savedQuestion.length>0) {
+    savedQuestion.forEach(q => {
+      // try to find mapping bbox center
+      let find = numbers.find(n => n.text === q);
+      if (!find) return;
+      // crop around center
+      const pad = Math.round(Math.max(proc.width, proc.height) * 0.03);
+      const x0 = Math.max(0, Math.round(find.bbox.x0 - pad));
+      const y0 = Math.max(0, Math.round(find.bbox.y0 - pad));
+      const w0 = Math.min(proc.width - x0, Math.round(find.bbox.x1 - find.bbox.x0 + pad*2));
+      const h0 = Math.min(proc.height - y0, Math.round(find.bbox.y1 - find.bbox.y0 + pad*2));
+      const c = document.createElement('canvas'); c.className='thumb';
+      c.width = 120; c.height = Math.round(120 * h0 / w0);
+      c.getContext('2d').drawImage(proc, x0,y0,w0,h0, 0,0, c.width, c.height);
+      const lab = document.createElement('div'); lab.style.fontSize='12px'; lab.style.marginTop='4px'; lab.textContent = q + ' -> ' + (mapping[q]?mapping[q].letter:'?');
+      const box = document.createElement('div'); box.style.display='inline-block'; box.style.textAlign='center'; box.style.margin='6px';
+      box.appendChild(c); box.appendChild(lab);
+      cropsDiv.appendChild(box);
+    });
+  }
+
+  status('スキャン完了');
+};
+
 </script>
 
 </body>
