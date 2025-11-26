@@ -3,548 +3,649 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>かくれんぼ OCR — Web版</title>
+<title>かくれんぼ OCR - 完全版</title>
 
-<!-- Tesseract.js v2 CDN (簡単に使えるAPI) -->
+<!-- Tesseract.js CDN (安定版) -->
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@2.1.5/dist/tesseract.min.js"></script>
 
 <style>
+  /* ベース */
   :root{
-    --bg:#090909;
-    --card:#0f0f0f;
-    --accent:#0fbf5a;
-    --danger:#d23b3b;
-    --panel:#1a1a1a;
-    --muted:#9aa0a6;
-    --white:#fff;
+    --bg:#0f0f0f;
+    --panel:#161616;
+    --accent:#dd2222;
+    --muted:#666;
+    --card:#0b0b0b;
+    --btn:#333;
+    --btn-h:#222;
+    --ok:#1e90ff;
+    --rec:#e04;
   }
-  html,body{height:100%; margin:0; background:var(--bg); color:var(--white); font-family: -apple-system, "Hiragino Kaku Gothic ProN", "Yu Gothic", "Segoe UI", Roboto, sans-serif;}
-  .app {
+  html,body{height:100%;margin:0;background:var(--bg);color:#fff;font-family: "Noto Sans JP",sans-serif; -webkit-user-select:none;}
+  /* 全体レイアウト: 横持ち想定 */
+  .root {
     height:100vh;
-    display:grid;
-    grid-template-columns: 140px 1fr 320px; /* 左:お題縦列 / 中央:候補並び / 右:controls+camera */
-    gap:12px;
-    padding:12px;
+    width:100vw;
+    display:flex;
+    gap:8px;
+    padding:8px;
     box-sizing:border-box;
+    overflow:hidden; /* スクロール禁止 */
   }
 
-  /* Left column: 5 topic boxes vertically */
-  .topics {
+  /* 左: お題縦 */
+  .left {
+    width:14%;
+    min-width:120px;
     display:flex;
     flex-direction:column;
-    gap:12px;
-    align-items:stretch;
+    gap:10px;
+    align-items:center;
   }
-  .topic {
-    background:var(--panel);
-    border-radius:10px;
-    border:3px solid #b71c1c;
-    height: calc((100vh - 12*5 - 24) / 5); /* evenly distributed */
-    min-height:72px;
+  .q-btn {
+    width:98%;
+    aspect-ratio:1/1;
+    background:transparent;
+    border:3px solid #b22222;
     display:flex;
     align-items:center;
     justify-content:center;
-    position:relative;
-    overflow:hidden;
-  }
-  .topic .label { position:absolute; left:8px; top:8px; font-weight:700; font-size:15px; }
-  .topic img { width:100%; height:100%; object-fit:cover; display:block; }
-
-  /* Center column: rows, each with 3 candidate boxes */
-  .center {
-    display:flex;
-    flex-direction:column;
-    gap:12px;
-    align-items:stretch;
-  }
-  .candidateRow {
-    display:flex;
-    gap:12px;
-    align-items:center;
-    background:transparent;
-    padding:6px;
-    border-radius:8px;
-    height: calc((100vh - 12*5 - 24 - 0) / 5); /* match left */
+    font-size:20px;
+    border-radius:6px;
     box-sizing:border-box;
   }
-  .candidate {
-    flex:1;
-    background:#111;
+  .q-btn.small{font-size:16px;padding:6px}
+
+  /* 中央: 各お題の候補（縦に並ぶ）*/
+  .center {
+    width:60%;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    padding-right:6px;
+    box-sizing:border-box;
+    align-items:stretch;
+  }
+  .q-row {
+    display:flex;
+    gap:10px;
+    align-items:center;
+    height:calc((100% - 40px) / 5);
+    min-height:80px;
+  }
+  .q-square {
+    width:14%;
+    aspect-ratio:1/1;
+    background:#0a0a0a;
     border-radius:8px;
-    border:2px solid #2a2a2a;
-    min-height:48px;
+    border:2px solid #222;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    color:var(--muted);
+    font-size:14px;
+  }
+  .candidates {
+    flex:1;
     display:flex;
     gap:8px;
     align-items:center;
-    padding:8px;
-    box-sizing:border-box;
-    justify-content:flex-start;
   }
-  .candidate img.crop {
-    width:84px; height:84px; object-fit:cover; border-radius:6px; border:2px solid #222;
-  }
-  .candidate .meta {
-    margin-left:8px;
-    display:flex; flex-direction:column;
-  }
-  .candidate .meta .num { font-size:20px; font-weight:700; color:var(--accent); }
-  .candidate .meta .txt { font-size:14px; color:var(--muted); }
-
-  /* Right column: controls, status, camera */
-  .controls {
+  .cand {
+    background:#0a0a0a;
+    border-radius:8px;
+    border:2px solid #222;
+    width:32%;
+    height:100%;
     display:flex;
     flex-direction:column;
-    gap:12px;
-    align-items:stretch;
+    overflow:hidden;
+    box-sizing:border-box;
   }
-  .status {
-    background:#121212;
-    padding:12px;
-    border-radius:10px;
-    text-align:center;
-    font-weight:700;
-    font-size:18px;
+  .cand .thumb {
+    flex:1;
+    background:#111;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:16px;
     color:var(--muted);
   }
-  .status.wait { color:#1e90ff; } /* blue */
-  .status.capture { color:var(--danger); } /* red */
+  .cand .label {
+    height:34px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    border-top:1px solid #222;
+    font-weight:700;
+  }
 
-  .btnGrid {
+  /* 右: 操作パネル */
+  .right {
+    width:22%;
+    min-width:200px;
+    background:var(--panel);
+    border-radius:10px;
+    padding:10px;
+    box-sizing:border-box;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    align-items:stretch;
+  }
+
+  .status {
+    background:#0b0b0b;
+    padding:8px;
+    border-radius:8px;
+    text-align:center;
+    font-size:18px;
+    color:var(--ok);
+    border:1px solid #222;
+  }
+
+  .controls {
     display:grid;
     grid-template-columns:1fr 1fr;
-    gap:10px;
+    gap:8px;
   }
-  .btn {
-    background:#222;
-    border-radius:10px;
-    border:2px solid #333;
-    padding:12px;
+  .ctrl-btn {
+    background:var(--btn);
+    border-radius:8px;
+    padding:10px;
     text-align:center;
-    font-weight:800;
-    font-size:14px;
-    cursor:pointer;
+    border:1px solid #222;
+    font-weight:700;
     user-select:none;
   }
-  .btn.primary { background:linear-gradient(180deg,#0a6bff,#075fd9); color:white; }
-  .btn.danger { background:linear-gradient(180deg,#d64545,#b33a3a); color:white; }
-  .btn.toggle { background:#2b2b2b; }
+  .ctrl-btn.red{background:var(--rec);color:#fff}
+  .ctrl-btn.small{
+    padding:8px;
+    aspect-ratio:1/1;
+  }
 
-  .cameraBox {
+  /* カメラ表示 (右下に小さく) */
+  .camera-wrap{
+    margin-top:auto;
+    display:flex;
+    gap:8px;
+    align-items:flex-end;
+    justify-content:center;
+  }
+  .camera-box {
+    width:100%;
+    height:160px;
     background:#111;
     border-radius:8px;
-    border:3px solid #2a2a2a;
-    overflow:hidden;
+    border:2px solid #222;
     position:relative;
-    aspect-ratio: 1 / 1;
-    min-height:180px;
+    overflow:hidden;
   }
-  video#preview {
+  video#camera {
     width:100%;
     height:100%;
     object-fit:cover;
-    transform:scaleX(-1); /* mirror to look natural; removed for env cam below */
+    transform:scaleX(-1); /* フロントをミラー表示。必要なら外してください */
   }
 
-  /* result area */
-  .results {
-    background:linear-gradient(180deg,#0d0d0d,#0a0a0a);
-    padding:10px;
+  /* ログウィンドウ */
+  .log {
+    position:absolute;
+    right:16px;
+    top:12px;
+    width:260px;
+    max-height:200px;
+    overflow:auto;
+    background:rgba(0,0,0,0.6);
+    border:1px solid #333;
+    padding:8px;
     border-radius:8px;
-    min-height:120px;
-    display:flex;
-    flex-direction:column;
-    gap:8px;
+    font-size:12px;
   }
-  .results .row { font-weight:700; color:var(--muted); }
 
-  /* small helper */
-  .small { font-size:13px; color:var(--muted); }
-
-  /* responsive tweak */
-  @media (max-width:1000px){
-    .app { grid-template-columns: 110px 1fr 260px; padding:8px; gap:8px; }
-    .candidate img.crop { width:72px; height:72px; }
+  /* レスポンシブ調整 */
+  @media (max-width:900px){
+    .center{width:58%}
+    .right{width:28%}
+    .left{width:16%}
+    .camera-box{height:120px}
   }
+
+  /* 色調整ユーティリティ */
+  .blue{color:var(--ok)}
+  .red{color:var(--rec)}
+  .muted{color:var(--muted)}
 </style>
 </head>
 <body>
-<div class="app">
 
-  <!-- LEFT: topics -->
-  <div class="topics" id="topics">
-    <!-- 5 topic slots -->
-    <div class="topic" data-index="0"><div class="label">お題1</div><div class="placeholder small">未セット</div></div>
-    <div class="topic" data-index="1"><div class="label">お題2</div><div class="placeholder small">未セット</div></div>
-    <div class="topic" data-index="2"><div class="label">お題3</div><div class="placeholder small">未セット</div></div>
-    <div class="topic" data-index="3"><div class="label">お題4</div><div class="placeholder small">未セット</div></div>
-    <div class="topic" data-index="4"><div class="label">お題5</div><div class="placeholder small">未セット</div></div>
+<div class="root">
+
+  <!-- LEFT: お題ボタン群 -->
+  <div class="left" id="left">
+    <div class="q-btn" data-index="0" id="qbtn0">お題1</div>
+    <div class="q-btn" data-index="1" id="qbtn1">お題2</div>
+    <div class="q-btn" data-index="2" id="qbtn2">お題3</div>
+    <div class="q-btn" data-index="3" id="qbtn3">お題4</div>
+    <div class="q-btn" data-index="4" id="qbtn4">お題5</div>
   </div>
 
-  <!-- CENTER: candidate rows -->
+  <!-- CENTER: 候補表示（お題1..5ごと） -->
   <div class="center" id="center">
-    <div class="candidateRow" data-index="0">
-      <div class="candidate" data-cand="0"><img class="crop" src="" alt="" /><div class="meta"><div class="num">-</div><div class="txt">候補1</div></div></div>
-      <div class="candidate" data-cand="1"><img class="crop" src="" alt="" /><div class="meta"><div class="num">-</div><div class="txt">候補2</div></div></div>
-      <div class="candidate" data-cand="2"><img class="crop" src="" alt="" /><div class="meta"><div class="num">-</div><div class="txt">候補3</div></div></div>
+    <!-- 5行作る -->
+    <div class="q-row" data-index="0">
+      <div class="q-square" id="qsquare0">未セット</div>
+      <div class="candidates">
+        <div class="cand" id="cand0-0"><div class="thumb">-</div><div class="label">候補 1</div></div>
+        <div class="cand" id="cand0-1"><div class="thumb">-</div><div class="label">候補 2</div></div>
+        <div class="cand" id="cand0-2"><div class="thumb">-</div><div class="label">候補 3</div></div>
+      </div>
     </div>
-    <div class="candidateRow" data-index="1">
-      <div class="candidate" data-cand="0"><img class="crop" src="" alt="" /><div class="meta"><div class="num">-</div><div class="txt">候補1</div></div></div>
-      <div class="candidate" data-cand="1"><img class="crop" src="" alt="" /><div class="meta"><div class="num">-</div><div class="txt">候補2</div></div></div>
-      <div class="candidate" data-cand="2"><img class="crop" src="" alt="" /><div class="meta"><div class="num">-</div><div class="txt">候補3</div></div></div>
+
+    <div class="q-row" data-index="1">
+      <div class="q-square" id="qsquare1">未セット</div>
+      <div class="candidates">
+        <div class="cand" id="cand1-0"><div class="thumb">-</div><div class="label">候補 1</div></div>
+        <div class="cand" id="cand1-1"><div class="thumb">-</div><div class="label">候補 2</div></div>
+        <div class="cand" id="cand1-2"><div class="thumb">-</div><div class="label">候補 3</div></div>
+      </div>
     </div>
-    <div class="candidateRow" data-index="2">
-      <div class="candidate" data-cand="0"><img class="crop" src="" alt="" /><div class="meta"><div class="num">-</div><div class="txt">候補1</div></div></div>
-      <div class="candidate" data-cand="1"><img class="crop" src="" alt="" /><div class="meta"><div class="num">-</div><div class="txt">候補2</div></div></div>
-      <div class="candidate" data-cand="2"><img class="crop" src="" alt="" /><div class="meta"><div class="num">-</div><div class="txt">候補3</div></div></div>
+
+    <div class="q-row" data-index="2">
+      <div class="q-square" id="qsquare2">未セット</div>
+      <div class="candidates">
+        <div class="cand" id="cand2-0"><div class="thumb">-</div><div class="label">候補 1</div></div>
+        <div class="cand" id="cand2-1"><div class="thumb">-</div><div class="label">候補 2</div></div>
+        <div class="cand" id="cand2-2"><div class="thumb">-</div><div class="label">候補 3</div></div>
+      </div>
     </div>
-    <div class="candidateRow" data-index="3">
-      <div class="candidate" data-cand="0"><img class="crop" src="" alt="" /><div class="meta"><div class="num">-</div><div class="txt">候補1</div></div></div>
-      <div class="candidate" data-cand="1"><img class="crop" src="" alt="" /><div class="meta"><div class="num">-</div><div class="txt">候補2</div></div></div>
-      <div class="candidate" data-cand="2"><img class="crop" src="" alt="" /><div class="meta"><div class="num">-</div><div class="txt">候補3</div></div></div>
+
+    <div class="q-row" data-index="3">
+      <div class="q-square" id="qsquare3">未セット</div>
+      <div class="candidates">
+        <div class="cand" id="cand3-0"><div class="thumb">-</div><div class="label">候補 1</div></div>
+        <div class="cand" id="cand3-1"><div class="thumb">-</div><div class="label">候補 2</div></div>
+        <div class="cand" id="cand3-2"><div class="thumb">-</div><div class="label">候補 3</div></div>
+      </div>
     </div>
-    <div class="candidateRow" data-index="4">
-      <div class="candidate" data-cand="0"><img class="crop" src="" alt="" /><div class="meta"><div class="num">-</div><div class="txt">候補1</div></div></div>
-      <div class="candidate" data-cand="1"><img class="crop" src="" alt="" /><div class="meta"><div class="num">-</div><div class="txt">候補2</div></div></div>
-      <div class="candidate" data-cand="2"><img class="crop" src="" alt="" /><div class="meta"><div class="num">-</div><div class="txt">候補3</div></div></div>
+
+    <div class="q-row" data-index="4">
+      <div class="q-square" id="qsquare4">未セット</div>
+      <div class="candidates">
+        <div class="cand" id="cand4-0"><div class="thumb">-</div><div class="label">候補 1</div></div>
+        <div class="cand" id="cand4-1"><div class="thumb">-</div><div class="label">候補 2</div></div>
+        <div class="cand" id="cand4-2"><div class="thumb">-</div><div class="label">候補 3</div></div>
+      </div>
     </div>
   </div>
 
-  <!-- RIGHT: controls and camera -->
-  <div class="controls">
-    <div id="status" class="status wait">状態: 待機中</div>
+  <!-- RIGHT: 操作/カメラ -->
+  <div class="right" id="right">
+    <div class="status" id="status">状態：<span id="statusText" class="blue">待機中</span></div>
 
-    <div class="btnGrid">
-      <div id="modeTopic" class="btn toggle">📷 お題撮影モード</div>
-      <div id="modeSearch" class="btn toggle">🔎 番号検索モード</div>
-
-      <div id="captureBtn" class="btn danger">🔴 長押しで撮影</div>
-      <div id="resetBtn" class="btn">♻️ お題リセット</div>
+    <div class="controls">
+      <div class="ctrl-btn" id="modeQuestion">📷 お題撮影モード</div>
+      <div class="ctrl-btn" id="modeSearch">🔎 番号検索モード</div>
+      <div class="ctrl-btn small" id="btnCapture">📸</div>
+      <div class="ctrl-btn small" id="btnReset">♻ お題リセット</div>
     </div>
 
-    <div class="cameraBox" id="cameraBox" title="カメラ映像">
-      <video id="preview" autoplay playsinline></video>
+    <div style="height:8px;"></div>
+
+    <div style="font-size:13px;color:var(--muted);">長押しで連写（1秒ごと）・最大10枚</div>
+
+    <div class="camera-wrap">
+      <div class="camera-box">
+        <video id="camera" autoplay muted playsinline></video>
+      </div>
     </div>
 
-    <div class="results" id="results">
-      <div class="row">お題一覧(左に表示済み): <span id="topicList" class="small">—</span></div>
-      <div class="row">候補TOP3（各お題の右に表示）</div>
-      <div class="row small">※ 認識は環境依存です。暗い/遠い/ブレに弱い。</div>
-    </div>
   </div>
+
+  <!-- ログウィンドウ（右上に重ねる） -->
+  <div class="log" id="log" style="display:none"></div>
 
 </div>
 
-<!-- Hidden canvas for captures -->
-<canvas id="captureCanvas" style="display:none;"></canvas>
-
 <script>
 /*
-  主要機能：
-  - カメラ起動（背面 / environment 推奨）
-  - モード: お題撮影モード / 番号検索モード
-  - 長押し撮影: pointerdown で1秒毎に連写（最大 10 枚）
-  - OCR (Tesseract.js v2) で数字の読み取り
-  - お題撮影モード: フレームから 3 桁の数字を探し、左側 slot に順にセット（最大5）
-  - 番号検索モード: フレームから全ワードを抽出。 各お題数値に近接する英字（単文字）を探し、Top3を画像付きで表示
-  - UI: ステータス表示（待機:青 / 撮影:赤）
+  完全版スクリプト
+  - Tesseract.createWorker を使い worker を立ち上げる
+  - 長押しで1秒ごとにフレームをキャプチャして OCR
+  - お題モード: 見つかった3桁数字を左から順にセット
+  - 検索モード: 画面内の数字と近接する英字を候補として集計 → top3 を表示（サムネ付）
+  - ログは右上に表示（ステータスと進捗）
 */
 
-const MAX_TOPICS = 5;
-let currentMode = 'topic'; // 'topic' or 'search'
-let topics = Array(MAX_TOPICS).fill(null); // {num:"123", imgDataUrl:"data:..."} or null
-let topicIndexNext = 0; // next free topic slot
-let ocrWorker = null;
-let isCapturing = false;
-let captureIntervalId = null;
-let captureFramesLimit = 10;
-let captureIntervalMs = 1000;
+/* グローバル状態 */
+const NUM_QUESTIONS = 5;
+let mode = 'question'; // 'question' or 'search'
+let statusTextEl = document.getElementById('statusText');
+let logEl = document.getElementById('log');
+let video = document.getElementById('camera');
+let canvas = document.createElement('canvas');
+let ctx = canvas.getContext('2d');
 
-const preview = document.getElementById('preview');
-const canvas = document.getElementById('captureCanvas');
-const statusEl = document.getElementById('status');
-const modeTopic = document.getElementById('modeTopic');
-const modeSearch = document.getElementById('modeSearch');
-const captureBtn = document.getElementById('captureBtn');
-const resetBtn = document.getElementById('resetBtn');
+/* データ */
+let questions = new Array(NUM_QUESTIONS).fill(null); // {num: "062", img: dataURL}
+let candidates = Array.from({length:NUM_QUESTIONS}, ()=> ({})); // map: candidateChar -> {count, thumbs: [dataURL,...]}
 
+/* Tesseract ワーカー (初期化) */
+let worker = null;
+let workerReady = false;
+(async ()=>{
+  log('Tesseract を初期化しています...');
+  worker = Tesseract.createWorker({
+    logger: m => {
+      /* 内部ログを小さく拾う（オプション）*/
+      // log('tess: ' + JSON.stringify(m));
+    }
+  });
+  await worker.load();
+  await worker.loadLanguage('eng');
+  await worker.initialize('eng');
+  workerReady = true;
+  log('OCR 初期化完了');
+})();
+
+/* カメラを起動（外カメラを優先） */
 async function startCamera(){
   try{
-    const constraints = { video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio:false };
+    // try rear camera first
+    const constraints = { video: { facingMode: { exact: "environment" } , width: {ideal:1280}, height:{ideal:720} }, audio:false};
     const stream = await navigator.mediaDevices.getUserMedia(constraints);
-    preview.srcObject = stream;
-    // ensure preview not mirrored for env cam
-    preview.style.transform = 'scaleX(1)';
+    video.srcObject = stream;
+    log('カメラ起動（背面）');
   }catch(e){
-    alert('カメラ起動に失敗しました: ' + e.message);
-    console.error(e);
-  }
-}
-
-// small helper to set status
-function setStatus(stateText, stateClass){
-  statusEl.textContent = '状態: ' + stateText;
-  statusEl.className = 'status ' + stateClass;
-}
-
-// take single snapshot from video -> returns dataURL and ImageBitmap
-function snapshot(){
-  const v = preview;
-  const w = v.videoWidth;
-  const h = v.videoHeight;
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext('2d');
-  ctx.drawImage(v, 0, 0, w, h);
-  return canvas.toDataURL('image/jpeg', 0.9);
-}
-
-// run OCR on an image dataURL and return result.data.words
-async function runOCR(dataURL){
-  // Tesseract.recognize returns a promise
-  // we'll whitelist digits+letters to help
-  try{
-    const res = await Tesseract.recognize(dataURL, 'eng', {
-      tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
-    });
-    // res.data.words includes bbox info and text/confidence
-    return res.data;
-  }catch(e){
-    console.error('OCR error', e);
-    return null;
-  }
-}
-
-// utility: extract 3-digit numbers from OCR words
-function extractThreeDigitNumbers(wordsData){
-  if(!wordsData || !wordsData.words) return [];
-  const found = [];
-  for(const w of wordsData.words){
-    const txt = (w.text || '').replace(/\s+/g,'');
-    const match = txt.match(/^0?\d{2,3}$/) || txt.match(/^\d{3}$/);
-    // We only want exactly 3 digits (including leading zeros if shown). Accept "062" etc.
-    if(/^\d{3}$/.test(txt)){
-      found.push({text:txt, bbox:w.bbox, conf: w.confidence || w.conf});
-    }
-  }
-  // dedupe by text
-  const unique = [];
-  const seen = new Set();
-  for(const f of found){
-    if(!seen.has(f.text)){ seen.add(f.text); unique.push(f); }
-  }
-  return unique;
-}
-
-// helper: crop area from current canvas based on bbox and return dataURL
-function cropFromCanvas(bbox, padding = 10){
-  // bbox: {x0,y0,x1,y1} in Tesseract v2 it's like bbox.x0,y0,x1,y1
-  const w = canvas.width, h = canvas.height;
-  const x0 = Math.max(0, Math.floor(bbox.x0 - padding));
-  const y0 = Math.max(0, Math.floor(bbox.y0 - padding));
-  const x1 = Math.min(w, Math.ceil(bbox.x1 + padding));
-  const y1 = Math.min(h, Math.ceil(bbox.y1 + padding));
-  const cw = x1 - x0, ch = y1 - y0;
-  const tmp = document.createElement('canvas');
-  tmp.width = cw; tmp.height = ch;
-  const ctx = tmp.getContext('2d');
-  ctx.drawImage(preview, x0, y0, cw, ch, 0, 0, cw, ch);
-  return tmp.toDataURL('image/jpeg', 0.9);
-}
-
-// assign topic: number string + img crop
-function assignTopic(numText, imgDataUrl){
-  if(topicIndexNext >= MAX_TOPICS) {
-    console.log('すでに最大数 (5) が設定されています');
-    return false;
-  }
-  topics[topicIndexNext] = {num: numText, img: imgDataUrl};
-  topicIndexNext++;
-  refreshTopicsUI();
-  return true;
-}
-
-function refreshTopicsUI(){
-  // left topics
-  const topicEls = document.querySelectorAll('.topic');
-  for(let i=0;i<MAX_TOPICS;i++){
-    const t = topicEls[i];
-    const data = topics[i];
-    t.innerHTML = '<div class="label">お題' + (i+1) + '</div>';
-    if(data){
-      const img = document.createElement('img');
-      img.src = data.img;
-      t.appendChild(img);
-    } else {
-      const ph = document.createElement('div');
-      ph.className = 'placeholder small';
-      ph.textContent = '未セット';
-      t.appendChild(ph);
-    }
-  }
-  // center candidate top summary: topicList text
-  const topicList = topics.map(t => t ? t.num : '—').join(' / ');
-  document.getElementById('topicList').textContent = topicList;
-}
-
-// set candidate UI for a given topic index with array of candidates [{letter:'A', img:..., conf:...}, ...]
-function setCandidatesForTopic(topicIdx, candidates){
-  const row = document.querySelector('.candidateRow[data-index="'+topicIdx+'"]');
-  if(!row) return;
-  for(let i=0;i<3;i++){
-    const candEl = row.querySelector('.candidate[data-cand="'+i+'"]');
-    const imgEl = candEl.querySelector('img.crop');
-    const numEl = candEl.querySelector('.num');
-    const txtEl = candEl.querySelector('.txt');
-    if(candidates && candidates[i]){
-      imgEl.src = candidates[i].img || '';
-      numEl.textContent = candidates[i].letter || '-';
-      txtEl.textContent = 'conf:'+ (Math.round((candidates[i].conf||0)*10)/10);
-    } else {
-      imgEl.src = '';
-      numEl.textContent = '-';
-      txtEl.textContent = '—';
+    // fallback
+    try{
+      const stream = await navigator.mediaDevices.getUserMedia({video:true, audio:false});
+      video.srcObject = stream;
+      log('カメラ起動（デフォルト）');
+    }catch(err){
+      log('カメラを起動できません: ' + err.message);
+      alert('カメラを起動できません。HTTPSで開いているか、カメラ権限を許可してください。エラー:' + err.message);
     }
   }
 }
+startCamera().catch(()=>{});
 
-// reset all topics and candidates
-function resetAll(){
-  topics = Array(MAX_TOPICS).fill(null);
-  topicIndexNext = 0;
-  for(let i=0;i<MAX_TOPICS;i++) setCandidatesForTopic(i, null);
-  refreshTopicsUI();
-}
+/* UI 要素参照 & イベント */
+document.getElementById('modeQuestion').addEventListener('click', ()=>{
+  setMode('question');
+});
+document.getElementById('modeSearch').addEventListener('click', ()=>{
+  setMode('search');
+});
+document.getElementById('btnReset').addEventListener('click', resetAll);
 
-// long press capture handling
-let holdStart = null;
-let capturedCount = 0;
-async function startLongPressCapture(){
-  if(isCapturing) return;
-  isCapturing = true;
-  capturedCount = 0;
-  setStatus('撮影中', 'capture');
-  captureIntervalId = setInterval(async ()=>{
-    if(capturedCount >= captureFramesLimit) {
-      stopLongPressCapture();
+/* 長押しキャプチャ制御 */
+let pressTimer = null;
+let captureInterval = null;
+let capturing = false;
+const CAP_MAX = 10;
+let capCount = 0;
+
+const btnCapture = document.getElementById('btnCapture');
+btnCapture.addEventListener('mousedown', startPress);
+btnCapture.addEventListener('touchstart', startPress);
+btnCapture.addEventListener('mouseup', endPress);
+btnCapture.addEventListener('mouseleave', endPress);
+btnCapture.addEventListener('touchend', endPress);
+
+function startPress(e){
+  e.preventDefault();
+  if(!workerReady){ log('OCR 未準備'); return; }
+  if(capturing) return;
+  // 長押し開始: まず即時に1枚撮る
+  capturing = true;
+  capCount = 0;
+  setStatus('撮影中', 'red');
+  log(`[撮影] 長押し開始 - モード: ${mode}`);
+  captureOnce(); // immediate
+  captureInterval = setInterval(()=>{
+    if(capCount >= CAP_MAX){
+      endPress();
       return;
     }
-    capturedCount++;
-    // snapshot
-    const dataUrl = snapshot();
-    // show small feedback (could flash)
-    console.log('captured frame', capturedCount);
-    // depending on mode, do different things:
-    if(currentMode === 'topic'){
-      // run OCR and try extract 3-digit numbers; set topics automatically (first-come)
-      const ocr = await runOCR(dataUrl);
-      const nums = extractThreeDigitNumbers(ocr);
-      console.log('nums found', nums);
-      for(const n of nums){
-        // crop area around numeric bbox for topic image
-        const crop = cropFromCanvas(n.bbox, 18);
-        // assign if slot available and not duplicate
-        if(topicIndexNext < MAX_TOPICS && !topics.some(t=>t && t.num === n.text)){
-          assignTopic(n.text, crop);
-        }
-      }
+    captureOnce();
+  }, 1000);
+}
+
+function endPress(e){
+  if(!capturing) return;
+  capturing = false;
+  clearInterval(captureInterval);
+  captureInterval = null;
+  setStatus('待機中', 'blue');
+  log(`[撮影] 長押し終了。取得枚数: ${capCount}`);
+}
+
+function setStatus(text, colorClass){
+  statusTextEl.textContent = text;
+  if(colorClass === 'red'){
+    statusTextEl.classList.remove('blue');
+    statusTextEl.classList.add('red');
+  } else {
+    statusTextEl.classList.remove('red');
+    statusTextEl.classList.add('blue');
+  }
+}
+
+/* キャプチャして OCR 実行 */
+async function captureOnce(){
+  if(!video || !video.videoWidth) {
+    log('カメラ未準備');
+    return;
+  }
+  capCount++;
+  // canvas にサイズ合わせ
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  const dataURL = canvas.toDataURL('image/jpeg', 0.9);
+
+  log(`フレーム取得 ${capCount}`);
+
+  // OCR 実行（非同期）
+  if(!workerReady) {
+    log('OCR ワーカー未準備');
+    return;
+  }
+  // result.words を使って bbox 情報を得る
+  try{
+    const { data } = await worker.recognize(dataURL);
+    processOcrResult(data, dataURL);
+  }catch(err){
+    log('OCR エラー: '+ err.message);
+  }
+}
+
+/* OCR 結果の解析と UI 更新 */
+function processOcrResult(data, dataURL){
+  // data.words: array of {text, bbox:{x0,y0,x1,y1},confidence}
+  const words = data.words || [];
+  // 3桁の数字を抽出
+  const nums = [];
+  const letters = [];
+  for(const w of words){
+    const txt = (w.text || '').trim();
+    // 数字：3桁のみ
+    const m = txt.match(/\b(\d{3})\b/);
+    if(m){
+      nums.push({num:m[1], box:w.bbox, conf:w.confidence});
     } else {
-      // in search mode: run OCR and for each existing topic, find nearby letter tiles
-      const ocr = await runOCR(dataUrl);
-      // build list of letter boxes (single-letter words)
-      if(!ocr) { console.log('ocr empty'); return; }
-      const words = ocr.words || [];
-      // create array of letter words with bbox and confidence and text filtered to 1-letter alpha
-      const letters = words.filter(w=>{
-        const t = (w.text||'').trim();
-        return /^[A-Z]$/i.test(t) && w.bbox;
-      }).map(w=>({letter: w.text.trim().toUpperCase(), bbox: w.bbox, conf:w.confidence || w.conf}));
-      // for each topic, find nearest letters by euclidean distance between centers
-      for(let ti=0; ti<MAX_TOPICS; ti++){
-        const top = topics[ti];
-        if(!top) continue;
-        // For this topic, we try to locate the numeric tile on the game screen by looking for words that equal the number.
-        const nums = words.filter(w=>{
-          const t = (w.text||'').replace(/\s+/g,'');
-          return /^\d{3}$/.test(t);
-        });
-        // If we can find the exact number on the game screen, use its bbox as anchor, else fallback: search across whole screen and pick nearest letters by position
-        let anchor = null;
-        for(const nn of nums){
-          if(nn.text && nn.text.replace(/\s+/g,'') === top.num){
-            anchor = nn.bbox;
-            break;
-          }
-        }
-        // If no anchor, skip or try to find similar numbers
-        if(!anchor){
-          // skip for now
-          continue;
-        }
-        // compute centers
-        function center(b){ return {x: (b.x0 + b.x1)/2, y: (b.y0 + b.y1)/2}; }
-        const aC = center(anchor);
-        // measure distance to each letter
-        const lettersWithDist = letters.map(l=>{
-          const c = center(l.bbox);
-          const dx = c.x - aC.x, dy = c.y - aC.y;
-          const d = Math.sqrt(dx*dx + dy*dy);
-          return {...l, dist:d};
-        }).sort((a,b)=>a.dist - b.dist);
-        // take top3
-        const top3 = lettersWithDist.slice(0,3).map(item=>{
-          // crop area around letter bbox
-          const img = cropFromCanvas(item.bbox, 14);
-          return {letter:item.letter, img:img, conf:item.confidence || item.conf};
-        });
-        setCandidatesForTopic(ti, top3);
+      // 単一アルファベット（A-Z）を抽出
+      const t2 = txt.replace(/[^A-Za-z]/g,'').toUpperCase();
+      if(t2.length === 1 && /[A-Z]/.test(t2)){
+        letters.push({ch:t2, box:w.bbox, conf:w.confidence});
       }
     }
-  }, captureIntervalMs);
+  }
+
+  if(mode === 'question'){
+    // 自動で左から順にお題セット
+    if(nums.length === 0){
+      log('[お題モード] 3桁が検出されませんでした');
+      return;
+    }
+    // Sort left-to-right by bbox.x0 to determine order
+    nums.sort((a,b)=> (a.box.x0||0) - (b.box.x0||0));
+    for(const nobj of nums){
+      // find first empty slot
+      const idx = questions.findIndex(q=> q===null);
+      if(idx === -1) break;
+      questions[idx] = {num:nobj.num, img:dataURL};
+      // update UI
+      updateQuestionUI(idx);
+      log(`[お題モード] お題セット: index=${idx}, num=${nobj.num}`);
+    }
+  } else if(mode === 'search'){
+    // 画面中の数字 -> 文字(近接) を候補化
+    if(nums.length === 0){
+      log('[探索モード] 3桁が検出されませんでした');
+      return;
+    }
+    // For each detected number, find nearest letter by center-to-center distance
+    for(const nobj of nums){
+      const ncenter = {x: (nobj.box.x0 + nobj.box.x1)/2, y: (nobj.box.y0 + nobj.box.y1)/2};
+      let nearest = null; let mind=999999;
+      for(const L of letters){
+        const lcenter = {x:(L.box.x0+L.box.x1)/2, y:(L.box.y0+L.box.y1)/2};
+        const d = Math.hypot(ncenter.x - lcenter.x, ncenter.y - lcenter.y);
+        if(d < mind){
+          mind = d; nearest = L;
+        }
+      }
+      const digit = nobj.num;
+      const char = nearest ? nearest.ch : null;
+      // assign candidate to whichever question slot matches the digit (if any), otherwise to the first matching question by number, else ignore
+      const qidx = questions.findIndex(q => q && q.num === digit);
+      let target = (qidx !== -1) ? qidx : null;
+      // If question not set for this number, we still may want to record candidates in a transient bucket.
+      // For simplicity: if qidx found -> add candidate; else attempt to assign to first empty question slot visually nearest? skip for now.
+      if(target !== null && char){
+        addCandidate(target, char, dataURL);
+        log(`[探索モード] ${digit} -> ${char} を候補に追加 (Q${target+1})`);
+      } else {
+        // if question not found, try to match to ANY question whose num equals digit (already checked).
+        // As fallback, if char present, try to find the question slot whose thumbnail visually exists (not implemented) => store in a temporary bucket
+        log(`[探索モード] 数字 ${digit} の対象お題が未セット。候補は保留`);
+      }
+    }
+
+    // After updates, refresh candidate UI
+    refreshAllCandidateUI();
+  }
 }
 
-function stopLongPressCapture(){
-  if(!isCapturing) return;
-  clearInterval(captureIntervalId);
-  isCapturing = false;
-  setStatus('待機中', 'wait');
-  captureIntervalId = null;
+/* 質問スロットのUI更新 */
+function updateQuestionUI(idx){
+  const q = questions[idx];
+  const el = document.getElementById('qsquare' + idx);
+  if(!q){
+    el.textContent = '未セット';
+    return;
+  }
+  // thumbnail from q.img
+  el.innerHTML = '<img src="'+q.img+'" style="width:100%;height:100%;object-fit:cover">';
 }
 
-// UI binding
-modeTopic.addEventListener('click', ()=>{
-  currentMode = 'topic';
-  modeTopic.classList.add('primary'); modeSearch.classList.remove('primary');
-  setStatus('待機中（お題撮影モード）', 'wait');
-});
-modeSearch.addEventListener('click', ()=>{
-  currentMode = 'search';
-  modeSearch.classList.add('primary'); modeTopic.classList.remove('primary');
-  setStatus('待機中（番号検索モード）', 'wait');
-});
+/* 候補を追加 */
+function addCandidate(qidx, ch, thumbDataUrl){
+  if(!candidates[qidx][ch]) candidates[qidx][ch] = {count:0, thumbs:[]};
+  candidates[qidx][ch].count++;
+  if(thumbnailIsUnique(candidates[qidx][ch].thumbs, thumbDataUrl)){
+    candidates[qidx][ch].thumbs.push(thumbDataUrl);
+    if(candidates[qidx][ch].thumbs.length > 3) candidates[qidx][ch].thumbs.shift();
+  }
+}
 
-captureBtn.addEventListener('pointerdown', (e)=>{
-  // start long press capture
-  startLongPressCapture();
-});
-captureBtn.addEventListener('pointerup', (e)=>{
-  stopLongPressCapture();
-});
-captureBtn.addEventListener('pointerleave', (e)=>{
-  stopLongPressCapture();
-});
+/* 単純な同一サムネ重複防止 */
+function thumbnailIsUnique(arr, dataUrl){
+  if(!dataUrl) return false;
+  if(arr.length === 0) return true;
+  // naive compare prefix
+  return arr.every(a => a.slice(0,30) !== dataUrl.slice(0,30));
+}
 
-resetBtn.addEventListener('click', ()=>{
-  if(confirm('本当にお題をリセットしますか？')) resetAll();
-});
+/* 候補 UI を更新（top3 を表示） */
+function refreshAllCandidateUI(){
+  for(let i=0;i<NUM_QUESTIONS;i++){
+    refreshCandidateUI(i);
+  }
+}
+function refreshCandidateUI(i){
+  const map = candidates[i];
+  const list = Object.keys(map).map(k=>({ch:k, count:map[k].count, thumbs:map[k].thumbs}));
+  list.sort((a,b)=>b.count - a.count);
+  for(let j=0;j<3;j++){
+    const slot = document.getElementById(`cand${i}-${j}`);
+    const thumb = slot.querySelector('.thumb');
+    const label = slot.querySelector('.label');
+    if(list[j]){
+      // show top candidate (letter and first thumb)
+      label.textContent = `${list[j].ch} (${list[j].count})`;
+      thumb.innerHTML = `<img src="${list[j].thumbs[0]}" style="width:100%;height:100%;object-fit:cover">`;
+    } else {
+      label.textContent = `候補 ${j+1}`;
+      thumb.textContent = '-';
+      thumb.innerHTML = '';
+    }
+  }
+}
 
-// initialize
-(async function init(){
-  // start camera
-  await startCamera();
-  // default UI
-  modeTopic.classList.add('primary'); setStatus('待機中', 'wait');
-  refreshTopicsUI();
-})();
+/* 全リセット */
+function resetAll(){
+  questions = new Array(NUM_QUESTIONS).fill(null);
+  candidates = Array.from({length:NUM_QUESTIONS}, ()=> ({}));
+  for(let i=0;i<NUM_QUESTIONS;i++){
+    document.getElementById('qsquare'+i).textContent = '未セット';
+    for(let j=0;j<3;j++){
+      const slot = document.getElementById(`cand${i}-${j}`);
+      slot.querySelector('.thumb').textContent = '-';
+      slot.querySelector('.label').textContent = `候補 ${j+1}`;
+    }
+  }
+  log('[操作] 全リセット');
+}
+
+/* モード切替 */
+function setMode(m){
+  mode = m;
+  if(mode === 'question'){
+    document.getElementById('modeQuestion').style.border='2px solid #1e90ff';
+    document.getElementById('modeSearch').style.border='1px solid #222';
+    log('[モード] お題撮影モード');
+  } else {
+    document.getElementById('modeSearch').style.border='2px solid #1e90ff';
+    document.getElementById('modeQuestion').style.border='1px solid #222';
+    log('[モード] 番号検索モード');
+  }
+}
+
+/* ログ出力（小窓に流す） */
+function log(s){
+  const t = new Date().toLocaleTimeString();
+  const line = `[${t}] ${s}`;
+  console.log(line);
+  if(!logEl) return;
+  logEl.style.display='block';
+  const div = document.createElement('div');
+  div.textContent = line;
+  logEl.prepend(div);
+  // limit
+  while(logEl.children.length > 80) logEl.removeChild(logEl.lastChild);
+}
+
+/* 初期設定: モード表示 */
+setMode('question');
+setStatus('待機中', 'blue');
+
+/* ユーザーに説明 (console) */
+log('ページ読み込み完了。👉 長押しで撮影、モード切替を行ってください。');
+
 </script>
+
 </body>
 </html>
