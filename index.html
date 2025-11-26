@@ -18,7 +18,7 @@
 
     /* 左：カメラ映像 */
     #cameraContainer {
-        width: 70vw;
+        width: 58vw;       /* ← 右側を広げたぶん左を小さく */
         height: 100vh;
         position: relative;
         background: #000;
@@ -39,47 +39,66 @@
         position: absolute;
         top: 15px;
         left: 15px;
-        padding: 12px 18px;
+        padding: 10px 14px;
         background: rgba(255,0,0,0.75);
         border-radius: 8px;
-        font-size: 20px;
+        font-size: 18px;
         display: none;
         z-index: 10;
     }
 
-    /* 右側：ボタン群（2×2固定レイアウト） */
+    /* 右側：ボタン＆モード表示 */
     #sideMenu {
-        width: 30vw;
+        width: 42vw;  /* ←ここを拡大して隠れないようにした */
         height: 100vh;
-        padding: 20px;
+        padding: 10px;
         box-sizing: border-box;
 
         display: grid;
+        grid-template-rows: 60px 1fr;
+        row-gap: 10px;
+    }
+
+    /* 現在モード */
+    #modeDisplay {
+        background: #222;
+        border-radius: 10px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        font-size: 20px;
+        font-weight: bold;
+    }
+
+    /* 4ボタン用コンテナ */
+    #buttonGrid {
+        width: 100%;
+        height: calc(100% - 10px);
+        display: grid;
         grid-template-columns: 1fr 1fr;
-        grid-template-rows: 1fr 1fr;
-        gap: 20px;
+        grid-template-rows: 100px 100px;  /* ←ボタン高さを確実に収まる範囲に */
+        gap: 12px;
+        align-content: start;
     }
 
     .menuBtn {
         background: #333;
-        border-radius: 12px;
+        border-radius: 10px;
         display: flex;
         justify-content: center;
         align-items: center;
-        font-size: 18px;
-        text-align: center;
+        font-size: 16px;
         padding: 10px;
+        text-align: center;
         user-select: none;
     }
-
     .menuBtn:active {
         background: #555;
     }
 
-    /* ひときわ大きくする：長押し撮影ボタン */
     #shootBtn {
         background: #aa2222;
-        font-size: 22px;
+        font-size: 18px;
         font-weight: bold;
     }
 </style>
@@ -93,12 +112,18 @@
     <div id="status">📸 撮影中…</div>
 </div>
 
-<!-- 右：2×2 メニュー -->
+<!-- 右：モード表示 + ボタン4つ -->
 <div id="sideMenu">
-    <div id="modeQuest" class="menuBtn">📷 お題撮影モード</div>
-    <div id="modeSearch" class="menuBtn">🔍 カード探索モード</div>
-    <div id="cameraTest" class="menuBtn">🎥 カメラテスト</div>
-    <div id="shootBtn" class="menuBtn">📸 長押しで撮影</div>
+
+    <div id="modeDisplay">現在：お題撮影モード</div>
+
+    <div id="buttonGrid">
+        <div id="modeQuest" class="menuBtn">📷 お題撮影<br>モード</div>
+        <div id="modeSearch" class="menuBtn">🔍 カード探索<br>モード</div>
+        <div id="cameraTest" class="menuBtn">🎥 カメラテスト</div>
+        <div id="shootBtn" class="menuBtn">📸 長押しで撮影</div>
+    </div>
+
 </div>
 
 <script>
@@ -109,7 +134,7 @@ async function startCamera() {
     try {
         const stream = await navigator.mediaDevices.getUserMedia({
             video: {
-                facingMode: { exact: "environment" }, // 外カメラ
+                facingMode: { exact: "environment" },
                 width: { ideal: 1920 },
                 height: { ideal: 1080 }
             },
@@ -117,22 +142,20 @@ async function startCamera() {
         });
         document.getElementById("video").srcObject = stream;
     } catch (e) {
-        console.log("環境カメラがダメ → 内カメラ fallback");
         const stream = await navigator.mediaDevices.getUserMedia({
             video: true
         });
         document.getElementById("video").srcObject = stream;
     }
 }
-
 startCamera();
 
 /* ============================
-   長押し撮影処理
+   長押し撮影
 ============================ */
 let isShooting = false;
 let shootTimer = null;
-let takenImages = []; // 最大10枚
+let takenImages = [];
 
 function takePhoto() {
     if (takenImages.length >= 10) return;
@@ -146,7 +169,7 @@ function takePhoto() {
 
     canvas.toBlob((blob) => {
         takenImages.push(blob);
-        console.log("撮影 → 現在 " + takenImages.length + "枚");
+        console.log("撮影 → " + takenImages.length + "枚");
     }, "image/jpeg");
 }
 
@@ -154,15 +177,6 @@ const shootBtn = document.getElementById("shootBtn");
 const status = document.getElementById("status");
 
 /* 長押し開始 */
-shootBtn.addEventListener("touchstart", startHold);
-shootBtn.addEventListener("mousedown", startHold);
-
-/* 長押し終了 */
-shootBtn.addEventListener("touchend", stopHold);
-shootBtn.addEventListener("mouseup", stopHold);
-shootBtn.addEventListener("mouseleave", stopHold);
-shootBtn.addEventListener("touchcancel", stopHold);
-
 function startHold(e) {
     e.preventDefault();
     if (isShooting) return;
@@ -170,7 +184,7 @@ function startHold(e) {
 
     status.style.display = "block";
 
-    takePhoto(); // すぐ1枚撮る
+    takePhoto();
     shootTimer = setInterval(() => {
         takePhoto();
         if (takenImages.length >= 10) stopHold();
@@ -182,22 +196,30 @@ function stopHold() {
     isShooting = false;
 
     status.style.display = "none";
-
     clearInterval(shootTimer);
     shootTimer = null;
 }
 
+shootBtn.addEventListener("touchstart", startHold);
+shootBtn.addEventListener("mousedown", startHold);
+shootBtn.addEventListener("touchend", stopHold);
+shootBtn.addEventListener("mouseup", stopHold);
+shootBtn.addEventListener("mouseleave", stopHold);
+shootBtn.addEventListener("touchcancel", stopHold);
+
 /* ============================
-   モードボタン（処理本体は既存のまま）
+   モード切替
 ============================ */
+const modeDisplay = document.getElementById("modeDisplay");
+
 document.getElementById("modeQuest").onclick = () => {
-    console.log("お題撮影モード");
+    modeDisplay.textContent = "現在：お題撮影モード";
 };
 document.getElementById("modeSearch").onclick = () => {
-    console.log("カード探索モード");
+    modeDisplay.textContent = "現在：カード探索モード";
 };
 document.getElementById("cameraTest").onclick = () => {
-    console.log("カメラテスト");
+    modeDisplay.textContent = "現在：カメラテストモード";
 };
 </script>
 
