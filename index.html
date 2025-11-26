@@ -1,422 +1,454 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>かくれんぼ OCR — 自動切り抜き版</title>
+<title>かくれんぼ OCR — 最終版</title>
 
 <!-- Tesseract.js CDN -->
 <script src="https://unpkg.com/tesseract.js@4.1.1/dist/tesseract.min.js"></script>
 
 <style>
-  /* --- 全体（横持ち想定） --- */
-  html,body{height:100%; margin:0; background:#000; color:#fff; font-family: -apple-system, system-ui, "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;}
-  #app{
-    width:100vw; height:100vh; box-sizing:border-box; padding:6px;
-    display:grid;
-    grid-template-columns: 120px 1fr 180px; /* 左=お題列 中央=候補 右=ボタン+カメラ */
-    grid-template-rows: repeat(5, 1fr);
-    gap:6px;
-    overflow:hidden;
+  :root{
+    --bg:#000;
+    --panel:#0f0f10;
+    --card:#121212;
+    --accent:#c42b2b;
+    --glass: rgba(255,255,255,0.03);
+    --white: #fff;
+  }
+  html,body{height:100%; margin:0; background:var(--bg); color:var(--white); font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN","Yu Gothic","Noto Sans JP",sans-serif; -webkit-font-smoothing:antialiased;}
+  /* Outer grid: left(固定幅) / center(フレキシブル) / right(25%) */
+  #root{
+    height:100vh; display:grid; grid-template-columns: 100px 1fr 25vw; gap:8px; padding:8px; box-sizing:border-box; align-items:stretch;
   }
 
-  /* 左列：お題（各セルは正方形の表示エリア） */
-  .odai{
-    background:#0f0f11; border-radius:8px; display:flex; align-items:center; justify-content:center;
-    position:relative; overflow:hidden; border:1px solid #222;
+  /* Left column (5 squares stacked) */
+  .left{
+    display:flex; flex-direction:column; gap:8px;
   }
-  .odai .label{
-    position:absolute; left:6px; top:6px; font-weight:700; font-size:18px; color:#fff;
+  .topicCell{
+    flex:1 1 0; /* equal height for 5 cells */
+    min-height:0;
+    background:var(--panel); border-radius:8px; border:3px solid #b71c1c; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden;
   }
-  .odai img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .topicLabel{ position:absolute; left:8px; top:8px; font-weight:800; font-size:18px; }
+  .topicCell img{ width:100%; height:100%; object-fit:cover; display:block; }
 
-  /* 中央列：各お題ごとの候補TOP3（写真 + テキスト） */
-  .candidates{
-    background:transparent; border-radius:8px; padding:8px; display:flex; flex-direction:column; gap:8px; box-sizing:border-box;
-  }
-  .candidateRow{
-    background:#121212; border-radius:8px; padding:8px; display:flex; gap:8px; align-items:center; justify-content:space-between;
-    height:100%;
+  /* Center column: candidate blocks stacked (may scroll if many) */
+  .center{
+    display:flex; flex-direction:column; gap:8px; overflow-y:auto; padding-right:4px;
     box-sizing:border-box;
   }
-  .candItem{
-    background:#1b1b1b; border-radius:6px; padding:6px; width:30%; display:flex; gap:8px; align-items:center; box-sizing:border-box;
+  .candidateBlock{
+    background:var(--card); border-radius:10px; padding:10px; border:2px solid #222; display:flex; gap:8px; align-items:center;
+    height:calc((100vh - 16px*2 - 8px*4) / 5 - 8px); /* attempt to match left heights (approx) */
+    box-sizing:border-box;
   }
-  .candItem img{ width:56px; height:56px; object-fit:cover; border-radius:6px; background:#000;}
-  .candText{ font-size:16px; line-height:1.1; }
+  .candidateItem{ background:#111; border-radius:8px; padding:8px; width:33%; display:flex; gap:8px; align-items:center; box-sizing:border-box; border:1px solid var(--glass); }
+  .candidateItem img{ width:64px; height:64px; object-fit:cover; border-radius:6px; background:#000; }
+  .candidateLabel{ font-size:16px; line-height:1.0; }
 
-  /* 右列：ボタン（上3段）とカメラ（下2段） */
-  #rightPanel{
-    grid-row:1 / 6; /* 高さを全行に */
-    background:transparent; display:flex; flex-direction:column; gap:8px; padding:6px; box-sizing:border-box;
+  /* Right column */
+  .right{
+    display:flex; flex-direction:column; gap:8px; box-sizing:border-box; align-items:stretch; justify-content:flex-start;
   }
-  .buttons{
-    display:flex; flex-wrap:wrap; gap:8px; justify-content:center;
+
+  /* Top small controls: 2x2 grid of square buttons */
+  .controls{
+    display:grid; grid-template-columns: 1fr 1fr; gap:8px;
   }
-  .btn{
-    width:72px; height:72px; background:#2a2a2a; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:26px; cursor:pointer;
-    border:2px solid rgba(255,255,255,0.03);
+  .controlBtn{
+    aspect-ratio:1/1; /* square */
+    background:#222; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:20px; cursor:pointer; border:2px solid var(--glass); color:var(--white);
+    user-select:none;
   }
-  #shootBtn{ background: #c42b2b; }
+  .controlBtn.active{ outline:3px solid rgba(30,140,255,0.25); box-shadow:0 2px 8px rgba(0,0,0,0.4); }
 
-  /* カメラ枠（右下） */
-  #camBox{ margin-top:auto; width:100%; display:flex; align-items:center; justify-content:center; }
-  #camInner{ width:160px; height:120px; background:#000; border-radius:10px; overflow:hidden; border:2px solid #222; }
-  #camera{ width:100%; height:100%; object-fit:cover; display:block; }
+  /* Status badge near top of right column */
+  #statusBadge{
+    margin-top:6px; background:linear-gradient(180deg,#1e3cff,#1848ff); color:#fff; padding:8px 10px; border-radius:10px; text-align:center; font-weight:700;
+  }
 
-  /* ステータスバー（右上に小さく） */
-  #status{ position:absolute; right:12px; top:12px; background:#1e3cff; color:#fff; padding:6px 10px; border-radius:8px; font-weight:700; z-index:10; }
+  /* Right bottom: small camera preview block */
+  .camWrap{ margin-top:auto; display:flex; flex-direction:column; gap:8px; align-items:center; }
+  .camBox{ width:100%; background:#000; border-radius:10px; overflow:hidden; border:3px solid #333; display:flex; align-items:center; justify-content:center; }
+  /* camera width = 100% of right column (which is 25vw). We asked small: A(25% of screen), so right column was 25vw already */
+  #camera{ width:100%; height:160px; object-fit:cover; display:block; background:#000; }
 
-  /* small helper */
-  .small{font-size:12px; opacity:0.85;}
+  /* bottom small hint */
+  .hint{ font-size:12px; opacity:0.8; text-align:center; padding:4px 0; color:#ddd; }
+
+  /* responsive small adjustments */
+  @media(max-width:900px){
+    /* reduce camera height a bit on small screens */
+    #camera{ height:140px; }
+    .candidateBlock{ height:120px; }
+    .candidateItem img{ width:56px; height:56px; }
+  }
+  @media(max-height:600px){
+    .candidateBlock{ height:100px; }
+  }
 </style>
 </head>
 <body>
-<div id="status">モデル読み込み中…</div>
+<div id="root">
+  <!-- LEFT: topics 1..5 -->
+  <div class="left" id="leftCol">
+    <div class="topicCell" id="t1"><div class="topicLabel">お題1</div><img id="img_t1" alt=""></div>
+    <div class="topicCell" id="t2"><div class="topicLabel">お題2</div><img id="img_t2" alt=""></div>
+    <div class="topicCell" id="t3"><div class="topicLabel">お題3</div><img id="img_t3" alt=""></div>
+    <div class="topicCell" id="t4"><div class="topicLabel">お題4</div><img id="img_t4" alt=""></div>
+    <div class="topicCell" id="t5"><div class="topicLabel">お題5</div><img id="img_t5" alt=""></div>
+  </div>
 
-<div id="app">
-  <!-- 左：お題 1..5 -->
-  <div class="odai" id="odai1"><div class="label">お題1</div><img id="odai1_img" alt=""></div>
-  <div class="odai" id="odai2"><div class="label">お題2</div><img id="odai2_img" alt=""></div>
-  <div class="odai" id="odai3"><div class="label">お題3</div><img id="odai3_img" alt=""></div>
-  <div class="odai" id="odai4"><div class="label">お題4</div><img id="odai4_img" alt=""></div>
-  <div class="odai" id="odai5"><div class="label">お題5</div><img id="odai5_img" alt=""></div>
-
-  <!-- 中央：各お題に対応する候補TOP3 -->
-  <div class="candidates" id="cand1"><div class="candidateRow" id="candRow1">
-    <div class="candItem"><img id="c1_1_img"/><div class="candText" id="c1_1_txt">—</div></div>
-    <div class="candItem"><img id="c1_2_img"/><div class="candText" id="c1_2_txt">—</div></div>
-    <div class="candItem"><img id="c1_3_img"/><div class="candText" id="c1_3_txt">—</div></div>
-  </div></div>
-
-  <div class="candidates" id="cand2"><div class="candidateRow" id="candRow2">
-    <div class="candItem"><img id="c2_1_img"/><div class="candText" id="c2_1_txt">—</div></div>
-    <div class="candItem"><img id="c2_2_img"/><div class="candText" id="c2_2_txt">—</div></div>
-    <div class="candItem"><img id="c2_3_img"/><div class="candText" id="c2_3_txt">—</div></div>
-  </div></div>
-
-  <div class="candidates" id="cand3"><div class="candidateRow" id="candRow3">
-    <div class="candItem"><img id="c3_1_img"/><div class="candText" id="c3_1_txt">—</div></div>
-    <div class="candItem"><img id="c3_2_img"/><div class="candText" id="c3_2_txt">—</div></div>
-    <div class="candItem"><img id="c3_3_img"/><div class="candText" id="c3_3_txt">—</div></div>
-  </div></div>
-
-  <div class="candidates" id="cand4"><div class="candidateRow" id="candRow4">
-    <div class="candItem"><img id="c4_1_img"/><div class="candText" id="c4_1_txt">—</div></div>
-    <div class="candItem"><img id="c4_2_img"/><div class="candText" id="c4_2_txt">—</div></div>
-    <div class="candItem"><img id="c4_3_img"/><div class="candText" id="c4_3_txt">—</div></div>
-  </div></div>
-
-  <div class="candidates" id="cand5"><div class="candidateRow" id="candRow5">
-    <div class="candItem"><img id="c5_1_img"/><div class="candText" id="c5_1_txt">—</div></div>
-    <div class="candItem"><img id="c5_2_img"/><div class="candText" id="c5_2_txt">—</div></div>
-    <div class="candItem"><img id="c5_3_img"/><div class="candText" id="c5_3_txt">—</div></div>
-  </div></div>
-
-  <!-- 右列：ボタンとカメラ枠（固定） -->
-  <div id="rightPanel">
-    <div class="buttons">
-      <div class="btn" id="btnTopic" title="お題撮影">📸</div>
-      <div class="btn" id="btnSearch" title="カード探索">🔍</div>
-      <div class="btn" id="btnReset" title="リセット">♻️</div>
-      <div class="btn" id="shootBtn" title="長押しで撮影">●</div>
+  <!-- CENTER: candidate top3 blocks for each topic -->
+  <div class="center" id="centerCol">
+    <div class="candidateBlock" id="cand1">
+      <div class="candidateItem"><img id="c1_1_img"><div class="candidateLabel" id="c1_1_txt">—</div></div>
+      <div class="candidateItem"><img id="c1_2_img"><div class="candidateLabel" id="c1_2_txt">—</div></div>
+      <div class="candidateItem"><img id="c1_3_img"><div class="candidateLabel" id="c1_3_txt">—</div></div>
     </div>
 
-    <div id="camBox">
-      <div id="camInner">
-        <video id="camera" autoplay playsinline muted></video>
-      </div>
+    <div class="candidateBlock" id="cand2">
+      <div class="candidateItem"><img id="c2_1_img"><div class="candidateLabel" id="c2_1_txt">—</div></div>
+      <div class="candidateItem"><img id="c2_2_img"><div class="candidateLabel" id="c2_2_txt">—</div></div>
+      <div class="candidateItem"><img id="c2_3_img"><div class="candidateLabel" id="c2_3_txt">—</div></div>
     </div>
-    <div class="small" style="margin-top:6px; text-align:center;">長押しで撮影（1枚／1秒）</div>
+
+    <div class="candidateBlock" id="cand3">
+      <div class="candidateItem"><img id="c3_1_img"><div class="candidateLabel" id="c3_1_txt">—</div></div>
+      <div class="candidateItem"><img id="c3_2_img"><div class="candidateLabel" id="c3_2_txt">—</div></div>
+      <div class="candidateItem"><img id="c3_3_img"><div class="candidateLabel" id="c3_3_txt">—</div></div>
+    </div>
+
+    <div class="candidateBlock" id="cand4">
+      <div class="candidateItem"><img id="c4_1_img"><div class="candidateLabel" id="c4_1_txt">—</div></div>
+      <div class="candidateItem"><img id="c4_2_img"><div class="candidateLabel" id="c4_2_txt">—</div></div>
+      <div class="candidateItem"><img id="c4_3_img"><div class="candidateLabel" id="c4_3_txt">—</div></div>
+    </div>
+
+    <div class="candidateBlock" id="cand5">
+      <div class="candidateItem"><img id="c5_1_img"><div class="candidateLabel" id="c5_1_txt">—</div></div>
+      <div class="candidateItem"><img id="c5_2_img"><div class="candidateLabel" id="c5_2_txt">—</div></div>
+      <div class="candidateItem"><img id="c5_3_img"><div class="candidateLabel" id="c5_3_txt">—</div></div>
+    </div>
+  </div>
+
+  <!-- RIGHT: controls (2x2 small square buttons) and camera at bottom right -->
+  <div class="right" id="rightCol">
+    <div class="controls" id="controlsGrid">
+      <div class="controlBtn" id="btnTopic" title="お題撮影モード">📸</div>
+      <div class="controlBtn" id="btnSearch" title="カード探索モード">🔍</div>
+      <div class="controlBtn" id="btnReset" title="リセット">♻️</div>
+      <div class="controlBtn" id="btnShoot" title="長押しで撮影">●</div>
+    </div>
+
+    <div id="statusBadge">モデル読み込み中…</div>
+
+    <div class="camWrap">
+      <div class="camBox"><video id="camera" autoplay playsinline muted></video></div>
+      <div class="hint">長押しで連続撮影（1s間隔）・離すと停止</div>
+    </div>
   </div>
 </div>
 
 <script>
-/* ==========================
-   定数と状態
-   ========================== */
-const SCAN_INTERVAL_MS = 1000; // 1秒ごとにOCR（必要に応じて1500〜2000に）
+/* =========================
+   定数・状態
+   ========================= */
+const SCAN_INTERVAL_MS = 1000; // 1000ms: 1秒ごとにOCR（負荷が高ければ1500〜2000に）
 const MAX_TOPICS = 5;
 
 let mode = 'topic'; // 'topic' or 'search'
 let isHolding = false;
-let scanTimer = null;
+let holdTimer = null;
 
-/* お題データ：{num:'123', imgDataUrl:'data:...'} max 5 */
-let topics = []; 
-
-/* マップ: number -> {letter->count, examples:[{img,letter}] } */
-let numberMap = {}; 
+let topics = []; // [{num:'123', imgData:...}, ...]
+let numberMap = {}; // num -> {counts:{A:3,...}, examples:[{img,letter}]}
 
 /* Tesseract worker */
 let worker = null;
-const statusEl = document.getElementById('status');
 
-/* カメラとキャンバス */
+/* DOM */
+const statusBadge = document.getElementById('statusBadge');
 const video = document.getElementById('camera');
 const tmpCanvas = document.createElement('canvas');
 const tmpCtx = tmpCanvas.getContext('2d');
 
-/* ==========================
-   Tesseract ワーカー初期化
-   ========================== */
-async function initTesseract(){
-  statusEl.textContent = 'モデル読み込み中…';
+const btnTopic = document.getElementById('btnTopic');
+const btnSearch = document.getElementById('btnSearch');
+const btnReset = document.getElementById('btnReset');
+const btnShoot = document.getElementById('btnShoot');
+
+/* =========================
+   初期：UI初期化
+   ========================= */
+function clearAllUI(){
+  for(let i=1;i<=MAX_TOPICS;i++){
+    document.getElementById('img_t'+i).removeAttribute('src');
+    for(let j=1;j<=3;j++){
+      const img = document.getElementById(`c${i}_${j}_img`);
+      const txt = document.getElementById(`c${i}_${j}_txt`);
+      img.removeAttribute('src');
+      txt.textContent = '—';
+    }
+  }
+}
+clearAllUI();
+
+/* =========================
+   Tesseract 初期化
+   ========================= */
+async function initTess(){
+  statusBadge.textContent = 'モデル読み込み中…';
   worker = Tesseract.createWorker({
     logger: m => {
-      // console.log(m);
-      if(m.status && m.status.includes('loaded')){
-        statusEl.textContent = 'モデル読み込み完了';
+      if(m.status) {
+        //show short status for user
+        if(m.status.includes('loaded')) statusBadge.textContent = 'モデル読み込み完了';
       }
     }
   });
   await worker.load();
-  await worker.loadLanguage('eng'); // 数字と英字を扱う
+  await worker.loadLanguage('eng');
   await worker.initialize('eng');
-  // 余計な出力減らす
   await worker.setParameters({
     tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz',
     preserve_interword_spaces: '0'
   });
-  statusEl.textContent = '準備完了（待機中）';
+  statusBadge.textContent = '準備完了（待機中）';
 }
-initTesseract();
+initTess();
 
-/* ==========================
-   カメラ起動
-   ========================== */
+/* =========================
+   カメラ開始
+   ========================= */
 async function startCamera(){
   try{
-    const s = await navigator.mediaDevices.getUserMedia({
+    const stream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: { ideal: 'environment' }, width:{ideal:1280}, height:{ideal:720} },
       audio:false
     });
-    video.srcObject = s;
-    video.play();
-    statusEl.textContent = 'カメラ起動完了（待機中）';
+    video.srcObject = stream;
+    await video.play();
+    statusBadge.textContent = 'カメラ起動（待機中）';
   }catch(err){
-    statusEl.textContent = 'カメラ起動失敗';
     console.error(err);
+    statusBadge.textContent = 'カメラ起動失敗';
   }
 }
 startCamera();
 
-/* ==========================
-   ユーティリティ：イメージ切り抜き（四角：拡張つき） => dataURL
-   bbox: {x0,y0,x1,y1} in pixels of canvas
-   returns dataURL
-   ========================== */
-function cropSquareFromCanvas(canvas, bbox, expand=0.2){
+/* =========================
+   OCRヘルパー：フレームを解析して単語配列を返す
+   ========================= */
+async function ocrFrame(canvas){
+  if(!worker) return [];
+  try{
+    const res = await worker.recognize(canvas);
+    const words = (res && res.data && res.data.words) ? res.data.words.map(w=>({
+      text: (w.text||'').replace(/\s+/g,''),
+      bbox: { x0:w.bbox.x0, y0:w.bbox.y0, x1:w.bbox.x1, y1:w.bbox.y1 },
+      conf: w.confidence
+    })) : [];
+    return words;
+  }catch(e){
+    console.error('OCR error', e);
+    return [];
+  }
+}
+
+/* =========================
+   切り抜きユーティリティ
+   bbox = {x0,y0,x1,y1}
+   expand = fraction
+   ========================= */
+function cropSquareDataURL(canvas, bbox, expand=0.25){
   const w = canvas.width, h = canvas.height;
-  const cx = (bbox.x0 + bbox.x1)/2;
-  const cy = (bbox.y0 + bbox.y1)/2;
   const bw = bbox.x1 - bbox.x0;
   const bh = bbox.y1 - bbox.y0;
+  const cx = (bbox.x0 + bbox.x1)/2;
+  const cy = (bbox.y0 + bbox.y1)/2;
   const size = Math.max(bw,bh) * (1 + expand);
   const sx = Math.max(0, Math.round(cx - size/2));
   const sy = Math.max(0, Math.round(cy - size/2));
   const sW = Math.min(w - sx, Math.round(size));
   const sH = Math.min(h - sy, Math.round(size));
-
   const tmp = document.createElement('canvas');
-  tmp.width = sW;
-  tmp.height = sH;
+  tmp.width = sW; tmp.height = sH;
   tmp.getContext('2d').drawImage(canvas, sx, sy, sW, sH, 0,0, sW, sH);
-  // resize to square display size for left column
+  // normalize to square small size
   const out = document.createElement('canvas');
-  const S = 200; // left-cells display で使うサイズ（正方形）
+  const S = 220; // display size for left column elems (square)
   out.width = S; out.height = S;
   out.getContext('2d').drawImage(tmp, 0,0, S,S);
   return out.toDataURL('image/jpeg', 0.9);
 }
 
-/* ==========================
-   OCR処理：1フレームを解析して単語情報を返す
-   returns array of words: {text,bbox:{x0,y0,x1,y1},confidence}
-   ========================== */
-async function ocrFrameWithBoxes(canvas){
-  // use worker.recognize with canvas
-  const { data } = await worker.recognize(canvas);
-  // data.words[] has bbox
-  const words = (data && data.words) ? data.words.map(w=>({
-    text: (w.text||'').trim(),
-    bbox: { x0: w.bbox.x0, y0: w.bbox.y0, x1: w.bbox.x1, y1: w.bbox.y1 },
-    conf: w.confidence
-  })) : [];
-  return words;
-}
-
-/* ==========================
-   スキャン処理（呼び出し元：長押し中の setInterval）
-   - topic mode: 検出した3桁を左列に順次入れる
-   - search mode: 検出した3桁と近傍の英字を numberMap に追加
-   ========================== */
-async function processScan(){
-  if(!video.videoWidth) return;
-  // draw current frame to tmp canvas
+/* =========================
+   スキャン本体（1フレーム）: topic / search 共通入口
+   ========================= */
+async function scanOnce(){
+  if(!video || !video.videoWidth) return;
   tmpCanvas.width = video.videoWidth;
   tmpCanvas.height = video.videoHeight;
   tmpCtx.drawImage(video, 0, 0, tmpCanvas.width, tmpCanvas.height);
 
-  // OCRフレーム解析（非ブロッキング）
-  const words = await ocrFrameWithBoxes(tmpCanvas);
+  const words = await ocrFrame(tmpCanvas);
   if(!words || words.length===0) return;
 
-  // 1) find all 3-digit numeric tokens
   const threeDigits = words.filter(w => /^\d{3}$/.test(w.text));
-
-  // if none found, return quickly
   if(threeDigits.length === 0) return;
 
   if(mode === 'topic'){
-    // for each detected 3-digit, crop and add to topics (max 5)
     for(const w of threeDigits){
-      const num = w.text;
-      // avoid duplicates
-      if(topics.find(t=>t.num===num)) continue;
+      const n = w.text;
+      // avoid duplicate topic num
+      if(topics.find(t=>t.num===n)) continue;
       if(topics.length >= MAX_TOPICS) break;
-      const imgData = cropSquareFromCanvas(tmpCanvas, w.bbox, 0.4); // extend for safety
-      topics.push({ num, img: imgData });
-      updateLeftTopicsUI();
+      const dataUrl = cropSquareDataURL(tmpCanvas, w.bbox, 0.4);
+      topics.push({num:n, img:dataUrl});
+      updateTopicsUI();
       if(topics.length >= MAX_TOPICS) break;
     }
-  }else if(mode === 'search'){
-    // Build quick spatial index: for each numeric bbox, find nearest single-letter word (A-Z)
+  } else if(mode === 'search'){
     const letters = words.filter(w=>/^[A-Za-z]$/.test(w.text));
     for(const w of threeDigits){
       const num = w.text;
-      // find nearest letter by Euclidean distance of bbox centers (within reasonable range)
-      const bx = (w.bbox.x0 + w.bbox.x1)/2;
-      const by = (w.bbox.y0 + w.bbox.y1)/2;
-      let nearest = null; let bestD = Infinity;
+      const cx = (w.bbox.x0 + w.bbox.x1)/2;
+      const cy = (w.bbox.y0 + w.bbox.y1)/2;
+      let nearest=null; let bestD=Infinity;
       for(const L of letters){
-        const lx = (L.bbox.x0 + L.bbox.x1)/2;
-        const ly = (L.bbox.y0 + L.bbox.y1)/2;
-        const d = Math.hypot(lx-bx, ly-by);
-        if(d < bestD){ bestD = d; nearest = L; }
+        const lx=(L.bbox.x0+L.bbox.x1)/2;
+        const ly=(L.bbox.y0+L.bbox.y1)/2;
+        const d = Math.hypot(lx-cx, ly-cy);
+        if(d<bestD){ bestD=d; nearest=L; }
       }
-      // threshold: only accept if distance < some fraction of frame diag
       const diag = Math.hypot(tmpCanvas.width, tmpCanvas.height);
-      if(nearest && bestD < diag * 0.18){
-        const letter = nearest.text.toUpperCase();
-        // crop tile image around numeric bbox (bigger)
-        const cropImg = cropSquareFromCanvas(tmpCanvas, w.bbox, 0.6);
-        if(!numberMap[num]) numberMap[num] = { counts: {}, examples: [] };
-        numberMap[num].counts[letter] = (numberMap[num].counts[letter]||0) + 1;
-        numberMap[num].examples.push({letter, img: cropImg});
-      } else {
-        // if no nearby letter, still store example with blank letter for visual
-        const cropImg = cropSquareFromCanvas(tmpCanvas, w.bbox, 0.6);
-        if(!numberMap[num]) numberMap[num] = { counts: {}, examples: [] };
-        numberMap[num].examples.push({letter: '-', img: cropImg});
-      }
+      let letter = '-';
+      if(nearest && bestD < diag*0.18) letter = nearest.text.toUpperCase();
+      const imgExample = cropSquareDataURL(tmpCanvas, w.bbox, 0.5);
+      if(!numberMap[num]) numberMap[num] = {counts:{}, examples:[]};
+      if(letter !== '-') numberMap[num].counts[letter] = (numberMap[num].counts[letter]||0) + 1;
+      numberMap[num].examples.unshift({letter, img: imgExample});
     }
-    // after updating, refresh candidate UI
     updateCandidatesUI();
   }
 }
 
-/* ==========================
-   UI 更新：左列のお題画像を表示
-   ========================== */
-function updateLeftTopicsUI(){
-  for(let i=0;i<MAX_TOPICS;i++){
-    const el = document.getElementById(`odai${i+1}_img`);
-    if(topics[i]) el.src = topics[i].img;
+/* =========================
+   UI update: left topics
+   ========================= */
+function updateTopicsUI(){
+  for(let i=1;i<=MAX_TOPICS;i++){
+    const el = document.getElementById('img_t'+i);
+    if(topics[i-1]) el.src = topics[i-1].img;
     else el.removeAttribute('src');
   }
 }
 
-/* ==========================
-   UI 更新：中央の候補TOP3（写真付き）を表示
-   - for each topic number, map numberMap -> top3 letters
-   ========================== */
+/* =========================
+   UI update: candidates center
+   ========================= */
 function updateCandidatesUI(){
-  // for each topic entry, compute top3
   for(let i=0;i<MAX_TOPICS;i++){
-    const t = topics[i];
-    const baseIndex = i+1;
+    const topic = topics[i];
     for(let j=1;j<=3;j++){
-      const imgEl = document.getElementById(`c${baseIndex}_${j}_img`);
-      const txtEl = document.getElementById(`c${baseIndex}_${j}_txt`);
-      if(!t){ imgEl.removeAttribute('src'); txtEl.textContent = '—'; continue; }
-
-      const num = t.num;
-      const info = numberMap[num];
+      const imgEl = document.getElementById(`c${i+1}_${j}_img`);
+      const txtEl = document.getElementById(`c${i+1}_${j}_txt`);
+      if(!topic){
+        imgEl.removeAttribute('src');
+        txtEl.textContent = '—';
+        continue;
+      }
+      const info = numberMap[topic.num];
       if(!info){
         imgEl.removeAttribute('src');
         txtEl.textContent = '—';
         continue;
       }
-      // build sorted list by counts
+      // sort counts
       const pairs = Object.entries(info.counts).map(([k,v])=>({k,v}));
       pairs.sort((a,b)=>b.v-a.v);
-      // also include examples without letter if necessary
-      let chosenLetter = null;
-      if(pairs[j-1]) chosenLetter = pairs[j-1].k;
-      else {
-        // fallback: take examples list
-        const ex = info.examples[j-1];
-        if(ex) {
+      if(pairs[j-1]){
+        const letter = pairs[j-1].k;
+        const ex = info.examples.find(e=>e.letter===letter) || info.examples[0];
+        imgEl.src = ex ? ex.img : '';
+        txtEl.textContent = `${letter} (${(info.counts[letter]||0)})`;
+      } else {
+        // fallback to examples
+        const ex = info.examples[j-1] || info.examples[0];
+        if(ex){
           imgEl.src = ex.img;
-          txtEl.textContent = (ex.letter && ex.letter!=='-') ? `${ex.letter}` : '候補';
-          continue;
+          txtEl.textContent = ex.letter==='-' ? '候補' : ex.letter;
         } else {
           imgEl.removeAttribute('src');
           txtEl.textContent = '—';
-          continue;
         }
       }
-      // pick an example image for that letter
-      const exExample = info.examples.find(e => e.letter === chosenLetter) || info.examples[0];
-      imgEl.src = exExample ? exExample.img : '';
-      txtEl.textContent = `${chosenLetter} (${info.counts[chosenLetter]||0})`;
     }
   }
 }
 
-/* ==========================
-   長押し制御（撮影開始／停止）
-   ========================== */
-const shootBtn = document.getElementById('shootBtn');
-let holdInterval = null;
-
-function onHoldStart(){
+/* =========================
+   長押し（撮影）制御
+   ========================= */
+function startHolding(){
   if(isHolding) return;
   isHolding = true;
-  statusEl.textContent = '撮影中…';
-  statusEl.style.background = '#c42b2b';
-  // start continuous scanning
-  processScan(); // immediate first
-  holdInterval = setInterval(processScan, SCAN_INTERVAL_MS);
+  statusBadge.textContent = '撮影中…';
+  btnShoot.classList.add('active');
+  // immediate first scan then interval
+  scanOnce();
+  holdTimer = setInterval(scanOnce, SCAN_INTERVAL_MS);
 }
-function onHoldEnd(){
+function stopHolding(){
   if(!isHolding) return;
   isHolding = false;
-  statusEl.textContent = '待機中';
-  statusEl.style.background = '#1e3cff';
-  clearInterval(holdInterval);
-  holdInterval = null;
+  statusBadge.textContent = '待機中';
+  btnShoot.classList.remove('active');
+  clearInterval(holdTimer); holdTimer = null;
 }
 
-shootBtn.addEventListener('touchstart', (e)=>{ e.preventDefault(); onHoldStart(); });
-shootBtn.addEventListener('mousedown', (e)=>{ e.preventDefault(); onHoldStart(); });
-document.addEventListener('touchend', ()=> onHoldEnd());
-document.addEventListener('mouseup', ()=> onHoldEnd());
+/* events */
+btnShoot.addEventListener('touchstart', e=>{ e.preventDefault(); startHolding(); });
+btnShoot.addEventListener('mousedown', e=>{ e.preventDefault(); startHolding(); });
+document.addEventListener('touchend', ()=> stopHolding());
+document.addEventListener('mouseup', ()=> stopHolding());
 
-/* ==========================
-   モード切替とリセット
-   ========================== */
-document.getElementById('btnTopic').addEventListener('click', ()=>{ mode='topic'; statusEl.textContent='モード: お題撮影（topic）'; statusEl.style.background='#1e3cff'; });
-document.getElementById('btnSearch').addEventListener('click', ()=>{ mode='search'; statusEl.textContent='モード: カード探索（search）'; statusEl.style.background='#1e3cff'; });
-document.getElementById('btnReset').addEventListener('click', ()=>{ topics=[]; numberMap={}; updateLeftTopicsUI(); updateCandidatesUI(); statusEl.textContent='データをクリアしました'; });
+/* =========================
+   Mode buttons & reset
+   ========================= */
+btnTopic.addEventListener('click', ()=>{
+  mode='topic';
+  btnTopic.classList.add('active'); btnSearch.classList.remove('active');
+  statusBadge.textContent = 'モード: お題撮影（topic）';
+});
+btnSearch.addEventListener('click', ()=>{
+  mode='search';
+  btnSearch.classList.add('active'); btnTopic.classList.remove('active');
+  statusBadge.textContent = 'モード: カード探索（search）';
+});
+btnReset.addEventListener('click', ()=>{
+  topics = []; numberMap = {};
+  updateTopicsUI(); updateCandidatesUI();
+  statusBadge.textContent = 'データをクリアしました（待機中）';
+});
 
-/* ==========================
-   初期 UI クリア
-   ========================== */
-updateLeftTopicsUI();
-updateCandidatesUI();
+/* init default mode */
+btnTopic.classList.add('active');
 
+/* =========================
+   cleanup on unload
+   ========================= */
+window.addEventListener('beforeunload', async ()=>{
+  if(worker) {
+    try{ await worker.terminate(); }catch(e){}
+  }
+  const tracks = video.srcObject ? (video.srcObject.getTracks ? video.srcObject.getTracks() : []) : [];
+  tracks.forEach(t=>t.stop && t.stop());
+});
 </script>
 </body>
 </html>
