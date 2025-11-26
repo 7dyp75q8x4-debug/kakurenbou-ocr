@@ -1,153 +1,148 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UI 完全版</title>
+
 <style>
 body {
     margin: 0;
-    background: #111;
-    color: white;
-    font-family: sans-serif;
-    overflow: hidden;
     display: flex;
+    height: 100vh;
+    box-sizing: border-box;
+    font-family: sans-serif;
 }
 
-/* ===== 左側 5×4 グリッド ===== */
-#left {
-    width: 55vw;
-    padding: 4px;
+/* 左側：5×4 グリッド */
+#grid-left {
+    flex: 1;
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     grid-template-rows: repeat(5, 1fr);
-    gap: 6px;
+    gap: 4px;
+    padding: 4px;
 }
-.slot {
-    background: #222;
-    border-radius: 6px;
+
+.cell {
+    background: #eee;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 2.4vw;
-    user-select: none;
+    font-size: 20px;
+    border-radius: 4px;
 }
 
-/* ===== 右側パネル ===== */
-#right {
-    width: 45vw;
-    padding: 6px;
+/* 右側：カメラ＋ログ＋4ボタン */
+#right-side {
+    width: 38%;
     display: flex;
     flex-direction: column;
-    justify-content: flex-start;
-    overflow: hidden;
-    transform-origin: top right;
+    padding: 4px;
+    gap: 4px;
 }
 
-/* ===== カメラ（16:9固定で最大化） ===== */
+/* カメラエリア */
 #camera-container {
-    width: 100%;
+    flex: 1;
     background: #000;
-    border-radius: 6px;
-    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 #camera-view {
     width: 100%;
-    aspect-ratio: 16 / 9;
-    background: #000;
-    border-radius: 6px;
+    height: 100%;
     object-fit: cover;
 }
 
-/* ===== ログ ===== */
-#log {
-    margin-top: 8px;
-    width: 100%;
-    height: 12vh;
-    background: #222;
-    border-radius: 6px;
-    padding: 6px;
+/* ログエリア */
+#log-box {
+    height: 100px;
+    background: #fff;
+    border: 1px solid #aaa;
     overflow-y: auto;
-    font-size: 1.8vw;
+    padding: 4px;
+    font-size: 14px;
+    white-space: pre-wrap;
 }
 
-/* ===== ボタン 2×2 ===== */
-#buttons {
-    margin-top: 8px;
+/* 下の4ボタン */
+#button-box {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    grid-template-rows: 1fr 1fr;
-    gap: 8px;
-    height: 24vh;
-}
-.btn {
-    border-radius: 6px;
-    border: none;
-    font-size: 2vw;
-    font-weight: 600;
-    user-select: none;
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(2, 60px);
+    gap: 4px;
 }
 
-/* 赤＆緑 */
-#btn-odai { background: #ff6b6b; }
-#btn-search { background: #3cb371; }
-#btn-photo { background: #fff; color: #000; }
-#btn-reset { background: #fff; color: #000; }
-
-/* ===== 画面高さが溢れそうなら右だけ縮小 ===== */
-@media (max-height: 800px) {
-    #right { transform: scale(0.92); }
-}
-@media (max-height: 700px) {
-    #right { transform: scale(0.85); }
+.big-btn {
+    border: 1px solid #aaa;
+    background: #fff;
+    border-radius: 4px;
+    font-size: 20px;
 }
 </style>
 </head>
 
 <body>
 
-<!-- 左側 5×4 -->
-<div id="left">
-    <div class="slot">1a</div><div class="slot">1b</div><div class="slot">1c</div><div class="slot">1d</div>
-    <div class="slot">2a</div><div class="slot">2b</div><div class="slot">2c</div><div class="slot">2d</div>
-    <div class="slot">3a</div><div class="slot">3b</div><div class="slot">3c</div><div class="slot">3d</div>
-    <div class="slot">4a</div><div class="slot">4b</div><div class="slot">4c</div><div class="slot">4d</div>
-    <div class="slot">5a</div><div class="slot">5b</div><div class="slot">5c</div><div class="slot">5d</div>
+<!-- 左側グリッド -->
+<div id="grid-left">
+    <div class="cell">1a</div><div class="cell">1b</div><div class="cell">1c</div><div class="cell">1d</div>
+    <div class="cell">2a</div><div class="cell">2b</div><div class="cell">2c</div><div class="cell">2d</div>
+    <div class="cell">3a</div><div class="cell">3b</div><div class="cell">3c</div><div class="cell">3d</div>
+    <div class="cell">4a</div><div class="cell">4b</div><div class="cell">4c</div><div class="cell">4d</div>
+    <div class="cell">5a</div><div class="cell">5b</div><div class="cell">5c</div><div class="cell">5d</div>
 </div>
 
 <!-- 右側 -->
-<div id="right">
+<div id="right-side">
 
     <!-- カメラ -->
     <div id="camera-container">
         <video id="camera-view" autoplay playsinline></video>
     </div>
 
-    <!-- ログ -->
-    <div id="log">ログ表示</div>
+    <!-- ログ枠 -->
+    <div id="log-box"></div>
 
-    <!-- ボタン 2×2 -->
-    <div id="buttons">
-        <button id="btn-odai" class="btn">お題</button>
-        <button id="btn-search" class="btn">探索</button>
-        <button id="btn-photo" class="btn">撮影（長押し）</button>
-        <button id="btn-reset" class="btn">リセット</button>
+    <!-- 4ボタン -->
+    <div id="button-box">
+        <button class="big-btn" id="btn1">お題</button>
+        <button class="big-btn" id="btn2">探索</button>
+        <button class="big-btn" id="btn3">撮影(長押し)</button>
+        <button class="big-btn" id="btn4">リセット</button>
     </div>
+
 </div>
 
 <script>
-/* ===== カメラ起動 ===== */
+// カメラ起動
 async function initCamera() {
-    const view = document.getElementById("camera-view");
     try {
         const stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: "environment" },
-            audio: false
+            video: { facingMode: "environment" }, audio: false
         });
-        view.srcObject = stream;
-    } catch (e) {
-        console.log("Camera Error:", e);
+        document.getElementById("camera-view").srcObject = stream;
+    } catch (err) {
+        console.error("Camera error:", err);
+        document.getElementById("log-box").textContent += "カメラ起動に失敗\n";
     }
 }
 initCamera();
+
+// ログ追加
+function log(msg) {
+    const box = document.getElementById("log-box");
+    box.textContent += msg + "\n";
+    box.scrollTop = box.scrollHeight;
+}
+
+// ボタン動作
+document.getElementById("btn1").onclick = () => log("お題：タップ");
+document.getElementById("btn2").onclick = () => log("探索：タップ");
+document.getElementById("btn3").onclick = () => log("撮影：タップ");
+document.getElementById("btn4").onclick = () => log("リセット：タップ");
 </script>
 
 </body>
