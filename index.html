@@ -2,557 +2,546 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover" />
-<title>かくれんぼ OCR — 完全版</title>
-<!-- Tesseract.js CDN (v2.x) -->
+<meta name="viewport" content="width=device-width,initial-scale=1.0" />
+<title>かくれんぼ OCR — 最終調整版</title>
+
+<!-- Tesseract.js v2 CDN -->
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@2.1.5/dist/tesseract.min.js"></script>
+
 <style>
   :root{
-    --bg:#0f0f10;
-    --panel:#171717;
-    --accent:#d32;
-    --muted:#999;
-    --primary:#1766ff;
-    --ok:#0b8f4f;
+    --bg:#070708;
+    --panel:#0e0e10;
+    --muted:#9aa0a6;
+    --primary:#1e90ff;
+    --alert:#e03b3b;
   }
-  html,body{height:100%;margin:0;background:var(--bg);color:#fff;font-family:system-ui,-apple-system,Segoe UI,Roboto,"Hiragino Kaku Gothic ProN",Meiryo,sans-serif}
-  /* Full-width landscape layout - no scroll */
+  html,body{height:100%;margin:0;background:var(--bg);color:#fff;font-family:system-ui,-apple-system,Segoe UI,Roboto,"Hiragino Kaku Gothic ProN",Meiryo,sans-serif; overflow:hidden;}
+  /* container: 3 columns, single screen - no scroll */
   .app {
     display:grid;
-    grid-template-columns: 160px 1fr 320px;
-    grid-template-rows: 1fr;
-    gap:14px;
+    grid-template-columns: 170px 1fr 280px;
+    gap:12px;
     height:100vh;
-    padding:14px;
+    padding:12px;
     box-sizing:border-box;
     align-items:start;
   }
 
-  /* LEFT: ODAI LIST */
-  .left {
-    display:flex;
-    flex-direction:column;
-    gap:12px;
-    align-items:stretch;
-  }
+  /* LEFT: 5 fixed odai slots */
+  .left { display:flex; flex-direction:column; gap:10px; align-items:stretch; }
   .odai-slot {
-    background:transparent;
-    border:2px solid #991c1c;
-    padding:8px;
-    height:120px;
-    display:flex;
-    gap:10px;
-    align-items:center;
-    justify-content:center;
-    box-sizing:border-box;
+    height:86px;
+    background:linear-gradient(180deg,#0d0d0f,#0a0a0c);
     border-radius:8px;
-  }
-  .odai-label { writing-mode:horizontal-tb; font-size:20px; text-align:center; }
-  .odai-image{
-    width:220px;height:120px;object-fit:cover;border-radius:6px;border:1px solid #333;background:#111;
-  }
-
-  /* CENTER: CANDIDATES FOR EACH ODAI */
-  .center {
     display:flex;
-    flex-direction:column;
-    gap:14px;
-    padding-right:8px;
-  }
-  .odai-row{
-    display:flex;
-    gap:12px;
     align-items:center;
-  }
-  .candidates {
-    display:flex;
-    gap:10px;
-    flex-wrap:nowrap;
-  }
-  .cand-box{
-    width:220px;height:120px;background:#121212;border:2px solid #222;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-direction:column;
-  }
-  .cand-box img{width:100%;height:100%;object-fit:cover;border-radius:6px}
-  .cand-title{font-size:14px;color:var(--muted);margin-top:4px}
-
-  /* RIGHT: CAMERA + CONTROLS */
-  .right {
-    display:flex;
-    flex-direction:column;
-    gap:10px;
-    align-items:stretch;
-    box-sizing:border-box;
-  }
-  .status {
-    background:var(--panel);padding:12px;border-radius:10px;text-align:center;font-weight:700;color:var(--primary)
-  }
-  .controls {
-    display:grid;
-    grid-template-columns:repeat(2,1fr);
-    gap:10px;
-  }
-  .btn {
-    background:#2a2a2a;border-radius:8px;padding:12px;text-align:center;font-weight:700;border:1px solid #333;cursor:pointer;
-  }
-  .btn.shoot {background:#c93030;color:#fff}
-  .btn.small{width:68px;height:68px;padding:0;display:flex;align-items:center;justify-content:center;border-radius:10px;font-size:18px}
-  .camera-box {
-    background:#0b0b0b;border-radius:10px;padding:10px;border:1px solid #222;display:flex;flex-direction:column;align-items:center;gap:8px;height:280px;box-sizing:border-box;
-  }
-  video#preview {
-    width:100%; height:180px; background:#000; object-fit:cover;border-radius:8px;border:1px solid #222;
-  }
-  .log {
-    position: absolute;
-    right:12px;
-    top:18px;
-    width:320px;
-    max-height:34vh;
-    overflow:auto;
-    backdrop-filter: blur(6px);
-    background: rgba(10,10,12,0.6);
-    border-radius:10px;
+    gap:8px;
     padding:8px;
+    box-sizing:border-box;
+    border:2px solid rgba(180,30,30,0.12);
+  }
+  .odai-info { width:56px; text-align:center; font-weight:700; font-size:14px; color:#fff; }
+  .odai-thumb { width:100px; height:70px; object-fit:cover; border-radius:6px; background:#000; border:1px solid #222; }
+
+  /* CENTER: for each odai, three candidate boxes displayed horizontally */
+  .center { display:flex; flex-direction:column; gap:10px; padding-right:6px; }
+  .odai-row { display:flex; align-items:center; gap:12px; height:86px; }
+  .candidates { display:flex; gap:10px; align-items:center; flex:1; }
+  .cand-box { width:220px; height:78px; background:#0f0f10; border-radius:8px; border:1px solid #222; display:flex; align-items:center; justify-content:center; flex-direction:column; overflow:hidden; }
+  .cand-thumb { width:100%; height:100%; object-fit:cover; }
+  .cand-label { font-size:13px; color:var(--muted); padding:6px 4px 0 4px; text-align:center; width:100%; box-sizing:border-box; }
+
+  /* RIGHT: controls + camera + small log area */
+  .right { display:flex; flex-direction:column; gap:8px; align-items:stretch; box-sizing:border-box; }
+  .controls-grid { display:grid; grid-template-columns: 1fr 1fr; gap:8px; }
+  .ctrl-btn {
+    background:#1a1a1a; border-radius:8px; border:1px solid #222; height:48px; display:flex; align-items:center; justify-content:center; font-weight:700; cursor:pointer; user-select:none; font-size:14px;
+  }
+  .ctrl-btn.small { height:44px; width:44px; padding:0; border-radius:8px; font-size:18px; display:flex; align-items:center; justify-content:center; }
+  .status-box { background:#0b0b0b; border-radius:8px; padding:8px; text-align:center; font-weight:700; color:var(--primary); border:1px solid #111; }
+  .status-box.capturing { color:var(--alert); }
+
+  .camera-panel { background:#0b0b0b; border-radius:8px; padding:8px; border:1px solid #222; display:flex; flex-direction:column; gap:6px; align-items:stretch; box-sizing:border-box; height:320px; justify-content:flex-start; }
+  video#preview { width:100%; height:200px; background:#000; object-fit:cover; border-radius:6px; border:1px solid #222; }
+
+  /* small log area placed near buttons (compact) */
+  .log-box {
+    background: rgba(0,0,0,0.55);
     border:1px solid rgba(255,255,255,0.04);
+    border-radius:8px;
+    padding:8px;
+    font-family: monospace;
     font-size:12px;
     color:#fff;
+    max-height:220px;
+    overflow:auto;
   }
-  .log p { margin:6px 0; font-family:monospace; font-size:12px; color:#eee; }
-  .small-muted{color:var(--muted);font-size:12px}
+  .log-line { margin:6px 0; }
 
-  /* responsive small screens: still landscape assumption */
-  @media(max-width:1100px){
-    .app { grid-template-columns: 120px 1fr 260px; gap:8px; padding:8px; }
-    .odai-slot{height:100px}
-    .odai-image{width:180px;height:100px}
-    .cand-box{width:180px;height:100px}
-    .camera-box{height:220px}
-    .log{width:260px}
+  /* ensure no scroll overall */
+  @media (max-width:1000px){
+    .app { grid-template-columns:140px 1fr 240px; gap:8px; padding:8px; }
+    .cand-box { width:180px; }
+    .odai-thumb { width:88px; height:62px; }
   }
 </style>
 </head>
 <body>
 <div class="app">
 
-  <!-- LEFT: 5 odai slots -->
+  <!-- LEFT: fixed 5 slots -->
   <div class="left" id="leftCol">
-    <!-- each slot contains label + mini thumbnail placeholder -->
-    <div class="odai-slot" data-index="0">
-      <div class="odai-label">お題1<br><span class="small-muted" id="odai1num">未セット</span></div>
-    </div>
-    <div class="odai-slot" data-index="1">
-      <div class="odai-label">お題2<br><span class="small-muted" id="odai2num">未セット</span></div>
-    </div>
-    <div class="odai-slot" data-index="2">
-      <div class="odai-label">お題3<br><span class="small-muted" id="odai3num">未セット</span></div>
-    </div>
-    <div class="odai-slot" data-index="3">
-      <div class="odai-label">お題4<br><span class="small-muted" id="odai4num">未セット</span></div>
-    </div>
-    <div class="odai-slot" data-index="4">
-      <div class="odai-label">お題5<br><span class="small-muted" id="odai5num">未セット</span></div>
-    </div>
+    <div class="odai-slot" data-index="0"><div class="odai-info">お題1</div><img class="odai-thumb" id="odaiThumb0" src="" alt="未セット"></div>
+    <div class="odai-slot" data-index="1"><div class="odai-info">お題2</div><img class="odai-thumb" id="odaiThumb1" src="" alt="未セット"></div>
+    <div class="odai-slot" data-index="2"><div class="odai-info">お題3</div><img class="odai-thumb" id="odaiThumb2" src="" alt="未セット"></div>
+    <div class="odai-slot" data-index="3"><div class="odai-info">お題4</div><img class="odai-thumb" id="odaiThumb3" src="" alt="未セット"></div>
+    <div class="odai-slot" data-index="4"><div class="odai-info">お題5</div><img class="odai-thumb" id="odaiThumb4" src="" alt="未セット"></div>
   </div>
 
-  <!-- CENTER: for each odai, candidates top3 -->
+  <!-- CENTER: candidates rows (aligned with left slots) -->
   <div class="center" id="centerCol">
-    <!-- these rows align with left odai slots -->
     <div class="odai-row" data-index="0">
-      <div style="width:12px"></div>
-      <div class="candidates" id="cands-0">
-        <div class="cand-box" id="odai0img"><div class="small-muted">未セット</div></div>
-        <div class="cand-box" id="odai0c1"><div class="small-muted">候補 1</div></div>
-        <div class="cand-box" id="odai0c2"><div class="small-muted">候補 2</div></div>
+      <div style="width:8px"></div>
+      <div class="candidates">
+        <div class="cand-box" id="cand0-0"><div class="cand-label">候補 1</div></div>
+        <div class="cand-box" id="cand0-1"><div class="cand-label">候補 2</div></div>
+        <div class="cand-box" id="cand0-2"><div class="cand-label">候補 3</div></div>
       </div>
     </div>
 
     <div class="odai-row" data-index="1">
-      <div style="width:12px"></div>
-      <div class="candidates" id="cands-1">
-        <div class="cand-box" id="odai1img"><div class="small-muted">未セット</div></div>
-        <div class="cand-box" id="odai1c1"><div class="small-muted">候補 1</div></div>
-        <div class="cand-box" id="odai1c2"><div class="small-muted">候補 2</div></div>
+      <div style="width:8px"></div>
+      <div class="candidates">
+        <div class="cand-box" id="cand1-0"><div class="cand-label">候補 1</div></div>
+        <div class="cand-box" id="cand1-1"><div class="cand-label">候補 2</div></div>
+        <div class="cand-box" id="cand1-2"><div class="cand-label">候補 3</div></div>
       </div>
     </div>
 
     <div class="odai-row" data-index="2">
-      <div style="width:12px"></div>
-      <div class="candidates" id="cands-2">
-        <div class="cand-box" id="odai2img"><div class="small-muted">未セット</div></div>
-        <div class="cand-box" id="odai2c1"><div class="small-muted">候補 1</div></div>
-        <div class="cand-box" id="odai2c2"><div class="small-muted">候補 2</div></div>
+      <div style="width:8px"></div>
+      <div class="candidates">
+        <div class="cand-box" id="cand2-0"><div class="cand-label">候補 1</div></div>
+        <div class="cand-box" id="cand2-1"><div class="cand-label">候補 2</div></div>
+        <div class="cand-box" id="cand2-2"><div class="cand-label">候補 3</div></div>
       </div>
     </div>
 
     <div class="odai-row" data-index="3">
-      <div style="width:12px"></div>
-      <div class="candidates" id="cands-3">
-        <div class="cand-box" id="odai3img"><div class="small-muted">未セット</div></div>
-        <div class="cand-box" id="odai3c1"><div class="small-muted">候補 1</div></div>
-        <div class="cand-box" id="odai3c2"><div class="small-muted">候補 2</div></div>
+      <div style="width:8px"></div>
+      <div class="candidates">
+        <div class="cand-box" id="cand3-0"><div class="cand-label">候補 1</div></div>
+        <div class="cand-box" id="cand3-1"><div class="cand-label">候補 2</div></div>
+        <div class="cand-box" id="cand3-2"><div class="cand-label">候補 3</div></div>
       </div>
     </div>
 
     <div class="odai-row" data-index="4">
-      <div style="width:12px"></div>
-      <div class="candidates" id="cands-4">
-        <div class="cand-box" id="odai4img"><div class="small-muted">未セット</div></div>
-        <div class="cand-box" id="odai4c1"><div class="small-muted">候補 1</div></div>
-        <div class="cand-box" id="odai4c2"><div class="small-muted">候補 2</div></div>
+      <div style="width:8px"></div>
+      <div class="candidates">
+        <div class="cand-box" id="cand4-0"><div class="cand-label">候補 1</div></div>
+        <div class="cand-box" id="cand4-1"><div class="cand-label">候補 2</div></div>
+        <div class="cand-box" id="cand4-2"><div class="cand-label">候補 3</div></div>
       </div>
     </div>
-
   </div>
 
-  <!-- RIGHT: Controls + camera -->
+  <!-- RIGHT: controls, status, camera, log (compact) -->
   <div class="right">
-    <div class="status" id="status">状態：<span id="statusText" style="color:var(--primary)">待機中</span></div>
+    <div id="statusBox" class="status-box">状態：<span id="statusText" style="color:var(--primary)">待機中</span></div>
 
-    <div class="controls" style="margin-bottom:6px">
-      <div class="btn" id="modeOdai">📷 お題撮影モード</div>
-      <div class="btn" id="modeSearch">🔎 番号検索モード</div>
-      <div class="btn small" id="btnReset" title="お題リセット">♻</div>
-      <div class="btn shoot small" id="btnLong">●</div>
+    <div class="controls-grid" aria-hidden="false" id="btnGrid">
+      <div class="ctrl-btn" id="btnModeOdai">📷 お題撮影</div>
+      <div class="ctrl-btn" id="btnModeSearch">🔎 探索</div>
+      <div class="ctrl-btn small" id="btnReset" title="お題リセット">♻</div>
+      <div class="ctrl-btn small" id="btnLong" title="長押しで撮影">●</div>
     </div>
 
-    <div class="camera-box">
+    <div class="camera-panel">
       <video id="preview" autoplay playsinline muted></video>
-      <div class="small-muted">カメラ（小）</div>
-      <div style="display:flex;gap:8px;margin-top:6px;">
-        <div class="small-muted">撮影枚数: <span id="framesCount">0</span></div>
-        <div style="flex:1"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div class="small-muted" id="framesInfo">撮影枚数: <span id="framesCount">0</span></div>
+        <div class="small-muted" id="modeInfo">モード: お題撮影</div>
       </div>
-      <div style="height:8px"></div>
-      <div class="small-muted">※長押しで連写（1秒ごと、最大10枚）</div>
+      <div style="height:6px"></div>
+      <div class="log-box" id="logBox" aria-live="polite"></div>
     </div>
   </div>
-
 </div>
 
-<!-- small log overlay -->
-<div class="log" id="logBox" aria-live="polite"></div>
-
 <script>
-/*
-  完全版 HTML/JS
-  - Tesseract.js v2 を CDN で読み込み (script tag 上部)
-  - カメラ起動、長押しで連写（1秒間隔）
-  - お題モード: OCR で 3桁を検出 → 左列に自動セット（重複しない）
-  - 番号検索モード: OCR で数字列を検出 → 中列候補に追加（簡易）
-  - 赤い枠（検出ウィンドウ）は表示しない（削除）
+/* FINAL: behavior per your spec
+ - Tesseract.js v2 via CDN
+ - odai mode: detect multiple 3-digit numbers in single frame, assign left-to-right into odai slots (max 5), no duplicates
+ - search mode: detect numbers and letters, map letters to numbers by proximity and add candidate images to matching odai slots
+ - long-press capture: pointerdown/touchstart -> capture every 1s up to maxCapture (10). pointerup/touchend stops.
+ - logs: minimal messages only (as you specified)
+ - red detection overlay removed (none created)
 */
 
-const video = document.getElementById('preview');
+/* CONFIG */
+const MAX_SLOTS = 5;
+const SLOT_THUMB_W = 100; // px
+const SLOT_THUMB_H = 70;  // px
+const CAP_INTERVAL_MS = 1000;
+const CAP_MAX = 10;
+
+/* DOM */
+const preview = document.getElementById('preview');
+const btnModeOdai = document.getElementById('btnModeOdai');
+const btnModeSearch = document.getElementById('btnModeSearch');
+const btnReset = document.getElementById('btnReset');
+const btnLong = document.getElementById('btnLong');
 const statusText = document.getElementById('statusText');
+const framesCount = document.getElementById('framesCount');
+const modeInfo = document.getElementById('modeInfo');
 const logBox = document.getElementById('logBox');
-const framesCountEl = document.getElementById('framesCount');
 
-let stream = null;
-let captureTimer = null;
-let captureCount = 0;
-let maxCapture = 10;
-let currentMode = 'odai'; // 'odai' or 'search'
+/* slots and candidate storage */
+let odaiSlots = new Array(MAX_SLOTS).fill(null); // {num, thumbDataUrl}
+let candidateBuckets = Array.from({length:MAX_SLOTS}, ()=> ({})); // char -> {count, thumbs: []}
 let usedNumbers = new Set();
-let odaiSetOrder = []; // stores numbers in order set
-let tesseractWorker = null;
-let ocrBusy = false;
+let currentMode = 'odai'; // 'odai' or 'search'
 
-// utility: append log with timestamp
-function log(msg){
-  const t = new Date().toLocaleTimeString();
-  const p = document.createElement('p');
-  p.textContent = `[${t}] ${msg}`;
-  logBox.prepend(p);
-  // keep limited
-  while(logBox.childElementCount > 200) logBox.removeChild(logBox.lastChild);
-}
+/* capture state */
+let capturing = false;
+let capTimer = null;
+let capCount = 0;
+let screenCaptureIndex = 0; // for search mode "画面1,画面2..."
 
-// update status color
-function setStatus(state){
-  // state: 'idle'|'capturing'
-  if(state === 'idle'){ statusText.textContent = '待機中'; statusText.style.color='var(--primary)'; }
-  else { statusText.textContent = '撮影中'; statusText.style.color='red'; }
-}
-
-// init camera
 async function startCamera(){
   try{
-    if(stream){ return; }
-    // prefer environment (back) camera
-    stream = await navigator.mediaDevices.getUserMedia({
-      audio:false,
-      video: { facingMode: { ideal: "environment" }, width: {ideal:1280}, height:{ideal:720} }
-    });
-    video.srcObject = stream;
-    await video.play();
-    log('カメラ起動: OK');
+    const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width:{ideal:1280}, height:{ideal:720} }, audio:false });
+    preview.srcObject = s;
+    await preview.play();
+    addLog('初期化: カメラ起動');
   }catch(e){
-    console.error(e);
-    log('カメラ起動に失敗: ' + e.message);
-    alert('カメラが起動できません。HTTPSで開いているか、カメラの許可を確認してください。');
+    addLog('カメラ起動失敗: ' + e.message);
+    alert('カメラを起動できません。HTTPSでアクセスするかカメラ権限を確認してください。\n' + e.message);
   }
 }
 
-// stop camera if needed
-function stopCamera(){
-  if(stream){
-    stream.getTracks().forEach(t=>t.stop());
-    stream = null;
-    log('カメラ停止');
+/* Tesseract simple helper - using global Tesseract (v2) */
+async function runOCR(dataURL){
+  // note: Tesseract.recognize returns res.data.text and res.data.words (with bbox/conf)
+  try{
+    const res = await Tesseract.recognize(dataURL, 'eng', { tessjs_create_pdf: '0' });
+    return res.data || {};
+  }catch(e){
+    console.error('OCR fail', e);
+    return {};
   }
 }
 
-// capture current video frame -> dataURL
+/* utility: capture current preview to dataURL (scaled down a bit for perf) */
 function captureFrameDataURL(){
-  const w = video.videoWidth;
-  const h = video.videoHeight;
-  const canvas = document.createElement('canvas');
-  // we'll scale down to reduce OCR load but keep resolution
+  const w = preview.videoWidth;
+  const h = preview.videoHeight;
   const scale = Math.min(1, 1280 / Math.max(w,h));
+  const canvas = document.createElement('canvas');
   canvas.width = Math.round(w * scale);
   canvas.height = Math.round(h * scale);
   const ctx = canvas.getContext('2d');
-  ctx.drawImage(video,0,0,canvas.width,canvas.height);
+  ctx.drawImage(preview,0,0,canvas.width,canvas.height);
   return canvas.toDataURL('image/jpeg', 0.9);
 }
 
-// OCR using tesseract (extract numbers)
-async function runOCRImageDataURL(dataURL){
-  if(!window.Tesseract){
-    log('OCRライブラリ(Tesseract.js)が未ロードです。');
-    return '';
-  }
-  if(ocrBusy){
-    log('OCR 処理中につきスキップ');
-    return '';
-  }
-  ocrBusy = true;
-  try{
-    log('OCR開始...');
-    // choose english digits recognition -- we infer digits better with "eng"
-    let res = await Tesseract.recognize(dataURL, 'eng', {
-      tessjs_create_pdf: '0'
-    });
-    const text = res.data && res.data.text ? res.data.text : '';
-    log('OCR 完了。テキスト長: ' + text.length);
-    return text;
-  }catch(e){
-    console.error(e);
-    log('OCR エラー: ' + e.message);
-    return '';
-  } finally {
-    ocrBusy = false;
+/* utility: crop bbox from image dataURL (bbox in pixels relative to scaled canvas used above) */
+function cropDataURLWithBox(dataURL, bbox, expand=0.25){
+  const img = new Image();
+  return new Promise((resolve)=>{
+    img.onload = ()=>{
+      const w = img.width, h = img.height;
+      // bbox {x0,y0,x1,y1}
+      const bw = bbox.x1 - bbox.x0, bh = bbox.y1 - bbox.y0;
+      const cx = (bbox.x0 + bbox.x1)/2, cy = (bbox.y0 + bbox.y1)/2;
+      const size = Math.max(bw, bh) * (1 + expand);
+      const sx = Math.max(0, Math.round(cx - size/2));
+      const sy = Math.max(0, Math.round(cy - size/2));
+      const sW = Math.min(w - sx, Math.round(size));
+      const sH = Math.min(h - sy, Math.round(size));
+      const tmp = document.createElement('canvas');
+      tmp.width = SLOT_THUMB_W;
+      tmp.height = SLOT_THUMB_H;
+      const tctx = tmp.getContext('2d');
+      // draw scaled to fixed thumb size
+      tctx.drawImage(img, sx, sy, sW, sH, 0, 0, SLOT_THUMB_W, SLOT_THUMB_H);
+      resolve(tmp.toDataURL('image/jpeg', 0.9));
+    };
+    img.onerror = ()=>{
+      resolve('');
+    };
+    img.src = dataURL;
+  });
+}
+
+/* minimal logging per user's spec */
+function addLogLine(text){
+  const t = new Date().toLocaleTimeString();
+  const p = document.createElement('div');
+  p.className = 'log-line';
+  p.textContent = `[${t}] ${text}`;
+  logBox.prepend(p);
+  // keep small number
+  while(logBox.childElementCount > 40) logBox.removeChild(logBox.lastChild);
+}
+function addLog(message){
+  // message already in user-friendly form, we only push allowed types
+  addLogLine(message);
+}
+
+/* set status (idle/capturing) */
+function setStatus(state){
+  if(state === 'idle'){
+    statusText.textContent = '待機中';
+    document.getElementById('statusBox').classList.remove('capturing');
+  } else {
+    statusText.textContent = '撮影中';
+    document.getElementById('statusBox').classList.add('capturing');
   }
 }
 
-// find 3-digit numbers in text
-function extractThreeDigits(text){
-  // match \b\d{3}\b
-  const re = /\b(\d{3})\b/g;
-  const out = [];
-  let m;
-  while((m=re.exec(text)) !== null){
-    out.push(m[1]);
-    if(out.length>=10) break;
+/* assign multiple detected numbers into odai slots left-to-right.
+   nums: array of objects {num: '062', bbox: {x0,y0,x1,y1}} in canvas coords (left-to-right order will be applied)
+   dataURL: full frame image dataURL
+*/
+async function assignNumsToSlots(nums, dataURL){
+  // sort left-to-right by bbox.x0
+  nums.sort((a,b)=> (a.bbox.x0||0) - (b.bbox.x0||0));
+  let assignedAny = false;
+  for(const nobj of nums){
+    if(usedNumbers.has(nobj.num)) continue; // skip duplicates
+    // find first free slot index
+    const idx = odaiSlots.findIndex(s => s===null);
+    if(idx === -1) break;
+    // crop region for this bbox and create thumbnail
+    const thumb = await cropDataURLWithBox(dataURL, nobj.bbox, 0.5);
+    if(!thumb) continue;
+    odaiSlots[idx] = { num: nobj.num, thumb };
+    usedNumbers.add(nobj.num);
+    updateSlotUI(idx);
+    addLog(`お題${idx+1}読み取り(${nobj.num})`);
+    assignedAny = true;
   }
-  return out;
+  return assignedAny;
 }
 
-// set odai into next available slot (if not duplicate)
-function setOdaiNumber(num, imageDataURL){
-  if(usedNumbers.has(num)){
-    log(`重複: ${num} は既にセット済み。`);
+/* update UI for a slot */
+function updateSlotUI(idx){
+  const el = document.getElementById('odaiThumb' + idx);
+  const obj = odaiSlots[idx];
+  if(obj && obj.thumb){
+    el.src = obj.thumb;
+    el.alt = obj.num;
+  } else {
+    el.removeAttribute('src');
+    el.alt = '未セット';
+  }
+}
+
+/* reset all slots and candidates */
+function resetAll(){
+  odaiSlots = new Array(MAX_SLOTS).fill(null);
+  candidateBuckets = Array.from({length:MAX_SLOTS}, ()=> ({}));
+  usedNumbers.clear();
+  // clear UI
+  for(let i=0;i<MAX_SLOTS;i++){
+    const el = document.getElementById('odaiThumb' + i);
+    el.removeAttribute('src'); el.alt='未セット';
+    // clear candidates
+    for(let j=0;j<3;j++){
+      const cb = document.getElementById(`cand${i}-${j}`);
+      cb.innerHTML = `<div class="cand-label">候補 ${j+1}</div>`;
+    }
+  }
+  addLog('お題リセット実行');
+}
+
+/* add candidate image for odai index (map char->count+thumbs) */
+function addCandidateForSlot(idx, char, thumbDataURL){
+  if(!char) return;
+  const map = candidateBuckets[idx];
+  if(!map[char]) map[char] = { count:0, thumbs: [] };
+  map[char].count++;
+  // keep thumbs unique
+  if(thumbDataURL && !map[char].thumbs.includes(thumbDataURL)){
+    map[char].thumbs.unshift(thumbDataURL);
+    if(map[char].thumbs.length > 3) map[char].thumbs.length = 3;
+  }
+  // update UI top3
+  const entries = Object.keys(map).map(k=>({ch:k,cnt:map[k].count,thumbs:map[k].thumbs})).sort((a,b)=>b.cnt-a.cnt);
+  for(let i=0;i<3;i++){
+    const slot = document.getElementById(`cand${idx}-${i}`);
+    if(entries[i]){
+      slot.innerHTML = `<img class="cand-thumb" src="${entries[i].thumbs[0]}" alt="${entries[i].ch}" /><div class="cand-label">${entries[i].ch} (${entries[i].cnt})</div>`;
+    }
+  }
+}
+
+/* process OCR result for odai mode */
+async function processOcrForOdai(data, dataURL){
+  // extract words with bbox
+  const words = data.words || [];
+  // build numeric tokens 3-digit
+  const nums = [];
+  for(const w of words){
+    const txt = (w.text||'').replace(/\s+/g,'');
+    const m = txt.match(/^(\d{3})$/);
+    if(m){
+      // compatibility: Tesseract v2 bbox may be w.bbox with x0,y0,x1,y1
+      const bbox = w.bbox || w.bbox || (w.box ? w.box : null);
+      // if bbox missing, approximate skip
+      if(!bbox) continue;
+      nums.push({ num: m[1], bbox: { x0: bbox.x0, y0: bbox.y0, x1: bbox.x1, y1: bbox.y1 }, conf: w.confidence||w.conf });
+    }
+  }
+  if(nums.length === 0){
+    // per spec: in odai mode, log only "読み取り開始" and successful readings; skip failure spam
     return false;
   }
-  if(odaiSetOrder.length >= 5){
-    log('お題スロットが満杯です（5）。');
-    return false;
-  }
-  const idx = odaiSetOrder.length;
-  usedNumbers.add(num);
-  odaiSetOrder.push(num);
-  // set left label
-  const label = document.querySelector(`#leftCol .odai-slot[data-index="${idx}"] .odai-label`);
-  if(label){
-    label.innerHTML = `お題${idx+1}<br><span class="small-muted">${num}</span>`;
-  }
-  // set center main image
-  const mainBox = document.getElementById(`odai${idx}img`);
-  if(mainBox){
-    mainBox.innerHTML = `<img src="${imageDataURL}" alt="odai${idx}">`;
-  }
-  log(`[お題モード] お題セット済: index=${idx}, num=${num}`);
-  return true;
+  // assign to slots
+  const ok = await assignNumsToSlots(nums, dataURL);
+  return ok;
 }
 
-// add candidate for a specific odai index (append to c1/c2 in sequence)
-function addCandidateForOdai(index, candidateImage, num){
-  const candKeys = [`odai${index}c1`,`odai${index}c2`];
-  for(const k of candKeys){
-    const el = document.getElementById(k);
-    if(el){
-      // if placeholder (no img), set it
-      if(!el.querySelector('img')){
-        el.innerHTML = `<img src="${candidateImage}" alt="cand" /><div class="cand-title">候補: ${num}</div>`;
-        return true;
+/* process OCR result for search mode */
+async function processOcrForSearch(data, dataURL, screenIndex){
+  const words = data.words || [];
+  const nums = [];
+  const letters = [];
+  for(const w of words){
+    const txt = (w.text||'').replace(/\s+/g,'');
+    if(/^\d{3}$/.test(txt)){
+      const bbox = w.bbox || w.box;
+      if(bbox) nums.push({num: txt, bbox:{x0:bbox.x0,y0:bbox.y0,x1:bbox.x1,y1:bbox.y1}, conf:w.confidence||w.conf});
+    } else {
+      const t = txt.replace(/[^A-Za-z]/g,'').toUpperCase();
+      if(t.length===1 && /[A-Z]/.test(t)){
+        const bbox = w.bbox || w.box;
+        if(bbox) letters.push({ch:t,bbox:{x0:bbox.x0,y0:bbox.y0,x1:bbox.x1,y1:bbox.y1}, conf:w.confidence||w.conf});
       }
     }
   }
-  // if both filled, overwrite the second slot (simple LRU)
-  const el2 = document.getElementById(`odai${index}c2`);
-  if(el2){
-    el2.innerHTML = `<img src="${candidateImage}" alt="cand" /><div class="cand-title">候補: ${num}</div>`;
-    return true;
+
+  if(nums.length === 0){
+    addLog(`画面${screenIndex}、読み取り失敗：もう一度読み取りをしてください`);
+    return false;
   }
-  return false;
+
+  // for each detected number, try to match to an existing odai slot by same number
+  let anyMatched = false;
+  for(const n of nums){
+    const slotIndex = odaiSlots.findIndex(s => s && s.num === n.num);
+    if(slotIndex === -1) continue;
+    // find nearest letter to this number by center distances
+    const nC = { x: (n.bbox.x0 + n.bbox.x1)/2, y: (n.bbox.y0 + n.bbox.y1)/2 };
+    let nearest = null; let bestD = Infinity;
+    for(const L of letters){
+      const lC = { x: (L.bbox.x0+L.bbox.x1)/2, y:(L.bbox.y0+L.bbox.y1)/2 };
+      const d = Math.hypot(nC.x - lC.x, nC.y - lC.y);
+      if(d < bestD){ bestD = d; nearest = L; }
+    }
+    // add candidate: use cropped image around letter or number if letter missing
+    let cropTarget = nearest ? nearest.bbox : n.bbox;
+    // crop and add
+    const thumb = await cropDataURLWithBox(dataURL, cropTarget, 0.6);
+    addCandidateForSlot(slotIndex, nearest ? nearest.ch : '-', thumb || dataURL);
+    anyMatched = true;
+  }
+
+  addLog(`画面${screenIndex}、読み取り完了`);
+  return anyMatched;
 }
 
-// Button and long-press logic
-const modeOdaiBtn = document.getElementById('modeOdai');
-const modeSearchBtn = document.getElementById('modeSearch');
-const btnLong = document.getElementById('btnLong');
-const btnReset = document.getElementById('btnReset');
-
-modeOdaiBtn.addEventListener('click', ()=>{ currentMode='odai'; modeOdaiBtn.style.border='2px solid #888'; modeSearchBtn.style.border='1px solid #333'; log('モード: お題撮影モード'); });
-modeSearchBtn.addEventListener('click', ()=>{ currentMode='search'; modeSearchBtn.style.border='2px solid #888'; modeOdaiBtn.style.border='1px solid #333'; log('モード: 番号検索モード'); });
-btnReset.addEventListener('click', ()=>{ resetOdai(); });
-
-function resetOdai(){
-  usedNumbers.clear();
-  odaiSetOrder = [];
-  // clear UI
-  for(let i=0;i<5;i++){
-    const label = document.querySelector(`#leftCol .odai-slot[data-index="${i}"] .odai-label`);
-    if(label) label.innerHTML = `お題${i+1}<br><span class="small-muted">未セット</span>`;
-    // clear images
-    ['img','c1','c2'].forEach(k=>{
-      const el = document.getElementById(`odai${i}${k==='img'?'img':(k==='c1'?'c1':'c2')}`);
-      if(el) el.innerHTML = `<div class="small-muted">未セット</div>`;
-    });
+/* capture once and dispatch per mode */
+async function captureOnceAndProcess(screenIndexForSearch=null){
+  const dataURL = captureFrameDataURL();
+  const ocrData = await runOCR(dataURL);
+  // process based on mode
+  if(currentMode === 'odai'){
+    // per spec: log "読み取り開始" once before processing frames; handled by caller when starting capture
+    const ok = await processOcrForOdai(ocrData, dataURL);
+    // nothing else to log per failed frames
+    return ok;
+  } else {
+    // search mode: process and log per screen
+    const ok = await processOcrForSearch(ocrData, dataURL, screenIndexForSearch);
+    return ok;
   }
-  log('お題リセット実行');
 }
 
-// long press capture (touch/mouse)
-let pressTimer = null;
-let capturing = false;
-
+/* long-press logic (1s interval) */
 function startLongPress(){
   if(capturing) return;
   capturing = true;
-  captureCount = 0;
-  framesCountEl.textContent = '0';
+  capCount = 0;
+  framesCount.textContent = '0';
   setStatus('capturing');
-  log('長押し撮影 開始');
-  // start loop: every 1000ms capture a frame, up to maxCapture
-  captureTimer = setInterval(async ()=>{
-    if(captureCount >= maxCapture){
+  addLog('読み取り開始');
+  // for search mode, we number screens sequentially for this capture session
+  let screenIndex = 1;
+  capTimer = setInterval(async ()=>{
+    if(capCount >= CAP_MAX){
       stopLongPress();
       return;
     }
-    await captureOneFrameAndProcess();
-    captureCount++;
-    framesCountEl.textContent = captureCount;
-  }, 1000);
+    capCount++;
+    framesCount.textContent = capCount;
+    if(currentMode === 'odai'){
+      // just capture and try to set numbers found in that frame
+      await captureOnceAndProcess();
+    } else {
+      // search mode: we consider each captured frame as "画面N"
+      await captureOnceAndProcess(screenIndex);
+      screenIndex++;
+    }
+  }, CAP_INTERVAL_MS);
+  // immediate first capture
+  (async ()=>{
+    capCount++;
+    framesCount.textContent = capCount;
+    if(currentMode === 'odai') await captureOnceAndProcess();
+    else await captureOnceAndProcess(1);
+  })();
 }
 
 function stopLongPress(){
   if(!capturing) return;
   capturing = false;
-  if(captureTimer) { clearInterval(captureTimer); captureTimer = null; }
+  if(capTimer){ clearInterval(capTimer); capTimer = null; }
   setStatus('idle');
-  log(`[撮影] 長押し終了。取得枚数: ${captureCount}`);
+  addLog('読み取り終了');
 }
 
-btnLong.addEventListener('mousedown', (e)=>{ e.preventDefault(); startLongPress(); });
-btnLong.addEventListener('touchstart', (e)=>{ e.preventDefault(); startLongPress(); }, {passive:false});
-document.addEventListener('mouseup', ()=> stopLongPress());
+/* UI events */
+btnModeOdai.addEventListener('click', ()=>{
+  currentMode = 'odai';
+  modeInfo.textContent = 'モード: お題読み取り';
+  addLog('モード切替:お題読み取りモード');
+});
+btnModeSearch.addEventListener('click', ()=>{
+  currentMode = 'search';
+  modeInfo.textContent = 'モード: 探索モード';
+  addLog('モード切替:探索モード');
+});
+btnReset.addEventListener('click', ()=>{
+  resetAll();
+});
+btnLong.addEventListener('pointerdown', (e)=>{ e.preventDefault(); startLongPress(); });
+document.addEventListener('pointerup', ()=> stopLongPress());
 document.addEventListener('touchend', ()=> stopLongPress());
 
-// one frame capture and process depending on current mode
-async function captureOneFrameAndProcess(){
-  const dataURL = captureFrameDataURL();
-  log('フレーム取得');
-  if(currentMode === 'odai'){
-    // OCR expecting 3-digit numbers
-    const text = await runOCRImageDataURL(dataURL);
-    const nums = extractThreeDigits(text);
-    if(nums.length === 0){
-      log('[お題モード] 3桁が検出されませんでした');
-      return;
-    }
-    // pick first unseen number
-    let found = false;
-    for(const n of nums){
-      if(!usedNumbers.has(n)){
-        const ok = setOdaiNumber(n, dataURL);
-        if(ok) found = true;
-        break;
-      }
-    }
-    if(!found){ log('[お題モード] 新しい未登録の3桁は見つかりませんでした'); }
-  } else {
-    // search mode: extract numbers and add as candidates to appropriate odai
-    const text = await runOCRImageDataURL(dataURL);
-    const nums = extractThreeDigits(text);
-    if(nums.length === 0){ log('[検索モード] 数字が検出されませんでした'); return; }
-    // make frequency map and sort by count
-    const freq = {};
-    nums.forEach(n => freq[n] = (freq[n]||0)+1);
-    const sorted = Object.keys(freq).sort((a,b)=>freq[b]-freq[a]);
-    // We'll attach top candidates to odai slots in order of existing odaiSetOrder
-    // If no odai set yet, place candidates to the first slot(s) which are not set
-    if(odaiSetOrder.length === 0){
-      log('[検索モード] まだお題未セット。検出番号をログで表示: ' + sorted.slice(0,5).join(', '));
-      // show detected numbers in log
-      sorted.slice(0,5).forEach((n,i)=> log(`[検索モード] 検出: ${n} (count=${freq[n]})`));
-      return;
-    }
-    // For each number, try to match to odai slots: if number equals an odai number, place candidate next to it
-    let assigned = 0;
-    for(const n of sorted){
-      const slotIndex = odaiSetOrder.indexOf(n);
-      if(slotIndex >= 0){
-        addCandidateForOdai(slotIndex, dataURL, n);
-        assigned++;
-        log(`[検索モード] 候補追加: odaiIndex=${slotIndex}, num=${n}`);
-      }
-      if(assigned >= 6) break;
-    }
-    // If none matched odai numbers, add to first odai's candidates as fallback
-    if(assigned === 0){
-      addCandidateForOdai(0, dataURL, sorted[0]);
-      log(`[検索モード] フォールバックでお題1の候補に追加: ${sorted[0]}`);
-    }
-  }
-}
-
-// Initialize Tesseract worker (v2 provides global Tesseract)
-async function ensureOCR(){
-  if(window.Tesseract) {
-    log('Tesseract.js 読み込み済み');
-    return;
-  }
-  // else: it should be loaded via script tag. If not, user must add it.
-  log('Tesseract.js が見つかりません。OCRは使えません。');
-}
-
-// Start camera on load
+/* init */
 (async function init(){
-  await ensureOCR();
-  await startCamera();
   setStatus('idle');
-  log('UI 初期化完了');
-})();
-
-// Remove any "red window" overlay if existed in older versions (compatibility)
-(function removeRedWindowIfExists(){
-  const red = document.querySelectorAll('.detect-window, .red-window, #redWindow');
-  red.forEach(r=>r.style.display='none');
-  // Also remove inline canvas overlays by id if present
-  const oldCanvas = document.getElementById('overlayCanvas');
-  if(oldCanvas) oldCanvas.style.display='none';
-  log('赤い検出枠を非表示にしました（存在する場合）');
+  addLog('起動: 準備完了');
+  await startCamera();
+  // ensure no leftover overlays: remove common ids/classes if exist
+  ['detect-window','redWindow','overlayCanvas'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.style.display='none';
+  });
 })();
 
 </script>
