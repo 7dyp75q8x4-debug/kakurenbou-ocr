@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>かくれんぼOCR – モード拡張版UI</title>
+<title>かくれんぼOCR – カメラ実装版</title>
 <style>
     body {
         margin: 0;
@@ -12,8 +12,6 @@
         overflow: hidden;
     }
 
-    /* ※縦向き警告は一旦削除（ここが黒画面の原因だった） */
-
     .container {
         display: flex;
         flex-direction: row;
@@ -21,15 +19,25 @@
         width: 100vw;
     }
 
+    /* カメラエリア */
     #cameraArea {
         flex: 2;
-        background: #222;
+        background: #000;
+        position: relative;
         display: flex;
         align-items: center;
         justify-content: center;
-        position: relative;
+        overflow: hidden;
     }
 
+    video {
+        width: 100%;
+        height: 100%;
+        object-fit: cover; /* 横画面にフィット */
+        transform: scaleX(-1); /* ミラーOFF → 後述で切り替え可 */
+    }
+
+    /* 右側の操作エリア */
     #controlArea {
         flex: 1;
         background: #333;
@@ -59,7 +67,6 @@
         font-size: 1.8vw;
         text-align: center;
     }
-
 </style>
 </head>
 <body>
@@ -67,27 +74,31 @@
 <div class="container">
 
     <div id="cameraArea">
-        <div style="font-size:3vw;color:#bbb;">カメラ未起動</div>
+        <video id="video" autoplay playsinline></video>
     </div>
 
     <div id="controlArea">
 
         <div id="modeDisplay">現在：お題撮影モード</div>
 
-        <button class="modeBtn" onclick="setMode('odai')">📸 お題撮影モード</button>
-        <button class="modeBtn" onclick="setMode('search')">🔍 カード探索モード</button>
-        <button class="modeBtn" onclick="setMode('cameraTest')">🎥 カメラテストモード</button>
+        <button onclick="setMode('odai')">📸 お題撮影モード</button>
+        <button onclick="setMode('search')">🔍 カード探索モード</button>
+        <button onclick="setMode('cameraTest')">🎥 カメラテストモード</button>
 
-        <button id="startCapture">🔴 長押しで撮影（動作未実装）</button>
+        <button id="startCapture">🔴 長押しで撮影（まだ動作しません）</button>
 
         <div id="progress">撮影待機中…</div>
-
     </div>
+
 </div>
 
 <script>
 let mode = "odai";
+let stream = null;
 
+/* ============================
+   モード切り替え
+============================ */
 function setMode(newMode) {
     mode = newMode;
 
@@ -99,6 +110,41 @@ function setMode(newMode) {
 
     document.getElementById("modeDisplay").innerText = modeText[newMode];
 }
+
+/* ============================
+   ★ 外カメラを起動する関数
+============================ */
+async function startCamera() {
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+                facingMode: { exact: "environment" }, // ★ 外カメラ強制
+                width: { ideal: 1920 },
+                height: { ideal: 1080 }
+            },
+            audio: false
+        });
+
+        const video = document.getElementById("video");
+        video.srcObject = stream;
+
+        console.log("外カメラ起動OK");
+
+    } catch (e) {
+        console.error("外カメラ起動できず → 内カメラへ fallback", e);
+
+        // fallback：内カメラ
+        stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: false
+        });
+
+        document.getElementById("video").srcObject = stream;
+    }
+}
+
+/* 起動時にカメラON */
+startCamera();
 </script>
 
 </body>
