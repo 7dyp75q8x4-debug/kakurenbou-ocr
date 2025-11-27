@@ -2,236 +2,150 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>3桁数字検出＋トリミング</title>
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.0/dist/tesseract.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>数字検出カメラ</title>
+
 <style>
-  body { font-family: sans-serif; text-align:center; margin:20px; }
-  video { width: 320px; height: 240px; border: 1px solid #333; display:block; margin: 0 auto; }
-  #controls { margin-top: 12px; }
+body {
+    margin: 0;
+    overflow: hidden;
+    background: #222;
+    color: white;
+    display: flex;
+    flex-direction: row;  /* 横画面想定 */
+    height: 100vh;
+}
 
-  #captureBtn {
-    padding: 0;
+#leftArea {
+    width: 70%;                /* 左側を広く確保 */
+    padding: 10px;
+    overflow-y: scroll;
+}
+
+#detectedList img {
+    width: 180px;
+    margin: 8px;
+    border: 2px solid white;
+    display: block;
+}
+
+#rightArea {
+    width: 30%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 8px;
+}
+
+#cameraWrapper {
+    width: 100%;
+    aspect-ratio: 16 / 9;  /* 横長 16:9 */
+    background: black;
+}
+
+#camera {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+#shootBtn {
+    width: 100px;
+    height: 100px;
+    margin-top: 15px;
+    background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><circle cx="100" cy="100" r="80" stroke="white" stroke-width="10" fill="white"/></svg>') no-repeat center/contain;
     border: none;
-    background: none;
-    user-select: none;
-  }
-  #captureBtn img {
-    width: 70px;
-    height: 70px;
-    pointer-events: none;
-  }
+}
 
-  #status { margin-top:10px; font-weight:bold; height:24px; }
-  #result { font-size: 20px; margin-top: 12px; }
-  input#targets { width:250px; font-size:16px; padding:6px; }
-
-  #foundImages img {
-    width: 120px;
-    margin: 6px;
-    border: 1px solid #333;
-  }
+#status {
+    margin-top: 10px;
+    font-size: 20px;
+    color: #0f0;
+}
 </style>
 </head>
+
 <body>
 
-<h1>3桁数字カメラ検索</h1>
-
-<p>検索したい3桁の数字（スペース区切りで最大5個）</p>
-<input id="targets" type="text" placeholder="例: 123 456 789">
-
-<div id="controls">
-  <button id="captureBtn" type="button">
-    <img src="data:image/svg+xml;utf8,
-      <svg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 24 24' fill='black'>
-        <path d='M12 5c-3.86 0-7 3.14-7 7s3.14 7 7 7
-        7-3.14 7-7-3.14-7-7-7zm0 12c-2.76 0-5-2.24-5-5
-        s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z'/>
-        <circle cx='12' cy='12' r='2.5'/>
-        <path d='M20 4h-3.17l-1.84-2H8.99L7.15 4H4
-        c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16
-        c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2z'/>
-      </svg>" />
-  </button>
-  <div id="status"></div>
+<!-- 左側：検出した候補画像 -->
+<div id="leftArea">
+    <h2>検出候補</h2>
+    <div id="detectedList"></div>
 </div>
 
-<video id="camera" autoplay playsinline></video>
+<!-- 右側：カメラ＋ボタン -->
+<div id="rightArea">
 
-<div id="result">検出待ち...</div>
+    <div id="cameraWrapper">
+        <video id="camera" autoplay playsinline></video>
+    </div>
 
-<h3>検出された画像</h3>
-<div id="foundImages"></div>
+    <button id="shootBtn"></button>
+    <div id="status"></div>
+
+</div>
 
 <script>
-(async () => {
+const video = document.getElementById("camera");
+const detectedList = document.getElementById("detectedList");
+const statusLabel = document.getElementById("status");
 
-  const video = document.getElementById("camera");
-  const result = document.getElementById("result");
-  const status = document.getElementById("status");
-  const captureBtn = document.getElementById("captureBtn");
-  const foundImages = document.getElementById("foundImages");
+// ------------- 外カメラ固定 -------------
+navigator.mediaDevices.getUserMedia({
+    video: { facingMode: { exact: "environment" } }
+}).then(stream => {
+    video.srcObject = stream;
+});
 
-  /*==================================================
-      1. 外カメラ固定（あなたが以前指示した方式）
-  ==================================================*/
-  async function startCamera() {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" },
-        audio: false
-      });
-      video.srcObject = stream;
-      return;
-    } catch (e) {
-      console.warn("環境カメラ失敗 → fallback");
-    }
+// ============================
+//  撮影 → OCR → 数字検出
+// ============================
+function captureFrame() {
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0);
 
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const cams = devices.filter(d => d.kind === "videoinput");
+    return canvas;
+}
 
-    let backCam = cams.find(d =>
-      d.label.toLowerCase().includes("back") ||
-      d.label.toLowerCase().includes("rear") ||
-      d.label.toLowerCase().includes("environment")
-    );
+// デモ：中央付近を切り出す（後で改善可）
+function extractNumberArea(canvas) {
+    const ctx = canvas.getContext("2d");
 
-    if (!backCam) backCam = cams[0];
+    // 上の数字位置
+    const trimWidth = canvas.width * 0.25;
+    const trimHeight = canvas.height * 0.15;
+    const x = (canvas.width - trimWidth) / 2;
+    const y = canvas.height * 0.15;
 
-    const stream2 = await navigator.mediaDevices.getUserMedia({
-      video: { deviceId: backCam.deviceId },
-      audio: false
-    });
+    const img = document.createElement("img");
+    img.src = canvas.toDataURL("image/png");
 
-    video.srcObject = stream2;
-  }
+    return img;
+}
 
-  await startCamera();
+let shooting = false;
+let shootInterval = null;
 
-  /*==================================================
-      2. 撮影 → OCR
-  ==================================================*/
-  const captureCanvas = document.createElement("canvas");
-  const captureCtx = captureCanvas.getContext("2d");
+// 長押し撮影
+document.getElementById("shootBtn").addEventListener("mousedown", () => {
+    shooting = true;
+    statusLabel.textContent = "撮影中…";
 
-  function captureFrame() {
-    const vw = video.videoWidth;
-    const vh = video.videoHeight;
-    captureCanvas.width = vw;
-    captureCanvas.height = vh;
-    captureCtx.drawImage(video, 0, 0, vw, vh);
-    return captureCanvas;
-  }
+    shootInterval = setInterval(() => {
+        const frame = captureFrame();
+        const crop = extractNumberArea(frame);
+        detectedList.appendChild(crop);
+    }, 500); // 連写速度
+});
 
-  function getTargets(){
-    return document.getElementById("targets").value
-      .trim().split(/\s+/)
-      .filter(v => /^\d{3}$/.test(v));
-  }
-
-  /*==================================================
-      3. 3桁数字を探し、数字＋アルファベットをトリミング
-  ==================================================*/
-  function cropBox(canvas, x, y, w, h){
-    const c = document.createElement("canvas");
-    c.width = w;
-    c.height = h;
-    const ctx = c.getContext("2d");
-    ctx.drawImage(canvas, x, y, w, h, 0, 0, w, h);
-    return c;
-  }
-
-  async function detectAndCrop(){
-    const targets = getTargets();
-    if (targets.length === 0){
-      result.innerText = "3桁数字を入力してください";
-      return;
-    }
-
-    const canvas = captureFrame();
-
-    const { data } = await Tesseract.recognize(canvas, "eng", {
-      tessedit_char_whitelist: "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ",
-      psm: 6
-    });
-
-    const words = data.words;
-
-    let foundAny = false;
-
-    for (const w of words) {
-
-      // 数字が3桁以外は無視
-      if (!/^\d{3}$/.test(w.text)) continue;
-
-      // 入力した数字と一致するものだけ使う
-      if (!targets.includes(w.text)) continue;
-
-      // 数字の bbox
-      const { x0, y0, x1, y1 } = w.bbox;
-
-      const width = x1 - x0;
-      const height = y1 - y0;
-
-      // 下のアルファベットを探す
-      let belowChar = words.find(ww =>
-        ww.bbox.y0 > y1 &&
-        Math.abs(ww.bbox.x0 - x0) < width * 0.6 &&
-        /^[A-Z]$/.test(ww.text)
-      );
-
-      let cropHeight = height;
-
-      if (belowChar){
-        const b = belowChar.bbox;
-        cropHeight = (b.y1 - y0);  // 数字→アルファベットまでまとめる
-      }
-
-      const crop = cropBox(canvas, x0, y0, width, cropHeight);
-
-      // 画面下に表示
-      const img = document.createElement("img");
-      img.src = crop.toDataURL();
-      foundImages.appendChild(img);
-
-      foundAny = true;
-    }
-
-    if (foundAny){
-      result.innerText = "一致した数字を検出しました";
-    } else {
-      result.innerText = "一致なし";
-    }
-  }
-
-  /*==================================================
-      4. 長押し連写（あなたの指示済）
-  ==================================================*/
-  let burstTimer = null;
-  const burstInterval = 600;
-
-  function startBurst() {
-    if (burstTimer) return;
-    status.textContent = "撮影中";
-
-    detectAndCrop();
-    burstTimer = setInterval(detectAndCrop, burstInterval);
-  }
-
-  function stopBurst() {
-    if (burstTimer){
-      clearInterval(burstTimer);
-      burstTimer = null;
-    }
-    status.textContent = "";
-  }
-
-  captureBtn.addEventListener("mousedown", e => { e.preventDefault(); startBurst(); });
-  document.addEventListener("mouseup", stopBurst);
-
-  captureBtn.addEventListener("touchstart", e => { e.preventDefault(); startBurst(); });
-  document.addEventListener("touchend", stopBurst);
-
-})();
+document.addEventListener("mouseup", () => {
+    shooting = false;
+    statusLabel.textContent = "";
+    clearInterval(shootInterval);
+});
 </script>
 
 </body>
