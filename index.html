@@ -12,12 +12,12 @@ body {
     background: #222;
     color: white;
     display: flex;
-    flex-direction: row;  /* 横画面想定 */
+    flex-direction: row;
     height: 100vh;
 }
 
 #leftArea {
-    width: 70%;                /* 左側を広く確保 */
+    width: 70%;
     padding: 10px;
     overflow-y: scroll;
 }
@@ -37,9 +37,10 @@ body {
     padding: 8px;
 }
 
+/* カメラを16:9で右上に固定 */
 #cameraWrapper {
     width: 100%;
-    aspect-ratio: 16 / 9;  /* 横長 16:9 */
+    aspect-ratio: 16 / 9;
     background: black;
 }
 
@@ -49,18 +50,31 @@ body {
     object-fit: cover;
 }
 
-#shootBtn {
-    width: 100px;
-    height: 100px;
+/* 撮影ボタンは画像に変更 */
+#shootBtnImg {
+    width: 110px;
+    height: 110px;
     margin-top: 15px;
-    background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><circle cx="100" cy="100" r="80" stroke="white" stroke-width="10" fill="white"/></svg>') no-repeat center/contain;
-    border: none;
+    user-select: none;
 }
 
 #status {
     margin-top: 10px;
     font-size: 20px;
     color: #0f0;
+}
+
+/* 入力バー */
+#inputArea {
+    width: 100%;
+    margin-bottom: 10px;
+}
+
+#targetNumber {
+    width: 100%;
+    font-size: 28px;
+    padding: 5px;
+    box-sizing: border-box;
 }
 </style>
 </head>
@@ -73,55 +87,66 @@ body {
     <div id="detectedList"></div>
 </div>
 
-<!-- 右側：カメラ＋ボタン -->
+<!-- 右側：入力バー → カメラ → 撮影ボタン -->
 <div id="rightArea">
+
+    <!-- ★ 復活させた「検索したい3桁の数字入力バー」 -->
+    <div id="inputArea">
+        <input id="targetNumber" type="text" maxlength="3" placeholder="検索したい3桁の数字">
+    </div>
 
     <div id="cameraWrapper">
         <video id="camera" autoplay playsinline></video>
     </div>
 
-    <button id="shootBtn"></button>
-    <div id="status"></div>
+    <!-- ★ フォントではなく画像ボタンに変更 -->
+    <img id="shootBtnImg"
+         src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><circle cx='100' cy='100' r='80' stroke='white' stroke-width='10' fill='white'/></svg>">
 
+    <div id="status"></div>
 </div>
 
 <script>
 const video = document.getElementById("camera");
 const detectedList = document.getElementById("detectedList");
+const shootBtnImg = document.getElementById("shootBtnImg");
 const statusLabel = document.getElementById("status");
+const numberInput = document.getElementById("targetNumber");
 
-// ------------- 外カメラ固定 -------------
+// 外カメラ固定
 navigator.mediaDevices.getUserMedia({
     video: { facingMode: { exact: "environment" } }
 }).then(stream => {
     video.srcObject = stream;
 });
 
-// ============================
-//  撮影 → OCR → 数字検出
-// ============================
+// キャプチャ → トリミング
 function captureFrame() {
     const canvas = document.createElement("canvas");
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     const ctx = canvas.getContext("2d");
     ctx.drawImage(video, 0, 0);
-
     return canvas;
 }
 
-// デモ：中央付近を切り出す（後で改善可）
 function extractNumberArea(canvas) {
     const ctx = canvas.getContext("2d");
 
-    // 上の数字位置
     const trimWidth = canvas.width * 0.25;
     const trimHeight = canvas.height * 0.15;
     const x = (canvas.width - trimWidth) / 2;
     const y = canvas.height * 0.15;
 
+    const cropCanvas = document.createElement("canvas");
+    cropCanvas.width = trimWidth;
+    cropCanvas.height = trimHeight;
+    const cctx = cropCanvas.getContext("2d");
+
+    cctx.drawImage(canvas, x, y, trimWidth, trimHeight, 0, 0, trimWidth, trimHeight);
+
     const img = document.createElement("img");
-    img.src = canvas.toDataURL("image/png");
+    img.src = cropCanvas.toDataURL("image/png");
 
     return img;
 }
@@ -129,8 +154,8 @@ function extractNumberArea(canvas) {
 let shooting = false;
 let shootInterval = null;
 
-// 長押し撮影
-document.getElementById("shootBtn").addEventListener("mousedown", () => {
+// 長押し撮影（画像ボタン）
+shootBtnImg.addEventListener("mousedown", () => {
     shooting = true;
     statusLabel.textContent = "撮影中…";
 
@@ -138,7 +163,7 @@ document.getElementById("shootBtn").addEventListener("mousedown", () => {
         const frame = captureFrame();
         const crop = extractNumberArea(frame);
         detectedList.appendChild(crop);
-    }, 500); // 連写速度
+    }, 500);
 });
 
 document.addEventListener("mouseup", () => {
