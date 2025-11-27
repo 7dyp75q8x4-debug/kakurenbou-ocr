@@ -27,19 +27,30 @@
   const video = document.getElementById("camera");
   const result = document.getElementById("result");
 
-  // --- カメラ起動（背面カメラ固定） ---
-  try {
+  // --- 外カメラ（背面カメラ）を確実に選ぶ処理 ---
+  async function startCamera() {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const videoDevices = devices.filter(d => d.kind === "videoinput");
+
+    // 背面カメラらしきデバイスを探す
+    const backCam = videoDevices.find(d =>
+      d.label.toLowerCase().includes("back") ||
+      d.label.toLowerCase().includes("rear") ||
+      d.label.toLowerCase().includes("environment")
+    );
+
+    const targetDeviceId = backCam ? backCam.deviceId : videoDevices[0].deviceId;
+
     const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { exact: "environment" } }
+      video: {
+        deviceId: { exact: targetDeviceId }
+      }
     });
+
     video.srcObject = stream;
-  } catch (err) {
-    // exact で失敗した場合のフォールバック
-    const stream2 = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "environment" }
-    });
-    video.srcObject = stream2;
   }
+
+  await startCamera();
 
   // Canvas（OCR 用）
   const canvas = document.createElement("canvas");
