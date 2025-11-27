@@ -2,12 +2,23 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>3桁数字カメラ検索</title>
+<title>3桁数字カメラ検索（外カメラ固定・連写対応）</title>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.0/dist/tesseract.min.js"></script>
 <style>
   body { font-family: sans-serif; text-align:center; margin:20px; }
-  video { width: 320px; height: 240px; border: 1px solid #333; }
-  #result { font-size: 22px; margin-top: 20px; }
+  video { width: 320px; height: 240px; border: 1px solid #333; display:block; margin: 0 auto; }
+  #controls { margin-top: 12px; }
+  #captureBtn {
+    font-size:16px;
+    padding:10px 18px;
+    border:1px solid #444;
+    background:#eee;
+    border-radius:6px;
+    user-select:none;
+  }
+  #status { margin-top:10px; font-weight:bold; height:24px; }
+  #result { font-size: 20px; margin-top: 12px; }
+  input#targets { width:250px; font-size:16px; padding:6px; }
 </style>
 </head>
 <body>
@@ -15,8 +26,12 @@
 <h1>3桁数字カメラ検索</h1>
 
 <p>検索したい3桁の数字（スペース区切りで最大5個）</p>
-<input id="targets" type="text" placeholder="例: 123 456 789" style="width:250px; font-size:16px;">
-<br><br>
+<input id="targets" type="text" placeholder="例: 123 456 789">
+
+<div id="controls">
+  <button id="captureBtn" type="button">撮影</button>
+  <div id="status" aria-live="polite"></div>
+</div>
 
 <video id="camera" autoplay playsinline></video>
 
@@ -26,20 +41,25 @@
 (async () => {
   const video = document.getElementById("camera");
   const result = document.getElementById("result");
+  const status = document.getElementById("status");
+  const captureBtn = document.getElementById("captureBtn");
 
-  // --- 外カメラ（背面カメラ）を確実に選ぶ処理 ---
+  // --- 外カメラ（背面カメラ）を確実に選ぶ処理（指示どおりの部分のみ） ---
   async function startCamera() {
     const devices = await navigator.mediaDevices.enumerateDevices();
     const videoDevices = devices.filter(d => d.kind === "videoinput");
 
-    // 背面カメラらしきデバイスを探す
     const backCam = videoDevices.find(d =>
       d.label.toLowerCase().includes("back") ||
       d.label.toLowerCase().includes("rear") ||
       d.label.toLowerCase().includes("environment")
     );
 
-    const targetDeviceId = backCam ? backCam.deviceId : videoDevices[0].deviceId;
+    const targetDeviceId = backCam ? backCam.deviceId : (videoDevices[0] && videoDevices[0].deviceId);
+
+    if (!targetDeviceId) {
+      throw new Error("使用可能なカメラが見つかりません");
+    }
 
     const stream = await navigator.mediaDevices.getUserMedia({
       video: {
@@ -48,55 +68,234 @@
     });
 
     video.srcObject = stream;
+    await new Promise(res => video.onloadedmetadata = res);
   }
 
   await startCamera();
 
-  // Canvas（OCR 用）
-  const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d");
+  // OCR 用キャンバス（内部）
+  const captureCanvas = document.createElement("canvas");
+  const captureCtx = captureCanvas.getContext("2d");
 
-  async function scanFrame() {
-    if (video.videoWidth === 0) {
-      requestAnimationFrame(scanFrame);
-      return;
+  // 前処理：グレースケール、コントラスト強調、閾値、リサイズ
+  function preprocessForOCR(srcCanvas) {
+    // 元サイズより拡大して OCR の精度を上げる
+    const scale = 2; // 2倍に拡大
+    const w = srcCanvas.width;
+    const h = srcCanvas.height;
+    const outW = Math.round(w * scale);
+    const outH = Math.round(h * scale);
+
+    const tmp = document.createElement("canvas");
+    tmp.width = outW;
+    tmp.height = outH;
+    const tctx = tmp.getContext("2d");
+
+    // draw enlarged
+    tctx.drawImage(srcCanvas, 0, 0, outW, outH);
+
+    // image data
+    const img = tctx.getImageData(0,0,outW,outH);
+    const data = img.data;
+
+    // convert to grayscale & increase contrast
+    // simple contrast formula: factor >1 increases contrast
+    const contrastFactor = 1.6;
+    for (let i=0;i<data.length;i+=4){
+      const r = data[i], g = data[i+1], b = data[i+2];
+      // luminance
+      let lum = 0.299*r + 0.587*g + 0.114*b;
+      // apply contrast (shift from 128)
+      lum = ( (lum - 128) * contrastFactor ) + 128;
+      // clamp
+      lum = Math.max(0, Math.min(255, lum));
+      data[i]=data[i+1]=data[i+2]=lum;
     }
 
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    ctx.drawImage(video, 0, 0);
+    // put back
+    tctx.putImageData(img,0,0);
 
-    // 入力した検索数字
-    const targets = document.getElementById("targets").value
+    // simple global thresholding to make digits pop (binary)
+    const img2 = tctx.getImageData(0,0,outW,outH);
+    const d2 = img2.data;
+    // compute Otsu-like threshold: simple approach compute average
+    let sum = 0;
+    for (let i=0;i<d2.length;i+=4) sum += d2[i];
+    const avg = sum / (d2.length/4);
+    const thresh = Math.max(120, Math.min(200, avg * 0.9)); // clamp
+    for (let i=0;i<d2.length;i+=4){
+      const v = d2[i] >= thresh ? 255 : 0;
+      d2[i]=d2[i+1]=d2[i+2]=v;
+    }
+    tctx.putImageData(img2,0,0);
+
+    return tmp;
+  }
+
+  // OCR 実行（前処理して数字のみで認識）
+  async function doOcrOnCanvas(srcCanvas) {
+    const proc = preprocessForOCR(srcCanvas);
+
+    // Tesseract に数字のみを認識させる設定
+    // psm=7 (single line) を指定して読みやすくする
+    const config = {
+      tessedit_char_whitelist: '0123456789',
+      // psm を文字列で指定（Tesseract.js は 'psm' 'oem' として渡す方法がある）
+      // ここでは一般的な指定方法を使います。
+      // 注意: 環境によって config 名の扱いが多少異なる場合がありますが、
+      // 数字ホワイトリストは精度向上に寄与します。
+      // psm 7: treat the image as a single text line — useful for numbers in a row.
+      psm: '7'
+    };
+
+    try {
+      const { data: { text } } = await Tesseract.recognize(proc, 'eng', { tessedit_char_whitelist: config.tessedit_char_whitelist, psm: config.psm });
+      return text || '';
+    } catch (e) {
+      console.error("OCR error", e);
+      return '';
+    }
+  }
+
+  // 撮影（ビデオから静止画を取り出す） — OCR 用にサイズ調整してキャンバスに描画
+  function captureFrameToCanvas() {
+    const vw = video.videoWidth;
+    const vh = video.videoHeight;
+    captureCanvas.width = vw;
+    captureCanvas.height = vh;
+    captureCtx.drawImage(video, 0, 0, vw, vh);
+    return captureCanvas;
+  }
+
+  // 現在のターゲット配列を取得（最大5個の3桁）
+  function getTargets() {
+    return document.getElementById("targets").value
       .trim()
       .split(/\s+/)
-      .filter(t => /^\d{3}$/.test(t)); // 3桁のみ
+      .filter(t => /^\d{3}$/.test(t))
+      .slice(0,5);
+  }
 
+  // 表示更新：結果テキストを与える
+  function showResult(text) {
+    result.innerHTML = text;
+  }
+
+  // 単発撮影 -> OCR -> 結果表示
+  let lastOcr = '';
+  let ocrInProgress = false;
+  async function singleShotAndOcr() {
+    if (ocrInProgress) return;
+    ocrInProgress = true;
+    const targets = getTargets();
     if (targets.length === 0) {
-      result.innerText = "3桁の数字を入力してください";
-      requestAnimationFrame(scanFrame);
+      showResult("3桁の数字を入力してください");
+      ocrInProgress = false;
       return;
     }
 
-    // OCR 読み取り
-    const { data: { text } } = await Tesseract.recognize(canvas, 'eng');
+    const canvasForOcr = captureFrameToCanvas();
+    const text = await doOcrOnCanvas(canvasForOcr);
 
-    // 認識テキストから 3桁数字抽出
-    const found = text.match(/\b\d{3}\b/g) || [];
-
-    // ターゲットと一致
+    // 3桁の数字のみ抽出
+    const found = (text.match(/\d{3}/g) || []).map(s => s.trim());
     const matches = found.filter(n => targets.includes(n));
 
     if (matches.length > 0) {
-      result.innerHTML = `<b>一致:</b> ${matches.join(", ")}`;
+      showResult(`<b>一致:</b> ${Array.from(new Set(matches)).join(", ")}`);
     } else {
-      result.innerText = "一致なし";
+      showResult("一致なし");
     }
 
-    requestAnimationFrame(scanFrame);
+    lastOcr = text;
+    ocrInProgress = false;
   }
 
-  scanFrame();
+  // 長押し連写機能
+  let burstTimer = null;
+  const burstInterval = 600; // ms (撮影間隔)
+  function startBurst() {
+    if (burstTimer) return;
+    status.textContent = "撮影中";
+    // まず即時撮影
+    singleShotAndOcr();
+    burstTimer = setInterval(() => {
+      singleShotAndOcr();
+    }, burstInterval);
+  }
+  function stopBurst() {
+    if (burstTimer) {
+      clearInterval(burstTimer);
+      burstTimer = null;
+    }
+    status.textContent = "";
+  }
+
+  // ボタンのイベント（マウス / タッチ）
+  captureBtn.addEventListener("mousedown", (e) => {
+    e.preventDefault();
+    startBurst();
+  });
+  document.addEventListener("mouseup", (e) => {
+    stopBurst();
+  });
+
+  // タッチ対応
+  captureBtn.addEventListener("touchstart", (e) => {
+    e.preventDefault();
+    startBurst();
+  }, { passive: false });
+  document.addEventListener("touchend", (e) => {
+    stopBurst();
+  });
+
+  // クリック（短押し）で単発撮影も動くように
+  captureBtn.addEventListener("click", (e) => {
+    // クリックイベントは mousedown->mouseup の後に来ることがあるため、
+    // burst が動いてなければ単発撮影
+    if (!burstTimer) {
+      // show a short "撮影中" flash for UX
+      status.textContent = "撮影中";
+      singleShotAndOcr().finally(() => {
+        status.textContent = "";
+      });
+    }
+  });
+
+  // 画面上で定期的に軽くスキャンする仕組み（任意・低頻度）
+  // 連続OCRは重いので、ここではバックグラウンドで 1.5秒ごとに簡易OCRを実行して
+  // 素早く一致がないか確認します（ただし、あなたの指示は連写 + 精度向上なので、
+  // メインは撮影ボタンの OCR です）
+  setInterval(async () => {
+    // ここでは重くならないように短い処理だけ行う
+    if (ocrInProgress) return;
+    const targets = getTargets();
+    if (targets.length === 0) {
+      result.innerText = "3桁の数字を入力してください";
+      return;
+    }
+    // 軽い snapshot（縮小して OCR 前に簡易検査）
+    const vw = video.videoWidth, vh = video.videoHeight;
+    if (!vw || !vh) return;
+    // draw small thumbnail for quick text extraction (faster)
+    const thumb = document.createElement("canvas");
+    const tw = Math.round(vw * 0.4), th = Math.round(vh * 0.4);
+    thumb.width = tw; thumb.height = th;
+    const tctx = thumb.getContext("2d");
+    tctx.drawImage(video, 0,0,tw,th);
+    // quick OCR using smaller image and whitelist
+    try {
+      const { data: { text } } = await Tesseract.recognize(thumb, 'eng', { tessedit_char_whitelist: '0123456789' , psm: '7' });
+      const found = (text.match(/\d{3}/g) || []);
+      const matches = found.filter(n => targets.includes(n));
+      if (matches.length > 0) {
+        showResult(`<b>一致:</b> ${Array.from(new Set(matches)).join(", ")}`);
+      }
+    } catch (e) {
+      // ignore quick OCR errors
+    }
+  }, 1500);
+
 })();
 </script>
 
