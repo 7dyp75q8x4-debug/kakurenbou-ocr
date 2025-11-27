@@ -5,560 +5,344 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0" />
 <title>お題読み取り（枠＋数字トリミング）</title>
 
-<!-- OpenCV.js と Tesseract.js を CDN から読み込み -->
+<!-- OpenCV.js と Tesseract.js -->
 <script async src="https://docs.opencv.org/4.x/opencv.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
 <style>
-  /* --- UI はスクショに合わせた横レイアウト固定 --- */
-  :root {
-    --bg:#0b0b0b; --slotBg:#141414; --accent:#ff3b30;
-  }
+  :root{ --bg:#0b0b0b; --slotBg:#141414; --accent:#ff6b6b; }
   html,body{height:100%;margin:0;background:var(--bg);color:#fff;font-family:system-ui,-apple-system,Segoe UI,Roboto,"Hiragino Kaku Gothic ProN",Meiryo,sans-serif;}
+  /* レイアウト: 左スロット(5x4) 右カメラ+ログ+ボタン */
   .app{display:flex;flex-direction:row;height:100vh;gap:12px;padding:12px;box-sizing:border-box;}
-  /* 左: スロットグリッド（5行×4列） */
-  .slots{
-    width:58%;
-    display:grid;
-    grid-template-columns: repeat(4, 1fr);
-    grid-auto-rows: minmax(110px, 1fr);
-    gap:12px;
-    padding:6px;
-    box-sizing:border-box;
-  }
-  .slot{
-    background:var(--slotBg);
-    border-radius:12px;
-    border:2px solid rgba(255,255,255,0.05);
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    position:relative;
-    overflow:hidden;
-    user-select:none;
-  }
-  .slot .label{
-    position:absolute; top:6px; left:6px; font-weight:700; color:#ddd; font-size:14px; opacity:0.8;
-  }
+  .slots{ width:58%; display:grid; grid-template-columns:repeat(4,1fr); grid-auto-rows:minmax(120px,1fr); gap:12px; padding:6px; box-sizing:border-box; }
+  .slot{ background:var(--slotBg); border-radius:12px; border:2px solid rgba(255,255,255,0.03); position:relative; overflow:hidden; display:flex; align-items:center; justify-content:center; }
+  .slot .label{ position:absolute; left:8px; top:8px; color:#ddd; font-weight:700; font-size:14px; }
   .slot img{ width:100%; height:100%; object-fit:cover; display:block; }
-  .slot .numTag{
-    position:absolute; right:8px; bottom:8px; background:rgba(0,0,0,0.6); padding:6px 8px; border-radius:6px; font-weight:800; font-size:16px; color:#fff;
-  }
+  .slot .numTag{ position:absolute; right:8px; bottom:8px; background:rgba(0,0,0,0.6); padding:6px 8px; border-radius:6px; font-weight:800; font-size:16px; color:#fff; }
 
-  /* 右: カメラプレビュー、ログ、ボタン類 */
-  .right{
-    width:42%;
-    display:flex;
-    flex-direction:column;
-    gap:12px;
-    box-sizing:border-box;
-  }
-
-  .camBox{
-    height:44%;
-    background:#000;
-    border-radius:12px;
-    border:2px solid #222;
-    overflow:hidden;
-    position:relative;
-  }
-  video { width:100%; height:100%; object-fit:cover; transform:scaleX(-1); } /* 見やすさのためミラー */
-  .frameOverlay{
-    position:absolute; left:50%; top:50%; transform:translate(-50%,-40%); width:60%; height:55%; border:2px dashed rgba(255,255,255,0.85); border-radius:6px; pointer-events:none;
-  }
-  .controls{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; justify-content:flex-start; }
-  .btn{ padding:12px 18px; border-radius:10px; font-weight:800; cursor:pointer; border:none; }
-  .btn.primary{ background:var(--accent); color:#000; }
-  .btn.green{ background:#22c55e; color:#000; }
-  .btn.white{ background:#fff; color:#000; }
-  .logBox{ background:#0b0b0b; border-radius:8px; padding:12px; min-height:110px; max-height:160px; overflow:auto; border:2px solid #111; }
-  .statusRow{ display:flex; justify-content:space-between; align-items:center; gap:12px; }
-
-  .small{ font-size:14px; color:#bbb; }
-  .score{ font-size:20px; font-weight:900; color:#ffd24d; }
-
-  /* レスポンシブ：縦狭画面なら縦に並べる */
-  @media (max-width:900px){
-    .app{ flex-direction:column; padding:8px; }
-    .slots{ width:100%; grid-template-columns: repeat(4, 1fr); }
-    .right{ width:100%; }
-    video { transform: none; }
-  }
+  .right{ width:42%; display:flex; flex-direction:column; gap:12px; box-sizing:border-box; }
+  .camBox{ height:46%; background:#000; border-radius:12px; border:2px solid #222; overflow:hidden; position:relative; }
+  video{ width:100%; height:100%; object-fit:cover; transform:scaleX(-1); } /* ミラー表示 */
+  .frameOverlay{ position:absolute; left:50%; top:50%; transform:translate(-50%,-40%); width:60%; height:55%; border:2px dashed rgba(255,255,255,0.85); border-radius:6px; pointer-events:none; }
+  .logBox{ background:#0b0b0b; border-radius:8px; padding:12px; min-height:120px; max-height:220px; overflow:auto; border:2px solid #111; white-space:pre-wrap; font-size:13px; color:#ddd; }
+  .controls{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .btn{ padding:12px 16px; border-radius:10px; font-weight:800; cursor:pointer; border:none; }
+  .btn.topic{ background:#ff6b6b; color:#000; }
+  .btn.search{ background:#32d583; color:#000; }
+  .btn.capture{ background:#fff; color:#000; }
+  .btn.reset{ background:#222; color:#fff; border:1px solid #444; }
+  .small{ font-size:13px; color:#bbb; }
+  @media (max-width:900px){ .app{ flex-direction:column; } .slots{ width:100%; grid-template-columns:repeat(4,1fr); } .right{ width:100%; } video{ transform:none; } }
 </style>
 </head>
 <body>
 <div class="app">
-
-  <!-- 左：スロット群（固定レイアウト） -->
+  <!-- 左: 5x4 スロット (固定) -->
   <div class="slots" id="slots">
-    <!-- 1行目 -->
     <div class="slot" id="1a"><div class="label">1a</div></div>
     <div class="slot" id="1b"><div class="label">1b</div></div>
     <div class="slot" id="1c"><div class="label">1c</div></div>
     <div class="slot" id="1d"><div class="label">1d</div></div>
-    <!-- 2行目 -->
+
     <div class="slot" id="2a"><div class="label">2a</div></div>
     <div class="slot" id="2b"><div class="label">2b</div></div>
     <div class="slot" id="2c"><div class="label">2c</div></div>
     <div class="slot" id="2d"><div class="label">2d</div></div>
-    <!-- 3行目 -->
+
     <div class="slot" id="3a"><div class="label">3a</div></div>
     <div class="slot" id="3b"><div class="label">3b</div></div>
     <div class="slot" id="3c"><div class="label">3c</div></div>
     <div class="slot" id="3d"><div class="label">3d</div></div>
-    <!-- 4行目 -->
+
     <div class="slot" id="4a"><div class="label">4a</div></div>
     <div class="slot" id="4b"><div class="label">4b</div></div>
     <div class="slot" id="4c"><div class="label">4c</div></div>
     <div class="slot" id="4d"><div class="label">4d</div></div>
-    <!-- 5行目 -->
+
     <div class="slot" id="5a"><div class="label">5a</div></div>
     <div class="slot" id="5b"><div class="label">5b</div></div>
     <div class="slot" id="5c"><div class="label">5c</div></div>
     <div class="slot" id="5d"><div class="label">5d</div></div>
   </div>
 
-  <!-- 右: カメラ・ログ・ボタン -->
+  <!-- 右: カメラ + ログ + ボタン -->
   <div class="right">
-    <div class="camBox" id="camBox">
+    <div class="camBox">
       <video id="video" autoplay playsinline></video>
-      <div class="frameOverlay" id="frameOverlay"></div>
-    </div>
-
-    <div class="statusRow">
-      <div>
-        <div class="small">モード: <span id="modeText">待機</span></div>
-        <div class="small">オーダー: <span id="orderNum">1</span>（必要数: <span id="needCount">1</span>）</div>
-      </div>
-      <div class="score">Score: <span id="score">0</span></div>
+      <div class="frameOverlay"></div>
     </div>
 
     <div class="controls">
-      <button class="btn primary" id="startOdaBtn">お題モードを開始</button>
-      <button class="btn green" id="captureBtn">撮影（トリミング→OCR）</button>
-      <button class="btn white" id="clearSlotsBtn">リセットスロット</button>
-      <button class="btn" id="completeOrderBtn">オーダーを完了（正解）</button>
-      <button class="btn" id="markWrongBtn">ミス（減点）</button>
+      <button class="btn topic" id="startBtn">お題</button>
+      <button class="btn search" id="searchBtn">探索</button>
+      <button class="btn capture" id="captureBtn">撮影（長押し）</button>
+      <button class="btn reset" id="resetBtn">リセット</button>
     </div>
 
-    <div class="logBox" id="logBox">ログ表示</div>
+    <div class="small">ログ表示</div>
+    <div class="logBox" id="logBox">準備完了。お題モードで撮影してください。</div>
   </div>
 </div>
 
-<!-- hidden canvas 用（トリミングなど） -->
+<!-- hidden canvas -->
 <canvas id="workCanvas" style="display:none;"></canvas>
 
 <script>
-/*
-  実装ノート（日本語コメント多数）
-  - OpenCV.js と Tesseract.js に依存
-  - OpenCV.js は async ロードされるため、cv['onRuntimeInitialized'] を待つ
-  - 検出は「輪郭 -> 最大の四角形」を探し、その矩形を内側としてトリミング
-  - 数字（3桁）も必ず切り取るため、矩形の上側を拡張して数字行を含める
-*/
+/* シンプルに：UI は絶対に変更しない（固定） */
+/* OpenCV と Tesseract を使って、枠＋上の3桁数字を含む矩形を検出してトリミング → スロット順に格納 */
+/* スコアは一切含めない */
 
-const slotOrder = [
-  "1a","1b","1c","1d",
-  "2a","2b","2c","2d",
-  "3a","3b","3c","3d",
-  "4a","4b","4c","4d",
-  "5a","5b","5c","5d"
-];
-
+const slotOrder = ["1a","1b","1c","1d","2a","2b","2c","2d","3a","3b","3c","3d","4a","4b","4c","4d","5a","5b","5c","5d"];
 let slotIndex = 0;
 let usedNumbers = new Set();
-let orderNum = 1;
-let needCount = 1; // 読み取り必要数 = orderNum
-let score = 0;
 
 const video = document.getElementById('video');
-const frameOverlay = document.getElementById('frameOverlay');
-const logBox = document.getElementById('logBox');
 const workCanvas = document.getElementById('workCanvas');
-
-const startOdaBtn = document.getElementById('startOdaBtn');
+const logBox = document.getElementById('logBox');
+const startBtn = document.getElementById('startBtn');
 const captureBtn = document.getElementById('captureBtn');
-const clearSlotsBtn = document.getElementById('clearSlotsBtn');
-const completeOrderBtn = document.getElementById('completeOrderBtn');
-const markWrongBtn = document.getElementById('markWrongBtn');
-
-const modeText = document.getElementById('modeText');
-const orderNumEl = document.getElementById('orderNum');
-const needCountEl = document.getElementById('needCount');
-const scoreEl = document.getElementById('score');
+const resetBtn = document.getElementById('resetBtn');
+const searchBtn = document.getElementById('searchBtn');
 
 let opencvReady = false;
 let tesseractWorker = null;
 
-// OpenCV.js の準備を待つ
-function waitForOpenCV() {
-  return new Promise((resolve) => {
-    if (typeof cv !== 'undefined' && cv?.onRuntimeInitialized) {
-      cv['onRuntimeInitialized'] = () => {
-        opencvReady = true;
-        log('OpenCV.js ready');
-        resolve();
-      };
-      // if already loaded and initialized, call now:
-      try {
-        if (cv.getBuildInformation) {
-          opencvReady = true;
-          log('OpenCV already ready');
-          resolve();
-        }
-      } catch(e){}
-    } else {
-      // もし cv がまだ undefined の場合は poll
-      const id = setInterval(()=>{
-        if (typeof cv !== 'undefined' && cv?.onRuntimeInitialized) {
-          clearInterval(id);
-          cv['onRuntimeInitialized'] = () => {
-            opencvReady = true;
-            log('OpenCV.js ready');
-            resolve();
-          };
-        }
-      }, 200);
-    }
-  });
-}
-
-// Tesseract worker 初期化
-async function initTesseract() {
-  tesseractWorker = Tesseract.createWorker({
-    logger: m => {
-      // 進捗をログに出す（軽め）
-      if (m.status && (m.status === 'recognizing text' || m.status === 'loading language traineddata')) {
-        log(`Tesseract: ${m.status} ${m.progress ? Math.round(m.progress*100)+'%' : ''}`);
-      }
-    }
-  });
-  await tesseractWorker.load();
-  // 日本語 + 数字を読みたいので jpn を追加（初回はダウンロードが入る）
-  try {
-    await tesseractWorker.loadLanguage('jpn');
-    await tesseractWorker.initialize('jpn');
-  } catch (e) {
-    // jpn に失敗したら英数字読み取りで fallback
-    console.warn('jpn load failed, fallback to eng');
-    await tesseractWorker.loadLanguage('eng');
-    await tesseractWorker.initialize('eng');
-  }
-  log('Tesseract ready');
-}
-
-// カメラ開始（環境カメラ推奨）
-async function startCamera() {
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
-      audio: false
-    });
-    video.srcObject = stream;
-    await video.play();
-    log('Camera started');
-  } catch (e) {
-    log('Camera error: ' + e.message);
-    alert('カメラを許可してください: ' + e.message);
-  }
-}
-
-function log(msg) {
+// ログ表示
+function log(msg){
   const t = new Date().toLocaleTimeString();
   logBox.textContent = `[${t}] ${msg}\n` + logBox.textContent;
 }
 
-// モード開始ボタン
-startOdaBtn.addEventListener('click', async () => {
-  modeText.textContent = 'お題モード';
+// OpenCVロード完了待ち
+function waitForOpenCV(){
+  return new Promise(resolve=>{
+    if (typeof cv !== 'undefined' && cv?.onRuntimeInitialized) {
+      cv['onRuntimeInitialized'] = () => { opencvReady = true; log('OpenCV ready'); resolve(); };
+      try { if (cv.getBuildInformation){ opencvReady = true; log('OpenCV already ready'); resolve(); } } catch(e){}
+    } else {
+      const id = setInterval(()=>{
+        if (typeof cv !== 'undefined' && cv?.onRuntimeInitialized){
+          clearInterval(id);
+          cv['onRuntimeInitialized'] = () => { opencvReady = true; log('OpenCV ready'); resolve(); };
+        }
+      },200);
+    }
+  });
+}
+
+// Tesseract初期化
+async function initTesseract(){
+  tesseractWorker = Tesseract.createWorker({ logger: m => {
+    if (m.status && (m.status==='recognizing text' || m.status==='loading language traineddata')) log(`Tesseract: ${m.status} ${m.progress?Math.round(m.progress*100)+'%':''}`);
+  }});
+  await tesseractWorker.load();
+  // まず日本語を試す（ネットで言語を取得するので初回は時間かかる）
+  try { await tesseractWorker.loadLanguage('jpn'); await tesseractWorker.initialize('jpn'); log('Tesseract jpn ready'); }
+  catch(e){ log('jpn load failed, fallback to eng'); await tesseractWorker.loadLanguage('eng'); await tesseractWorker.initialize('eng'); }
+}
+
+// カメラ起動
+async function startCamera(){
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment', width:{ideal:1280}, height:{ideal:720} }, audio:false });
+    video.srcObject = stream;
+    await video.play();
+    log('Camera started');
+  } catch(e) {
+    log('Camera error: ' + (e.message||e));
+    alert('カメラ許可が必要です: ' + (e.message||e));
+  }
+}
+
+// スロットリセット
+function resetSlots(){
+  slotIndex = 0;
+  usedNumbers.clear();
+  document.querySelectorAll('.slot').forEach(s => s.innerHTML = `<div class="label">${s.id}</div>`);
+  log('スロットをリセットしました');
+}
+
+// start: お題モード
+startBtn.addEventListener('click', async ()=>{
+  log('お題モード開始');
   await startCamera();
   await waitForOpenCV();
   if (!tesseractWorker) await initTesseract();
-  log('お題モードに入りました。撮影してトリミング→OCRを実行してください。');
+  log('準備完了。撮影ボタンでトリミング→OCRを実行できます。');
 });
 
-// リセットスロット
-clearSlotsBtn.addEventListener('click', () => {
-  slotIndex = 0;
-  usedNumbers.clear();
-  const slots = document.querySelectorAll('.slot');
-  slots.forEach(s => {
-    s.innerHTML = `<div class="label">${s.id}</div>`;
-  });
-  log('スロットをリセットしました');
+// 撮影 (クリックで1枚。長押し対応はブラウザによって差があるためここは短押し動作)
+captureBtn.addEventListener('click', async ()=>{
+  if (!opencvReady){ alert('OpenCVが読み込まれていません。少し待ってください'); return; }
+  if (!tesseractWorker){ alert('OCRが初期化されていません。少し待ってください'); return; }
+  if (slotIndex >= slotOrder.length){ alert('スロットがすべて埋まりました。リセットしてください。'); return; }
+  await captureAndProcess();
 });
 
-// オーダー完了（正解として確定）
-completeOrderBtn.addEventListener('click', () => {
-  // 必要数を満たしていない場合は警告
-  const filledThisOrder = getFilledThisOrderCount();
-  if (filledThisOrder < needCount) {
-    alert(`まだこのオーダーで必要な数 (${needCount}) を満たしていません。現在 ${filledThisOrder} 個です。`);
-    return;
-  }
-  score += 20;
-  scoreEl.textContent = score;
-  log(`オーダー完了。+20点。現在Score=${score}`);
-  if (score >= 100) {
-    alert('Scoreが100になりました。ゲーム終了！');
-    modeText.textContent = 'ゲーム終了';
-    // カメラ停止
-    stopCamera();
-    return;
-  }
-  // 次オーダーへ進めるかリセットを促す（仕様: 正解でお題リセットが必要）
-  if (orderNum < 5) {
-    orderNum++;
-    needCount = orderNum;
-    orderNumEl.textContent = orderNum;
-    needCountEl.textContent = needCount;
-    // スロットリセット（仕様: 正解後はお題をリセットして新たに読み込む）
-    clearSlotsBtn.click();
-    log(`次のオーダー ${orderNum} に進みます。必要数 ${needCount} を読み取ってください。`);
-  } else {
-    // 5オーダーまで達成
-    log('すべてのオーダーを完了しました。');
-    alert('オーダー5まで完了しました！');
-  }
-});
+// リセットボタン
+resetBtn.addEventListener('click', ()=>{ resetSlots(); });
 
-// ミス（減点）
-markWrongBtn.addEventListener('click', () => {
-  score -= 10;
-  if (score < 0) score = 0;
-  scoreEl.textContent = score;
-  log(`ミスとして記録。-10点。現在Score=${score}`);
-});
+// 「探索」ボタンはUIに合わせて残す（現状はログ出力のみ）
+searchBtn.addEventListener('click', ()=>{ log('探索ボタンが押されました（現状未実装）'); alert('探索機能はまだ実装されていません'); });
 
-// カメラ停止
-function stopCamera() {
-  const stream = video.srcObject;
-  if (stream) {
-    const tracks = stream.getTracks();
-    tracks.forEach(t => t.stop());
-    video.srcObject = null;
-  }
-}
-
-// 取得済みスロット数（現在全体の slotIndex）
-function getFilledCount() {
-  return slotIndex;
-}
-
-// このオーダー内で現在埋まっている個数（例: orderNum=3 => 3 件必要。先頭から数える）
-function getFilledThisOrderCount() {
-  // calculate how many items have been filled for current order: simply count from beginning up to slotIndex
-  // But we should consider per-order grouping: each order is expected to fill orderNum items starting from slot 0 of that round.
-  // For simplicity, after each order completion we reset slots. So current filled count = slotIndex.
-  return slotIndex;
-}
-
-
-// 撮影ボタン
-captureBtn.addEventListener('click', async () => {
-  if (!opencvReady) {
-    alert('OpenCVがまだ読み込まれていません。少し待ってから再度押してください。');
-    return;
-  }
-  if (!tesseractWorker) {
-    alert('Tesseractが初期化されていません。少し待ってから再度押してください。');
-    return;
-  }
-  // 必要数を超えたら拒否
-  if (getFilledThisOrderCount() >= needCount) {
-    alert(`このオーダーは既に必要数 (${needCount}) を満たしています。オーダー完了かリセットしてください。`);
-    return;
-  }
-  await captureAndProcessFrame();
-});
-
-// メイン処理：キャプチャ→枠検出→トリミング→OCR→スロット格納
-async function captureAndProcessFrame() {
-  log('撮影開始...');
-  // 描画先キャンバスを video の解像度に合わせる
-  const vw = video.videoWidth;
-  const vh = video.videoHeight;
-  if (!vw || !vh) {
-    alert('カメラ画像が未準備です（動画サイズが取得できません）。少し待ってから再試行してください。');
-    return;
-  }
-  workCanvas.width = vw;
-  workCanvas.height = vh;
+// メイン: キャプチャ→枠検出→トリミング→OCR→スロット格納
+async function captureAndProcess(){
+  log('撮影→検出開始...');
+  const vw = video.videoWidth, vh = video.videoHeight;
+  if (!vw || !vh){ alert('カメラ画像が準備できていません。少し待ってから再試行してください'); return; }
+  workCanvas.width = vw; workCanvas.height = vh;
   const ctx = workCanvas.getContext('2d');
-  // draw current frame (un-mirrored for OCR)
+  // ミラーを補正して描画（videoはミラー表示）
   ctx.save();
   ctx.scale(-1,1);
   ctx.drawImage(video, 0, 0, vw * -1, vh);
   ctx.restore();
 
-  // convert canvas -> OpenCV Mat
+  // OpenCV処理
   let src = cv.imread(workCanvas);
-  let dst = new cv.Mat();
-  cv.cvtColor(src, dst, cv.COLOR_RGBA2GRAY, 0);
-  // blur and edge
-  cv.GaussianBlur(dst, dst, new cv.Size(5,5), 0);
-  cv.Canny(dst, dst, 50, 150);
+  let gray = new cv.Mat();
+  cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
+  cv.GaussianBlur(gray, gray, new cv.Size(5,5), 0);
+  cv.Canny(gray, gray, 50, 150);
 
-  // find contours
   let contours = new cv.MatVector();
   let hierarchy = new cv.Mat();
-  cv.findContours(dst, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
+  cv.findContours(gray, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
 
-  // find largest quadrilateral contour
+  // 最大の四角を探す
   let maxArea = 0;
-  let bestCnt = null;
-  for (let i = 0; i < contours.size(); i++) {
+  let best = null;
+  for (let i=0;i<contours.size();i++){
     let cnt = contours.get(i);
     let peri = cv.arcLength(cnt, true);
     let approx = new cv.Mat();
     cv.approxPolyDP(cnt, approx, 0.02 * peri, true);
-    if (approx.total() === 4) {
+    if (approx.total() === 4){
       const area = Math.abs(cv.contourArea(approx));
-      if (area > maxArea) {
-        maxArea = area;
-        bestCnt = approx.clone();
-      }
+      if (area > maxArea){ maxArea = area; if (best) best.delete(); best = approx.clone(); }
     }
-    approx.delete();
-    cnt.delete();
+    approx.delete(); cnt.delete();
   }
 
-  // fallback: if no quadrilateral found, try using boundingRect from largest area contour
-  if (!bestCnt) {
-    log('四角形が見つかりません。輪郭の最大領域で代替します。');
-    // find contour with max area (non-approx)
-    let maxC = null;
-    let maxA = 0;
-    for (let i = 0; i < contours.size(); i++) {
+  // 見つからない場合は最大領域でバウンディングを取る
+  if (!best){
+    log('四角形検出失敗 → 最大領域で代替します');
+    let maxC = null; let maxA = 0;
+    for (let i=0;i<contours.size();i++){
       let c = contours.get(i);
       let a = Math.abs(cv.contourArea(c));
-      if (a > maxA) { maxA = a; maxC = c.clone(); }
+      if (a > maxA){ maxA = a; if (maxC) maxC.delete(); maxC = c.clone(); }
       c.delete();
     }
-    if (maxC) {
+    if (maxC){
       const rect = cv.boundingRect(maxC);
-      // create synthetic rect points
-      bestCnt = cv.Mat.zeros(4,1,cv.CV_32SC2);
-      bestCnt.data32S[0] = rect.x; bestCnt.data32S[1] = rect.y;
-      bestCnt.data32S[2] = rect.x + rect.width; bestCnt.data32S[3] = rect.y;
-      bestCnt.data32S[4] = rect.x + rect.width; bestCnt.data32S[5] = rect.y + rect.height;
-      bestCnt.data32S[6] = rect.x; bestCnt.data32S[7] = rect.y + rect.height;
+      best = cv.Mat.zeros(4,1,cv.CV_32SC2);
+      best.data32S[0]=rect.x; best.data32S[1]=rect.y;
+      best.data32S[2]=rect.x+rect.width; best.data32S[3]=rect.y;
+      best.data32S[4]=rect.x+rect.width; best.data32S[5]=rect.y+rect.height;
+      best.data32S[6]=rect.x; best.data32S[7]=rect.y+rect.height;
     }
   }
 
-  if (!bestCnt) {
-    alert('枠が見つかりませんでした。もう一度撮影してください（枠を画面に大きく入れてください）。');
-    src.delete(); dst.delete(); contours.delete(); hierarchy.delete();
+  if (!best){
+    alert('枠が見つかりませんでした。枠を画面に大きく入れて再撮影してください。');
+    // cleanup
+    src.delete(); gray.delete(); contours.delete(); hierarchy.delete();
     return;
   }
 
-  // get bounding rect of bestCnt
-  let bx = Number.MAX_VALUE, by = Number.MAX_VALUE, bx2 = 0, by2 = 0;
-  for (let i = 0; i < bestCnt.total(); i++) {
-    let pt = bestCnt.data32S.slice(i*2, i*2+2);
-    const x = pt[0], y = pt[1];
-    if (x < bx) bx = x;
-    if (y < by) by = y;
-    if (x > bx2) bx2 = x;
-    if (y > by2) by2 = y;
+  // 四隅から bbox を計算して上側を拡張して数字を含める
+  let bx = Infinity, by = Infinity, bx2 = -Infinity, by2 = -Infinity;
+  for (let i=0;i<best.total();i++){
+    const x = best.data32S[i*2], y = best.data32S[i*2+1];
+    if (x < bx) bx = x; if (y < by) by = y;
+    if (x > bx2) bx2 = x; if (y > by2) by2 = y;
   }
-  // expand bbox a bit to ensure corners/line are included and additionally include the number above:
-  const expandYTop = Math.round((by2 - by) * 0.28); // 上側に28%ほど拡張して数字域を捕まえる
-  const expandPad = Math.round(Math.min(vw, vh) * 0.03); // 周りの余白
-  let sx = Math.max(0, bx - expandPad);
-  let sy = Math.max(0, by - expandYTop - expandPad); // 上拡張
-  let sw = Math.min(vw - sx, bx2 - bx + 2*expandPad);
-  let sh = Math.min(vh - sy, by2 - by + expandYTop + 2*expandPad);
+  const expandYTop = Math.round((by2 - by) * 0.28);
+  const pad = Math.round(Math.min(vw,vh) * 0.03);
+  let sx = Math.max(0, bx - pad);
+  let sy = Math.max(0, by - expandYTop - pad);
+  let sw = Math.min(vw - sx, bx2 - bx + pad*2);
+  let sh = Math.min(vh - sy, by2 - by + expandYTop + pad*2);
 
-  // debug log
-  log(`検出枠: x=${sx}, y=${sy}, w=${sw}, h=${sh} (video ${vw}x${vh})`);
+  log(`検出領域: x=${sx},y=${sy},w=${sw},h=${sh}`);
 
-  // crop to new canvas
-  const tmpCanvas = document.createElement('canvas');
-  tmpCanvas.width = sw; tmpCanvas.height = sh;
-  const tctx = tmpCanvas.getContext('2d');
-  // draw un-mirrored region: remember we drew video mirrored to canvas, but coordinates are in that canvas
+  // 切り抜き
+  const tmp = document.createElement('canvas');
+  tmp.width = sw; tmp.height = sh;
+  const tctx = tmp.getContext('2d');
   tctx.drawImage(workCanvas, sx, sy, sw, sh, 0, 0, sw, sh);
+  const dataURL = tmp.toDataURL('image/jpeg', 0.92);
 
-  // convert crop to dataURL for display
-  const croppedDataURL = tmpCanvas.toDataURL('image/jpeg', 0.92);
+  log('OCR実行中...');
+  // OCR 実行 (Tesseract)
+  const { data } = await tesseractWorker.recognize(tmp);
+  let raw = data?.text || '';
+  raw = raw.replace(/\r/g,'\n');
+  log('OCR 生テキスト: ' + raw.split('\n').slice(0,3).join(' '));
 
-  // OCR: run Tesseract on cropped
-  log('OCR実行...');
-  const { data } = await tesseractWorker.recognize(tmpCanvas);
-  let rawText = data?.text || '';
-  rawText = rawText.replace(/\r/g,'\n');
-  log('OCR結果（生）: ' + rawText.slice(0,200).replace(/\n/g,' '));
-
-  // find first 3-digit sequence (keep leading zeros)
-  const m = rawText.match(/\d{3}/);
-  const foundNum = m ? m[0] : null;
-
-  if (!foundNum) {
-    // OCR失敗時はユーザーに示して再撮影を促す
-    log('3桁の数字が検出できませんでした。再撮影してください。');
-    alert('数字（3桁）が検出できませんでした。枠の上の数字がはっきり見えるようにもう一度撮影してください。');
+  const m = raw.match(/\d{3}/);
+  const found = m ? m[0] : null;
+  if (!found){
+    alert('3桁の数字が検出できませんでした。もう一度撮影してください（数字がはっきり見えるように）。');
     // cleanup mats
-    src.delete(); dst.delete(); contours.delete(); hierarchy.delete(); if (bestCnt) bestCnt.delete();
+    src.delete(); gray.delete(); contours.delete(); hierarchy.delete(); if (best) best.delete();
     return;
   }
 
-  // 重複チェック
-  if (usedNumbers.has(foundNum)) {
-    alert(`番号 ${foundNum} は既に読み込まれています（重複登録不可）。別のお題を撮影してください。`);
-    log(`重複: ${foundNum}`);
-    src.delete(); dst.delete(); contours.delete(); hierarchy.delete(); if (bestCnt) bestCnt.delete();
+  if (usedNumbers.has(found)){
+    alert(`番号 ${found} は既に登録済みです（重複不可）。別のお題を撮影してください。`);
+    log('重複試行: ' + found);
+    src.delete(); gray.delete(); contours.delete(); hierarchy.delete(); if (best) best.delete();
     return;
   }
 
   // スロットに格納
-  if (slotIndex >= slotOrder.length) {
-    alert('全スロットが埋まりました。リセットしてください。');
-    src.delete(); dst.delete(); contours.delete(); hierarchy.delete(); if (bestCnt) bestCnt.delete();
-    return;
-  }
   const slotId = slotOrder[slotIndex];
-  fillSlotWithImage(slotId, croppedDataURL, foundNum);
-  usedNumbers.add(foundNum);
+  fillSlot(slotId, dataURL, found);
+  usedNumbers.add(found);
   slotIndex++;
-  log(`スロット ${slotId} に ${foundNum} を格納しました。 (filled ${slotIndex}/${needCount})`);
+  log(`格納: ${slotId} ← ${found}  (filled ${slotIndex}/${slotOrder.length})`);
 
-  // もしこのオーダー分が揃ったら通知
-  if (getFilledThisOrderCount() >= needCount) {
-    log(`このオーダーの必要数 (${needCount}) を満たしました。オーダーを完了するかミスを記録してください。`);
-    alert(`このオーダーの必要数 (${needCount}) を満たしました。内容を確認して「オーダーを完了」を押してください。`);
+  // 完了チェック（任意：現在何個入っているかをログで出す）
+  if (slotIndex > 0) log(`現在の登録数: ${slotIndex}`);
+
+  // cleanup
+  src.delete(); gray.delete(); contours.delete(); hierarchy.delete(); if (best) best.delete();
+}
+
+// スロット表示更新
+function fillSlot(slotId, dataURL, num){
+  const el = document.getElementById(slotId);
+  el.innerHTML = `<div class="label">${slotId}</div>`;
+  const img = document.createElement('img'); img.src = dataURL; el.appendChild(img);
+  const tag = document.createElement('div'); tag.className = 'numTag'; tag.textContent = num; el.appendChild(tag);
+}
+
+// 初期状態
+resetSlots();
+log('UI固定モードで起動しました。お題を撮影してください。');
+
+// Tesseract 初期化は start 後に行う軽めの呼び出し（初回は遅い）
+(async ()=>{
+  // wait for Tesseract lib and pre-load worker in background to reduce first-capture delay
+  if (typeof Tesseract !== 'undefined'){
+    try {
+      tesseractWorker = Tesseract.createWorker({ logger: m => { if (m.status && m.status.includes('loading')) log('Tesseract: ' + m.status); }});
+      await tesseractWorker.load();
+      // try jpn, fallback to eng
+      try { await tesseractWorker.loadLanguage('jpn'); await tesseractWorker.initialize('jpn'); log('Tesseract jpn loaded'); }
+      catch(e){ await tesseractWorker.loadLanguage('eng'); await tesseractWorker.initialize('eng'); log('Tesseract eng loaded'); }
+    } catch(e){ console.warn('Tesseract init failed', e); }
   }
+})();
 
-  // cleanup mats
-  src.delete(); dst.delete(); contours.delete(); hierarchy.delete(); if (bestCnt) bestCnt.delete();
-}
+// OpenCV onRuntimeInitialized is handled by waitForOpenCV when start pressed
 
-// スロットに画像と番号をセットする
-function fillSlotWithImage(slotId, dataUrl, number) {
-  const slot = document.getElementById(slotId);
-  slot.innerHTML = `<div class="label">${slotId}</div>`; // keep label
-  const img = document.createElement('img');
-  img.src = dataUrl;
-  slot.appendChild(img);
-  const tag = document.createElement('div');
-  tag.className = 'numTag';
-  tag.textContent = number;
-  slot.appendChild(tag);
-}
-
-// 初期状態セット
-orderNumEl.textContent = orderNum;
-needCountEl.textContent = needCount;
-scoreEl.textContent = score;
-modeText.textContent = '待機';
-
-// ページを離れる前にワーカーを解放
-window.addEventListener('beforeunload', async () => {
-  try {
-    if (tesseractWorker) await tesseractWorker.terminate();
-  } catch(e){}
+// unload worker when leaving page
+window.addEventListener('beforeunload', async ()=>{
+  try{ if (tesseractWorker) await tesseractWorker.terminate(); } catch(e){}
 });
-
 </script>
 </body>
 </html>
