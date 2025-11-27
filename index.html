@@ -16,8 +16,9 @@ body {
     height: 100vh;
 }
 
+/* 左側：検出画像一覧 */
 #leftArea {
-    width: 70%;
+    width: 65%;
     padding: 10px;
     overflow-y: scroll;
 }
@@ -29,15 +30,25 @@ body {
     display: block;
 }
 
+/* 右側：入力 → カメラ → ボタン */
 #rightArea {
-    width: 30%;
+    width: 35%;
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 8px;
+    padding: 12px;
 }
 
-/* カメラを16:9で右上に固定 */
+/* 数字入力バー */
+#targetNumber {
+    width: 100%;
+    font-size: 30px;
+    padding: 10px;
+    margin-bottom: 12px;
+    box-sizing: border-box;
+}
+
+/* カメラエリア */
 #cameraWrapper {
     width: 100%;
     aspect-ratio: 16 / 9;
@@ -50,7 +61,7 @@ body {
     object-fit: cover;
 }
 
-/* 撮影ボタンは画像に変更 */
+/* 撮影ボタン（完全に画像） */
 #shootBtnImg {
     width: 110px;
     height: 110px;
@@ -58,50 +69,36 @@ body {
     user-select: none;
 }
 
+/* 撮影ステータス */
 #status {
     margin-top: 10px;
-    font-size: 20px;
+    font-size: 22px;
     color: #0f0;
-}
-
-/* 入力バー */
-#inputArea {
-    width: 100%;
-    margin-bottom: 10px;
-}
-
-#targetNumber {
-    width: 100%;
-    font-size: 28px;
-    padding: 5px;
-    box-sizing: border-box;
 }
 </style>
 </head>
 
 <body>
 
-<!-- 左側：検出した候補画像 -->
+<!-- 左側：検出された候補 -->
 <div id="leftArea">
     <h2>検出候補</h2>
     <div id="detectedList"></div>
 </div>
 
-<!-- 右側：入力バー → カメラ → 撮影ボタン -->
+<!-- 右側：数字入力 → カメラ → 撮影ボタン -->
 <div id="rightArea">
 
-    <!-- ★ 復活させた「検索したい3桁の数字入力バー」 -->
-    <div id="inputArea">
-        <input id="targetNumber" type="text" maxlength="3" placeholder="検索したい3桁の数字">
-    </div>
+    <!-- ★ 数字入力バー（再追加＋確実表示） -->
+    <input id="targetNumber" type="text" maxlength="3" placeholder="検索したい3桁の数字">
 
     <div id="cameraWrapper">
         <video id="camera" autoplay playsinline></video>
     </div>
 
-    <!-- ★ フォントではなく画像ボタンに変更 -->
+    <!-- ★ 撮影ボタンを完全に画像へ置換（Base64 PNG） -->
     <img id="shootBtnImg"
-         src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><circle cx='100' cy='100' r='80' stroke='white' stroke-width='10' fill='white'/></svg>">
+        src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMgAAADICAMAAACahl6sAAAAGFBMVEX///8AAAB/f3+Pj4+fn5+ampq9vb3e3t6YmJjbbxO2AAABRUlEQVR4nO3VwQmDMBAF0Tqt/59zsIwoMvVJE9idh+NEnNh4tW7GRMdmNAIAAAAAAAAAAAAAAAAAAAAAgGkeN+NW/BzxubAE8VZwOu30GPV1i/HHPNVrku1rpxjQtdz6HYjm+rXHzvtZlBnvzOYBG2sCvA8fse2D3QzvKKr37H1P0uohs9S7sEBvtq+G4N1N2/5pZjnr8ZVrTtcb7mPHVLujm91nBnYr4eMc3p/ACf5o+96Dvew2X5O45lsP7b9y67YTW/VXW4k93Z2+O+sCMf1EOWrEHhVxC4V8QuFfELhXxC4V8QuFfELhXxC4t2JfA9r8AlT3t3Tm9/qwAAAAASUVORK5CYII=">
 
     <div id="status"></div>
 </div>
@@ -120,7 +117,7 @@ navigator.mediaDevices.getUserMedia({
     video.srcObject = stream;
 });
 
-// キャプチャ → トリミング
+// キャプチャ
 function captureFrame() {
     const canvas = document.createElement("canvas");
     canvas.width = video.videoWidth;
@@ -130,31 +127,29 @@ function captureFrame() {
     return canvas;
 }
 
+// トリミング（仮：中央領域）
 function extractNumberArea(canvas) {
-    const ctx = canvas.getContext("2d");
-
     const trimWidth = canvas.width * 0.25;
-    const trimHeight = canvas.height * 0.15;
+    const trimHeight = canvas.height * 0.16;
     const x = (canvas.width - trimWidth) / 2;
     const y = canvas.height * 0.15;
 
     const cropCanvas = document.createElement("canvas");
     cropCanvas.width = trimWidth;
     cropCanvas.height = trimHeight;
-    const cctx = cropCanvas.getContext("2d");
 
+    const cctx = cropCanvas.getContext("2d");
     cctx.drawImage(canvas, x, y, trimWidth, trimHeight, 0, 0, trimWidth, trimHeight);
 
     const img = document.createElement("img");
     img.src = cropCanvas.toDataURL("image/png");
-
     return img;
 }
 
+// 長押し連写
 let shooting = false;
 let shootInterval = null;
 
-// 長押し撮影（画像ボタン）
 shootBtnImg.addEventListener("mousedown", () => {
     shooting = true;
     statusLabel.textContent = "撮影中…";
