@@ -72,7 +72,8 @@
   .trashBtn{ width:28px; height:28px; cursor:pointer; opacity:0.9; }
   .processing { font-size:13px; color:#333; margin-right:6px; }
 
-  /* camera preview area (16:9) */
+  /* camera preview area (16:9)
+     NOTE: added min-height and flex-shrink:0 to prevent collapsing in landscape */
   .cameraWrap {
     width:100%;
     aspect-ratio:16/9;
@@ -81,8 +82,10 @@
     overflow:hidden;
     border-radius:6px;
     border:1px solid #ddd;
+    min-height:120px;       /* ensure some visible height even on narrow layouts */
+    flex-shrink: 0;         /* do not shrink when container changes */
   }
-  #cameraVideo { width:100%; height:100%; object-fit:cover; display:block; background:#000; }
+  #cameraVideo { width:100%; height:100%; object-fit:cover; display:block !important; background:#000; }
 
   /* small labels overlay on camera if needed */
   .overlayTopLeft { position:absolute; left:8px; top:8px; color:#fff; font-weight:700; background:rgba(0,0,0,0.35); padding:4px 6px; border-radius:4px; font-size:12px; }
@@ -273,12 +276,17 @@
       // try facingMode environment first
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: "environment" } }, audio:false });
       cameraVideo.srcObject = stream;
+      // ensure playback starts and video is visible
+      await cameraVideo.play().catch(()=>{ /* autoplay might be blocked until user gesture */ });
+      cameraVideo.style.display = 'block';
       return;
     } catch (e) {
       try {
         // fallback
         const s2 = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio:false });
         cameraVideo.srcObject = s2;
+        await cameraVideo.play().catch(()=>{});
+        cameraVideo.style.display = 'block';
         return;
       } catch (e2) {
         // no camera — show placeholder (keep black background)
@@ -289,6 +297,23 @@
       }
     }
   }
+
+  // ensure video stays visible on resize/orientation change
+  function ensureVideoVisibility(){
+    // if video has an active stream, make sure it's visible
+    if (cameraVideo && cameraVideo.srcObject) {
+      cameraVideo.style.display = 'block';
+      overlayLabel.style.display = 'none';
+    } else {
+      // keep overlay visible if no camera
+      cameraVideo.style.display = 'none';
+      overlayLabel.style.display = 'block';
+    }
+  }
+
+  // listen for resizes/orientation changes
+  window.addEventListener('resize', ensureVideoVisibility);
+  window.addEventListener('orientationchange', ensureVideoVisibility);
 
   startCamera();
 
