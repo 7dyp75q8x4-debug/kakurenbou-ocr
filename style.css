@@ -1,88 +1,120 @@
+/* 全体レイアウト -------------------------------------------------- */
 body {
-  margin: 0;
-  padding: 0;
-  background: white;
-  overflow: hidden; /* スクロール禁止 */
+    margin: 0;
+    background: #ffffff;
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    overflow: hidden;
 }
 
-#main-container {
-  display: flex;
-  flex-direction: row;
-  width: 100vw;
-  height: 100vh;
-  overflow: hidden;
+/* 左側（検出候補） -------------------------------------------------- */
+#leftPanel {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 50vw;
+    height: 100vh;
+    background: #ffffff;
+    padding: 20px;
+    box-sizing: border-box;
+    overflow: hidden;
 }
 
-/* 左側パネル */
-#left-panel {
-  width: 40%;
-  padding: 8px;
-  box-sizing: border-box;
-  overflow: hidden;
+#candidateTitle {
+    font-size: 28px;
+    font-weight: 600;
+    margin-bottom: 20px;
 }
 
-#left-panel h2 {
-  margin: 0 0 6px 0;
-  font-size: 1.1rem;
+/* 右側（カメラ領域） -------------------------------------------------- */
+#rightPanel {
+    position: absolute;
+    right: 0;
+    top: 0;
+    width: 50vw;
+    height: 100vh;
+    background: #ffffff;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    box-sizing: border-box;
 }
 
-/* 上限7個なので高さを自動調整 */
-#detected-list {
-  width: 100%;
-  height: calc(100vh - 60px);
-  overflow-y: auto;
+#cameraWrapper {
+    width: 90%;
+    height: 45vh;   /* 上段に収まる */
+    margin-top: 10px;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #000;
 }
 
-/* 右パネル：ぜんぶ縮小（B-1）*/
-#right-panel {
-  width: 60%;
-  transform: scale(0.92);        /* ★ 右側全体縮小 */
-  transform-origin: top right;   /* ★ 右上基準で縮小 */
-  height: 100vh;
-  padding: 0;
-  box-sizing: border-box;
+#cameraView {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }
 
-/* カメラ領域（16:9のまま） */
-#camera-container {
-  width: 100%;
-  aspect-ratio: 16/9;
-  background: #000;
+/* モードボタン -------------------------------------------------- */
+.modeButtons {
+    margin-top: 10px;
+    display: flex;
+    gap: 15px;
 }
 
-#camera {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+.modeBtn {
+    width: 120px;
+    height: 50px;
+    border-radius: 25px;
+    border: none;
+    background: #eaeaea;
+    font-size: 22px;
 }
 
-/* ボタン群 */
-#buttons {
-  display: flex;
-  justify-content: space-between;
-  padding: 6px 8px;
+/* 撮影ボタン ------------------------------------------------------ */
+#captureBtn {
+    margin-top: 12px;
+    width: 120px;
+    height: 55px;
+    background: #eae5ff;
+    border-radius: 25px;
+    border: none;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
-#buttons button {
-  flex: 1;
-  margin: 0 4px;
-  height: 44px;
-  font-size: 1rem;
+/* 撮影ボタンの画像 */
+.btn-icon {
+    width: 45px;
+    height: auto;
+    pointer-events: none; /* 長押し選択防止 */
 }
 
-/* 撮影アイコン */
-.icon-btn {
-  height: 42px;
-  width: auto;
-  pointer-events: none;
+/* コピペ禁止・選択禁止（全ボタン共通） ---------------------------- */
+.no-select, 
+button, 
+.modeBtn, 
+#captureBtn {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    touch-action: manipulation;
 }
 
-/* ステータス欄 */
-#status-area {
-  padding: 6px 10px;
+/* ゴミ箱ボタン -------------------------------------------------- */
+#trashBtn {
+    position: absolute;
+    right: 20px;
+    top: 10px;
+    font-size: 26px;
 }
 
-#status-text {
-  font-size: 1rem;
-  color: black;
+/* 処理中カウンター -------------------------------------------------- */
+#processCount {
+    position: absolute;
+    right: 70px;
+    top: 13px;
+    font-size: 22px;
 }
