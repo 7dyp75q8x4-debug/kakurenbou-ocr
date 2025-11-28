@@ -89,3 +89,21 @@ body {
 .control-btn:active {
     opacity: 0.6;
 }
+
+/* iOS Safariで完全に選択禁止にする最強設定 */
+*,
+*::before,
+*::after {
+    -webkit-user-select: none !important;
+    -moz-user-select: none !important;
+    -ms-user-select: none !important;
+    user-select: none !important;
+    -webkit-touch-callout: none !important; /* 長押しメニュー禁止 */
+}
+
+/* ボタン類も強制的に選択禁止 */
+button, img, video {
+    -webkit-user-select: none !important;
+    -webkit-touch-callout: none !important;
+    pointer-events: auto; /* クリックは有効 */
+}
