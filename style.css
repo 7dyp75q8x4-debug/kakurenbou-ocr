@@ -1,49 +1,51 @@
 body {
     margin: 0;
-    font-family: sans-serif;
-    background: white;
+    background: #ffffff;
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
+/* タイトル位置・スタイル（スクショ完全同じ） */
 .title {
-    margin: 30px;
-    font-size: 32px;
-    font-weight: bold;
+    font-size: 38px;
+    font-weight: 700;
+    margin: 40px 0 0 40px;
 }
 
-.preview-area {
-    display: flex;
-    justify-content: flex-end; /* 右側に寄せる */
-    padding-right: 30px;
-}
-
-.preview {
-    width: 300px;
+/* 右上に画像を配置（スクショ同じ） */
+.image-wrapper {
+    position: absolute;
+    top: 40px;
+    right: 40px;
+    width: 380px;
+    height: auto;
+    overflow: hidden;
     border-radius: 20px;
-    object-fit: cover;
 }
 
-.button-row {
-    position: fixed;
-    bottom: 30px;
+.preview-image {
     width: 100%;
-    display: flex;
-    justify-content: center;
-    gap: 20px;
+    height: auto;
+    border-radius: 20px;
+    display: block;
 }
 
-.btn-small {
-    font-size: 22px;
-    padding: 12px 22px;
-    border: none;
-    background: #eee;
-    border-radius: 15px;
+/* 下中央の「待機中」 */
+.status {
+    position: fixed;
+    bottom: 60px;
+    width: 100%;
+    text-align: center;
+    font-size: 32px;
+    font-weight: 600;
 }
 
-.btn-bin {
-    font-size: 22px;
-    padding: 12px 22px;
-    background: #4da3ff;
-    border: none;
-    border-radius: 15px;
-    color: white;
+/* ーーーーー 選択禁止 ーーーーー */
+.noselect {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+}
+
+img.noselect {
+    pointer-events: none; /* 長押し完全無効 */
 }
