@@ -1,45 +1,43 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Number Reader</title>
-  <link rel="stylesheet" href="style.css" />
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>カメラ検出UI</title>
+    <link rel="stylesheet" href="style.css" />
 </head>
+
 <body>
-  <div id="main-container">
-    
-    <!-- Left Panel -->
-    <div id="left-panel">
-      <h2>検出候補</h2>
-      <div id="detected-list"></div>
+
+    <div id="container">
+
+        <!-- 左：検出候補エリア -->
+        <div id="left-panel">
+            <h2>検出候補</h2>
+            <div id="candidates"></div>
+        </div>
+
+        <!-- 右側エリア（カメラ＋ボタン） -->
+        <div id="right-panel">
+
+            <!-- カメラ -->
+            <div id="camera-wrapper">
+                <video id="camera" autoplay playsinline></video>
+            </div>
+
+            <!-- ボタン群 -->
+            <div id="buttons">
+                <button class="mode-btn" id="qMode">Q</button>
+                <button class="mode-btn" id="aMode">A</button>
+                <button id="trash">ゴミ箱</button>
+            </div>
+
+            <div id="status">待機中</div>
+
+        </div>
+
     </div>
 
-    <!-- Right Panel -->
-    <div id="right-panel">
-      <div id="camera-container">
-        <video id="camera" autoplay playsinline></video>
-      </div>
-
-      <div id="buttons">
-        <button id="q-mode">Q</button>
-        <button id="a-mode">A</button>
-
-        <!-- 撮影ボタンは画像 -->
-        <button id="captureBtn" class="control-btn no-select">
-    <img src="img/on-button.png" class="btn-icon">
-</button>
-
-        <button id="delete-all">ゴミ箱</button>
-      </div>
-
-      <div id="status-area">
-        <div id="status-text">待機中</div>
-      </div>
-    </div>
-
-  </div>
-
-  <script src="script.js"></script>
+    <script src="script.js"></script>
 </body>
 </html>
