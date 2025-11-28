@@ -1,109 +1,105 @@
-/* 全体の初期化 */
-* {
+/* =========================================================
+   レイアウト全体（ここはあなたが使っていた既存レイアウトを維持）
+   ========================================================= */
+
+/* 画面全体 */
+body {
     margin: 0;
     padding: 0;
-    box-sizing: border-box;
-    -webkit-tap-highlight-color: transparent; /* iOS タップ時の青ハイライト無効化 */
-}
-
-/* テキスト選択禁止（全体適用） */
-body {
-    font-family: sans-serif;
-    -webkit-user-select: none; /* iOS / Safari */
-    -ms-user-select: none;
-    user-select: none; /* 標準 */
-    overflow: hidden; /* スクロール禁止（あなたのUIは一画面完結なので） */
-    background: #ffffff;
-}
-
-/* 画面全体のレイアウト（左右2分割＋右を上下分割） */
-.app-container {
-    width: 100vw;
-    height: 100vh;
-    display: grid;
-    grid-template-columns: 1fr 1fr; /* 左：候補 / 右：カメラ＋ボタン */
-    background: #fff;
-}
-
-/* 左側（検出候補エリア） */
-.left-area {
     display: flex;
-    flex-direction: column;
-    padding: 20px;
-    gap: 16px;
+    background-color: white;
+    height: 100vh;
     overflow: hidden;
 }
 
-.left-title {
+/* 左側：検出候補エリア */
+#left-panel {
+    width: 50%;
+    padding: 20px;
+    overflow-y: auto;
+}
+
+/* タイトル */
+#candidate-title {
     font-size: 32px;
     font-weight: bold;
+    margin-bottom: 10px;
 }
 
-.candidate-area {
-    width: 100%;
-    height: calc(100% - 60px);
-    border-radius: 12px;
-    background: #f4f4f4;
-    border: 1px solid #ddd;
-}
-
-/* 右側は上下分割 */
-.right-area {
-    display: grid;
-    grid-template-rows: 65% 35%;
-    padding: 10px;
+/* トリミング画像の横並び */
+#candidate-container {
+    display: flex;
+    flex-wrap: wrap;
     gap: 10px;
 }
 
-/* カメラ映像エリア */
-.camera-area {
-    width: 100%;
-    height: 100%;
-    background: #000;
-    border-radius: 16px;
-    overflow: hidden;
-}
-
-.camera-area video {
-    width: 100%;
-    height: 100%;
+/* 赤枠付きのトリミング画像 */
+.candidate-item {
+    border: 3px solid red;
+    border-radius: 8px;
+    width: 120px;
+    height: 120px;
     object-fit: cover;
 }
 
-/* 下：ボタン群 */
-.controls-area {
+/* 右側：カメラ + ボタンエリア */
+#right-panel {
+    width: 50%;
     display: flex;
-    justify-content: center;
+    flex-direction: column;
     align-items: center;
-    gap: 16px;
+    justify-content: flex-start;
 }
 
-.control-btn {
-    padding: 14px 22px;
-    font-size: 18px;
+/* カメラ映像サイズ調整 */
+#camera {
+    width: 90%;
+    max-width: 350px;
+    border-radius: 20px;
+    margin-top: 20px;
+}
+
+/* ボタン行 */
+#button-row {
+    display: flex;
+    gap: 12px;
+    margin-top: 20px;
+}
+
+/* 個別ボタンスタイル */
+.mode-button,
+.trash-button,
+.capture-button {
+    width: 80px;
+    height: 50px;
     border-radius: 12px;
+    font-size: 20px;
     border: none;
-    background: #e0e0e0;
+    background-color: #e4e4e4;
 }
 
-.control-btn:active {
-    opacity: 0.6;
+/* ゴミ箱（だけ）青 */
+.trash-button {
+    background-color: #6bb7ff;
+    color: white;
 }
 
-/* iOS Safariで完全に選択禁止にする最強設定 */
+/* ステータス表示 */
+#status {
+    margin-top: 16px;
+    font-size: 24px;
+    font-weight: bold;
+}
+
+/* =========================================================
+   ここが重要：選択禁止（UI破壊なし）
+   ========================================================= */
+
+/* iOS Safari 含む全ブラウザで選択禁止＋長押しメニュー禁止 */
 *,
 *::before,
 *::after {
     -webkit-user-select: none !important;
-    -moz-user-select: none !important;
-    -ms-user-select: none !important;
-    user-select: none !important;
-    -webkit-touch-callout: none !important; /* 長押しメニュー禁止 */
-}
-
-/* ボタン類も強制的に選択禁止 */
-button, img, video {
-    -webkit-user-select: none !important;
     -webkit-touch-callout: none !important;
-    pointer-events: auto; /* クリックは有効 */
+    user-select: none !important;
 }
