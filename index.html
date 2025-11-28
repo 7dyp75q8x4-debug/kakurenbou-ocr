@@ -9,35 +9,36 @@
 
 <body>
 
-    <div id="container">
+<div id="container">
 
-        <!-- 左：検出候補エリア -->
-        <div id="left-panel">
-            <h2>検出候補</h2>
-            <div id="candidates"></div>
+    <!-- 左：検出候補エリア -->
+    <div id="left-panel">
+        <h2>検出候補</h2>
+        <div id="candidates"></div>
+    </div>
+
+    <!-- 右：カメラ＋ボタン -->
+    <div id="right-panel">
+
+        <!-- カメラ（高さだけHTML側で調整） -->
+        <div id="camera-wrapper" style="height:300px;">
+            <video id="camera" autoplay playsinline></video>
         </div>
 
-        <!-- 右側エリア（カメラ＋ボタン） -->
-        <div id="right-panel">
-
-            <!-- カメラ -->
-            <div id="camera-wrapper">
-                <video id="camera" autoplay playsinline></video>
-            </div>
-
-            <!-- ボタン群 -->
-            <div id="buttons">
-                <button class="mode-btn" id="qMode">Q</button>
-                <button class="mode-btn" id="aMode">A</button>
-                <button id="trash">ゴミ箱</button>
-            </div>
-
-            <div id="status">待機中</div>
-
+        <!-- ボタン群（撮影ボタン追加） -->
+        <div id="buttons">
+            <button class="mode-btn" id="qMode">Q</button>
+            <button class="mode-btn" id="aMode">A</button>
+            <button id="capture">📸</button>
+            <button id="trash">ゴミ箱</button>
         </div>
+
+        <div id="status">待機中</div>
 
     </div>
 
-    <script src="script.js"></script>
+</div>
+
+<script src="script.js"></script>
 </body>
 </html>
