@@ -1,105 +1,76 @@
-/* =========================================================
-   レイアウト全体（ここはあなたが使っていた既存レイアウトを維持）
-   ========================================================= */
-
-/* 画面全体 */
-body {
-    margin: 0;
-    padding: 0;
-    display: flex;
-    background-color: white;
-    height: 100vh;
-    overflow: hidden;
+/* 全体レイアウト：左エリア + 右カメラ/ボタン を横並び */
+#app-layout {
+  display: flex;
+  flex-direction: row;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
 }
 
-/* 左側：検出候補エリア */
-#left-panel {
-    width: 50%;
-    padding: 20px;
-    overflow-y: auto;
+/* 左：検出候補エリア */
+#detection-area {
+  width: 55%;
+  height: 100%;
+  overflow-y: auto;
+  padding: 10px;
+  box-sizing: border-box;
+  background: #fff;
 }
 
-/* タイトル */
-#candidate-title {
-    font-size: 32px;
-    font-weight: bold;
-    margin-bottom: 10px;
+/* 右側（カメラ + ボタン縦並び） */
+#right-side {
+  width: 45%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 10px;
+  box-sizing: border-box;
 }
 
-/* トリミング画像の横並び */
-#candidate-container {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
+/* カメラ部分（右上） */
+#camera-container {
+  width: 100%;
+  height: 60%;
+  background: #000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
 }
 
-/* 赤枠付きのトリミング画像 */
-.candidate-item {
-    border: 3px solid red;
-    border-radius: 8px;
-    width: 120px;
-    height: 120px;
-    object-fit: cover;
+/* ボタン部分（右下） */
+#button-area {
+  width: 100%;
+  height: 35%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-evenly;
+  align-items: center;
 }
 
-/* 右側：カメラ + ボタンエリア */
-#right-panel {
-    width: 50%;
-    display: flex;
+/* ボタン見た目 */
+button {
+  width: 80%;
+  padding: 14px;
+  font-size: 16px;
+  border-radius: 10px;
+  border: none;
+  background: #007aff;
+  color: #fff;
+}
+
+/* スマホ縦で潰れる時の最終回避用 */
+@media (max-width: 600px) {
+  #app-layout {
     flex-direction: column;
-    align-items: center;
-    justify-content: flex-start;
-}
-
-/* カメラ映像サイズ調整 */
-#camera {
-    width: 90%;
-    max-width: 350px;
-    border-radius: 20px;
-    margin-top: 20px;
-}
-
-/* ボタン行 */
-#button-row {
-    display: flex;
-    gap: 12px;
-    margin-top: 20px;
-}
-
-/* 個別ボタンスタイル */
-.mode-button,
-.trash-button,
-.capture-button {
-    width: 80px;
-    height: 50px;
-    border-radius: 12px;
-    font-size: 20px;
-    border: none;
-    background-color: #e4e4e4;
-}
-
-/* ゴミ箱（だけ）青 */
-.trash-button {
-    background-color: #6bb7ff;
-    color: white;
-}
-
-/* ステータス表示 */
-#status {
-    margin-top: 16px;
-    font-size: 24px;
-    font-weight: bold;
-}
-
-/* =========================================================
-   ここが重要：選択禁止（UI破壊なし）
-   ========================================================= */
-
-/* iOS Safari 含む全ブラウザで選択禁止＋長押しメニュー禁止 */
-*,
-*::before,
-*::after {
-    -webkit-user-select: none !important;
-    -webkit-touch-callout: none !important;
-    user-select: none !important;
+  }
+  #detection-area {
+    width: 100%;
+    height: 50%;
+  }
+  #right-side {
+    width: 100%;
+    height: 50%;
+  }
 }
