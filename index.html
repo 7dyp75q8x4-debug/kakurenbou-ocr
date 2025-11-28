@@ -1,43 +1,27 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>カメラ検出UI</title>
-    <link rel="stylesheet" href="style.css" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>debug</title>
+    <link rel="stylesheet" href="style.css">
 </head>
-
 <body>
 
-<div id="container">
+<h1 class="title">検出候補</h1>
 
-    <!-- 左：検出候補エリア -->
-    <div id="left-panel">
-        <h2>検出候補</h2>
-        <div id="candidates"></div>
-    </div>
-
-    <!-- 右：カメラ＋ボタン -->
-    <div id="right-panel">
-
-        <!-- カメラ（高さだけHTML側で調整） -->
-        <div id="camera-wrapper" style="height:300px;">
-            <video id="camera" autoplay playsinline></video>
-        </div>
-
-        <!-- ボタン群（撮影ボタン追加） -->
-        <div id="buttons">
-            <button class="mode-btn" id="qMode">Q</button>
-            <button class="mode-btn" id="aMode">A</button>
-            <button id="capture">📸</button>
-            <button id="trash">ゴミ箱</button>
-        </div>
-
-        <div id="status">待機中</div>
-
-    </div>
-
+<div class="preview-area">
+    <img id="preview" class="preview" alt="">
 </div>
+
+<div class="button-row">
+    <button id="btnQ" class="btn-small">Q</button>
+    <button id="btnA" class="btn-small">A</button>
+    <button id="btnCamera" class="btn-small">📸</button>
+    <button id="btnDelete" class="btn-bin">ゴミ箱</button>
+</div>
+
+<input type="file" id="fileInput" accept="image/*" style="display:none">
 
 <script src="script.js"></script>
 </body>
