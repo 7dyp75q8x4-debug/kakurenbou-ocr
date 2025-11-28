@@ -1,126 +1,378 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-<title>Number Search Tool</title>
-
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>検出UI（Q/A UI 実装版）</title>
 <style>
-    body {
-        margin: 0;
-        padding: 0;
-        overflow: hidden;
-        background: white;
-    }
+  :root {
+    --right-width: 34%;
+    --left-width: calc(100% - var(--right-width));
+    --bg: #ffffff;
+    --accent: #e91e63;
+    --muted: #666;
+  }
+  html,body{height:100%;margin:0;background:var(--bg);font-family:system-ui,-apple-system,"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif;color:#111;}
+  .root {display:flex;flex-direction:row;height:100vh;box-sizing:border-box;}
 
-    /* 横画面前提 */
-    .container {
-        display: flex;
-        width: 100vw;
-        height: 100vh;
-        flex-direction: row;
-        background: white;
-    }
+/* LEFT */
+  .left {
+    width: var(--left-width);
+    padding:18px 22px;
+    box-sizing:border-box;
+    background: #fff;
+  }
+  .left h2{margin:6px 0 12px 0;font-size:18px;color:#333;}
+  .topRow { display:flex; gap:12px; align-items:flex-start; margin-bottom:16px; flex-wrap:nowrap; overflow-x:auto; padding-bottom:6px; }
+  .topItem{ display:flex; flex-direction:column; align-items:center; min-width:76px; }
+  .topItem .num { color: #d32f2f; font-weight:800; font-size:18px; margin-bottom:6px; }
+  .thumb { width:68px; height:68px; object-fit:cover; border:2px solid #ddd; background:#fafafa; }
 
-    /* 左側：白背景（読み取り結果を置く場所） */
-    .left-panel {
-        width: 65vw;
-        height: 100vh;
-        background: white;
-        border-right: 2px solid #e5e5e5;
-    }
+  .grid { display:flex; gap:12px; flex-wrap:wrap; }
 
-    /* 右側 */
-    .right-panel {
-        width: 35vw;
-        height: 100vh;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        background: white;
-    }
+/* RIGHT */
+  .right { width: var(--right-width); border-left: 1px solid #eee; box-sizing:border-box; padding:12px; display:flex; flex-direction:column; align-items:center; }
 
-    /* カメラ表示領域（16:9） */
-    .camera-wrapper {
-        width: 90%;
-        aspect-ratio: 16 / 9;
-        margin-top: 20px;
-        background: #000;
-        border-radius: 8px;
-        overflow: hidden;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-    }
+  .rightTop { width:100%; display:flex; justify-content:flex-end; align-items:center; gap:14px; margin-bottom:6px; }
+  .trashBtn{ width:28px; height:28px; cursor:pointer; opacity:0.95; }
+  .processing { font-size:13px; color:#333; margin-right:6px; }
 
-    video {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-    }
+/* camera preview */
+  .cameraWrap {
+    width:100%;
+    aspect-ratio:16/9;
+    background:#000;
+    position:relative;
+    overflow:hidden;
+    border-radius:6px;
+    border:1px solid #ddd;
+    min-height:140px;
+    flex-shrink:0;
+  }
+  #cameraVideo { width:100%; height:100%; object-fit:cover; display:block !important; background:#000; }
 
-    /* ボタン（画像） */
-    .button-area {
-        margin-top: 20px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 15px;
-    }
+  .overlayTopLeft { position:absolute; left:8px; top:8px; color:#fff; font-weight:700; background:rgba(0,0,0,0.35); padding:4px 6px; border-radius:4px; font-size:12px; }
 
-    .btn-img {
-        width: 120px;
-        height: auto;
-    }
+/* controls */
+  .controls { width:100%; margin-top:10px; display:flex; flex-direction:column; align-items:center; gap:10px; }
+  .navRow { width:100%; display:flex; justify-content:center; gap:8px; align-items:center; }
+  .navBtn { width:40px; height:40px; border-radius:6px; border:1px solid #ddd; background:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer; box-shadow:0 1px 0 rgba(0,0,0,0.04); }
+
+  .onRow { display:flex; align-items:center; gap:12px; }
+  .onBtnImg { width:94px; height:46px; cursor:pointer; user-select:none; -webkit-user-select:none; }
+
+  .adjustRow { width:100%; display:flex; justify-content:space-around; gap:8px; margin-top:6px; }
+  .adjustCol { display:flex; flex-direction:column; gap:6px; align-items:center; }
+  .adjustBtn { width:34px; height:28px; border-radius:6px; border:1px solid #ddd; background:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+
+  .bottomRow { width:100%; display:flex; justify-content:space-between; gap:8px; margin-top:14px; }
+  .modeBtn { flex:1; height:48px; border-radius:24px; border:1px solid #ddd; background:#fff; font-size:18px; font-weight:700; cursor:pointer; }
+  .modeBtn.active { background:#f0f0f0; border-color:#aaa; box-shadow:inset 0 -2px 0 rgba(0,0,0,0.04); }
+
+  .muted { color:var(--muted); font-size:13px; margin-top:6px; text-align:center; }
+
+/* scroll styling for topRow */
+  .topRow::-webkit-scrollbar{ height:8px; }
+  .topRow::-webkit-scrollbar-thumb{ background:#eee; border-radius:4px; }
 </style>
 </head>
-
 <body>
-
-<div class="container">
-
-    <!-- 左側：真っ白 -->
-    <div class="left-panel"></div>
-
-    <!-- 右側：カメラ＋ボタン -->
-    <div class="right-panel">
-
-        <!-- カメラ領域 -->
-        <div class="camera-wrapper">
-            <video id="camera" autoplay playsinline></video>
-        </div>
-
-        <!-- ボタンたち（今は ON ボタンのみ） -->
-        <div class="button-area">
-            <img src="on_button.png" class="btn-img" id="btnShoot" />
-        </div>
-
+  <div class="root">
+    <div class="left" id="leftArea">
+      <h2>検出候補</h2>
+      <div class="topRow" id="topRow"><!-- Qで追加される赤数字＋thumb がここに並ぶ --></div>
+      <div class="grid" id="gridArea"><!-- Aで追加される候補グリッド --></div>
     </div>
-</div>
+
+    <div class="right">
+      <div class="rightTop">
+        <img class="trashBtn" id="clearBtn" title="全てクリア" src="data:image/svg+xml;utf8,
+          <svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' fill='%23333' viewBox='0 0 24 24'><path d='M3 6h18v2H3V6zm2 3h14l-1 12H6L5 9zm3-6h6l1 2H7l1-2z'/></svg>" />
+        <div class="processing">処理中: <span id="processingCount">0</span></div>
+      </div>
+
+      <div class="cameraWrap">
+        <video id="cameraVideo" autoplay playsinline muted></video>
+        <div class="overlayTopLeft" id="overlayLabel" style="display:none;"></div>
+      </div>
+
+      <div class="controls">
+        <div class="navRow"><div class="navBtn" id="upBtn" title="上">▲</div></div>
+        <div class="navRow" style="margin-top:6px;">
+          <div class="navBtn" id="leftBtn" title="左">◀</div>
+          <div style="width:16px;"></div>
+          <div class="navBtn" id="rightBtn" title="右">▶</div>
+        </div>
+        <div class="navRow"><div class="navBtn" id="downBtn" title="下">▼</div></div>
+
+        <div class="onRow">
+          <!-- ON ボタン（Base64 SVG） -->
+          <img id="onBtn" class="onBtnImg" alt="ON" src="data:image/svg+xml;utf8,
+            <svg xmlns='http://www.w3.org/2000/svg' width='188' height='88' viewBox='0 0 188 88'>
+              <rect rx='20' ry='20' width='188' height='88' fill='%23f3e7ff' stroke='%239c83ff' stroke-width='2'/>
+              <text x='50%' y='55%' dominant-baseline='middle' text-anchor='middle' font-size='30' font-family='Arial' fill='%23333'>ON</text>
+            </svg>" />
+          <div id="onStatus" style="min-width:80px;text-align:left;color:#333;">&nbsp;</div>
+        </div>
+
+        <div class="adjustRow">
+          <div class="adjustCol"><div style="font-size:12px;color:#444;">高</div>
+            <div style="display:flex;gap:6px;"><button class="adjustBtn" id="highMinus">−</button><button class="adjustBtn" id="highPlus">＋</button></div>
+          </div>
+          <div class="adjustCol"><div style="font-size:12px;color:#444;">幅</div>
+            <div style="display:flex;gap:6px;"><button class="adjustBtn" id="widthMinus">−</button><button class="adjustBtn" id="widthPlus">＋</button></div>
+          </div>
+        </div>
+
+        <div class="bottomRow">
+          <button id="modeQ" class="modeBtn">Q</button>
+          <button id="modeA" class="modeBtn">A</button>
+        </div>
+        <div class="muted">Q でお題読み取り / A で答え探索</div>
+      </div>
+    </div>
+  </div>
 
 <script>
-/* カメラ起動（横画面でも必ず表示されるように修正済み） */
-async function startCamera() {
+/*
+ UI-only with Q/A interactions (no OCR)
+ - Qモード: ONで左上(topRow)に赤数字+thumbを追加（実画像の切り出し or sample）
+ - Aモード: ONで左gridに候補を追加（実画像の切り出し or sample）
+ - topRow limited to 7 items (oldest removed when exceed)
+ - Camera persistence fixes for landscape
+*/
+
+(() => {
+  const topRow = document.getElementById('topRow');
+  const gridArea = document.getElementById('gridArea');
+  const clearBtn = document.getElementById('clearBtn');
+  const processingCount = document.getElementById('processingCount');
+  const onBtn = document.getElementById('onBtn');
+  const onStatus = document.getElementById('onStatus');
+  const modeQ = document.getElementById('modeQ');
+  const modeA = document.getElementById('modeA');
+  const cameraVideo = document.getElementById('cameraVideo');
+  const overlayLabel = document.getElementById('overlayLabel');
+
+  // sample fallback images (provided earlier)
+  const sampleImgs = [
+    '/mnt/data/2A1B257C-EA6B-4552-9A08-26924A9C8246.jpeg',
+    '/mnt/data/7F9984FD-98D4-40E9-93FF-51A8C903CAF8.jpeg'
+  ];
+
+  let qMode = false;
+  let aMode = false;
+  let processing = 0;
+  let nextSample = 0;
+
+  // start camera robustly
+  async function startCamera(){
     try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-            video: {
-                facingMode: "environment",
-                width: { ideal: 1920 },
-                height: { ideal: 1080 }
-            },
-            audio: false
-        });
-
-        const video = document.getElementById("camera");
-        video.srcObject = stream;
-
-    } catch (error) {
-        console.error("カメラを起動できません:", error);
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { exact: "environment" }, width: { ideal:1280 }, height: { ideal:720 } },
+        audio:false
+      });
+      cameraVideo.srcObject = stream;
+      await cameraVideo.play().catch(()=>{});
+      cameraVideo.style.display = 'block';
+    } catch (e) {
+      // fallback non-exact
+      try {
+        const s2 = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio:false });
+        cameraVideo.srcObject = s2;
+        await cameraVideo.play().catch(()=>{});
+        cameraVideo.style.display = 'block';
+      } catch (e2) {
+        console.warn('camera not available', e2);
+        cameraVideo.style.display = 'none';
+        overlayLabel.style.display = 'block';
+        overlayLabel.textContent = 'カメラ未接続';
+      }
     }
-}
+  }
 
-startCamera();
+  // ensure visibility on orientation/resize
+  function ensureVideoVisibility(){ if (cameraVideo && cameraVideo.srcObject){ cameraVideo.style.display='block'; overlayLabel.style.display='none'; } }
+  window.addEventListener('resize', ensureVideoVisibility);
+  window.addEventListener('orientationchange', ensureVideoVisibility);
+
+  startCamera();
+
+  // helper: capture current frame to canvas
+  function captureCanvas(){
+    const vw = cameraVideo.videoWidth || 1280;
+    const vh = cameraVideo.videoHeight || 720;
+    const c = document.createElement('canvas');
+    c.width = vw;
+    c.height = vh;
+    const ctx = c.getContext('2d');
+    // if video available draw it, else draw fallback color
+    if (cameraVideo && cameraVideo.srcObject) {
+      ctx.drawImage(cameraVideo, 0, 0, vw, vh);
+    } else {
+      ctx.fillStyle = '#ddd';
+      ctx.fillRect(0,0,vw,vh);
+    }
+    return c;
+  }
+
+  // helper: produce a crop (center area) for thumbnail
+  function makeThumbCanvas(fullCanvas, w=68, h=68){
+    const fw = fullCanvas.width, fh = fullCanvas.height;
+    const cw = Math.round(fw * 0.2), ch = Math.round(fh * 0.12);
+    const cx = Math.max(0, Math.round((fw - cw)/2));
+    const cy = Math.max(0, Math.round(fh * 0.18));
+    const crop = document.createElement('canvas');
+    crop.width = w; crop.height = h;
+    const ctx = crop.getContext('2d');
+    ctx.drawImage(fullCanvas, cx, cy, cw, ch, 0, 0, w, h);
+    return crop;
+  }
+
+  // add top item (limit 7)
+  function addTopItem(numText, dataUrl){
+    // cap at 7 items
+    while (topRow.children.length >= 7) { topRow.removeChild(topRow.lastChild); }
+    const item = document.createElement('div'); item.className='topItem';
+    const label = document.createElement('div'); label.className='num'; label.textContent = numText;
+    const img = document.createElement('img'); img.className='thumb'; img.src = dataUrl;
+    item.appendChild(label); item.appendChild(img);
+    topRow.insertBefore(item, topRow.firstChild);
+  }
+
+  // add grid item (A mode)
+  function addGridItem(numText, dataUrl){
+    const div = document.createElement('div'); div.className='gridItem';
+    const label = document.createElement('div'); label.className='num2'; label.textContent = numText;
+    const img = document.createElement('img'); img.src = dataUrl;
+    img.onerror = ()=>{ img.src = 'data:image/svg+xml;utf8,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="110" height="110"><rect width="100%" height="100%" fill="#fafafa"/></svg>'); };
+    div.appendChild(label); div.appendChild(img);
+    gridArea.insertBefore(div, gridArea.firstChild);
+  }
+
+  // Use sample image if camera not available
+  function getSampleDataUrl(idx, thumbW=68, thumbH=68){
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.src = sampleImgs[idx % sampleImgs.length];
+    // create canvas sync? we must handle async loading -> return promise
+    return new Promise((resolve) => {
+      img.onload = () => {
+        const c = document.createElement('canvas');
+        c.width = thumbW; c.height = thumbH;
+        const ctx = c.getContext('2d');
+        // draw center crop
+        const sx = Math.max(0, (img.width - img.width*0.2)/2);
+        const sy = Math.max(0, img.height*0.18);
+        const sw = Math.round(img.width*0.2), sh = Math.round(img.height*0.12);
+        ctx.drawImage(img, sx, sy, sw, sh, 0, 0, thumbW, thumbH);
+        resolve(c.toDataURL('image/png'));
+      };
+      img.onerror = () => {
+        // fallback placeholder
+        const c = document.createElement('canvas');
+        c.width = thumbW; c.height = thumbH;
+        const ctx = c.getContext('2d');
+        ctx.fillStyle = '#f5f5f5'; ctx.fillRect(0,0,c.width,c.height);
+        resolve(c.toDataURL('image/png'));
+      };
+    });
+  }
+
+  // main handler when ON pressed (single shot)
+  async function handleOnPress(){
+    processing += 1;
+    processingCount.textContent = processing;
+    onStatus.textContent = '処理中...';
+
+    // simulate a small delay to mimic processing
+    await new Promise(r => setTimeout(r, 220));
+
+    if (qMode){
+      // Q mode: add to topRow (max 7)
+      let thumbData;
+      if (cameraVideo && cameraVideo.srcObject) {
+        const full = captureCanvas();
+        const thumb = makeThumbCanvas(full, 68, 68);
+        thumbData = thumb.toDataURL('image/png');
+      } else {
+        thumbData = await getSampleDataUrl(nextSample, 68, 68);
+      }
+
+      // label: since OCR not hooked up, use sample 3-digit rotating labels for UI demo
+      const sampleLabel = ('' + (100 + (nextSample*7)%900)).slice(0,3);
+      addTopItem(sampleLabel, thumbData);
+      nextSample++;
+
+    } else if (aMode){
+      // A mode: add to grid area
+      let thumbData;
+      if (cameraVideo && cameraVideo.srcObject) {
+        const full = captureCanvas();
+        const thumb = makeThumbCanvas(full, 110, 110);
+        thumbData = thumb.toDataURL('image/png');
+      } else {
+        thumbData = await getSampleDataUrl(nextSample, 110, 110);
+      }
+      const sampleLabel = ('' + (100 + (nextSample*11)%900)).slice(0,3);
+      addGridItem(sampleLabel, thumbData);
+      nextSample++;
+    } else {
+      // neither mode: quick flash message
+      onStatus.textContent = 'Q か A を選択してください';
+      await new Promise(r => setTimeout(r, 600));
+    }
+
+    processing = Math.max(0, processing - 1);
+    processingCount.textContent = processing;
+    onStatus.textContent = '';
+  }
+
+  // long-press handling for continuous capture
+  let pressTimer = null;
+  onBtn.addEventListener('mousedown', () => {
+    // immediate capture
+    handleOnPress();
+    pressTimer = setInterval(handleOnPress, 700);
+  });
+  document.addEventListener('mouseup', () => { if (pressTimer){ clearInterval(pressTimer); pressTimer=null; } });
+
+  // touch support
+  onBtn.addEventListener('touchstart', (e)=>{ e.preventDefault(); handleOnPress(); pressTimer = setInterval(handleOnPress,700); }, {passive:false});
+  document.addEventListener('touchend', ()=>{ if (pressTimer){ clearInterval(pressTimer); pressTimer=null; } });
+
+  // mode toggles
+  modeQ.addEventListener('click', ()=>{
+    qMode = !qMode;
+    aMode = false;
+    modeQ.classList.toggle('active', qMode);
+    modeA.classList.remove('active');
+  });
+  modeA.addEventListener('click', ()=>{
+    aMode = !aMode;
+    qMode = false;
+    modeA.classList.toggle('active', aMode);
+    modeQ.classList.remove('active');
+  });
+
+  // clear handler
+  clearBtn.addEventListener('click', ()=>{ topRow.innerHTML=''; gridArea.innerHTML=''; });
+
+  // small UI feedback for nav/adjust buttons (no functionality)
+  ['upBtn','downBtn','leftBtn','rightBtn','highPlus','highMinus','widthPlus','widthMinus'].forEach(id=>{
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('click', ()=>{ el.style.transform='translateY(1px)'; setTimeout(()=>el.style.transform='',120); });
+  });
+
+  // support keyboard for quick test
+  document.addEventListener('keydown', (e)=>{
+    if (e.key.toLowerCase()==='q') modeQ.click();
+    if (e.key.toLowerCase()==='a') modeA.click();
+    if (e.key===' ') onBtn.click();
+  });
+
+})();
 </script>
-
 </body>
 </html>
