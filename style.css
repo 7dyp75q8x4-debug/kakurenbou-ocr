@@ -1,87 +1,91 @@
-body {
+/* 全体の初期化 */
+* {
     margin: 0;
-    font-family: sans-serif;
-    background: white;
+    padding: 0;
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent; /* iOS タップ時の青ハイライト無効化 */
 }
 
-/* 全体を左右に分割 */
-#container {
-    display: flex;
+/* テキスト選択禁止（全体適用） */
+body {
+    font-family: sans-serif;
+    -webkit-user-select: none; /* iOS / Safari */
+    -ms-user-select: none;
+    user-select: none; /* 標準 */
+    overflow: hidden; /* スクロール禁止（あなたのUIは一画面完結なので） */
+    background: #ffffff;
+}
+
+/* 画面全体のレイアウト（左右2分割＋右を上下分割） */
+.app-container {
     width: 100vw;
     height: 100vh;
+    display: grid;
+    grid-template-columns: 1fr 1fr; /* 左：候補 / 右：カメラ＋ボタン */
+    background: #fff;
 }
 
-/* 左側：検出候補 */
-#left-panel {
-    flex: 1;
-    padding: 16px;
-}
-
-#left-panel h2 {
-    margin-top: 0;
-    font-size: 28px;
-    font-weight: bold;
-}
-
-#candidates {
+/* 左側（検出候補エリア） */
+.left-area {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-}
-
-/* 右側：カメラ＋ボタン */
-#right-panel {
-    width: 45%;
-    padding: 10px;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-}
-
-/* カメラ映像 */
-#camera-wrapper {
-    width: 100%;
-    aspect-ratio: 1 / 1;
-    background: #eee;
-    border-radius: 15px;
+    padding: 20px;
+    gap: 16px;
     overflow: hidden;
 }
 
-#camera {
+.left-title {
+    font-size: 32px;
+    font-weight: bold;
+}
+
+.candidate-area {
+    width: 100%;
+    height: calc(100% - 60px);
+    border-radius: 12px;
+    background: #f4f4f4;
+    border: 1px solid #ddd;
+}
+
+/* 右側は上下分割 */
+.right-area {
+    display: grid;
+    grid-template-rows: 65% 35%;
+    padding: 10px;
+    gap: 10px;
+}
+
+/* カメラ映像エリア */
+.camera-area {
+    width: 100%;
+    height: 100%;
+    background: #000;
+    border-radius: 16px;
+    overflow: hidden;
+}
+
+.camera-area video {
     width: 100%;
     height: 100%;
     object-fit: cover;
 }
 
-/* ボタン群 */
-#buttons {
+/* 下：ボタン群 */
+.controls-area {
     display: flex;
-    justify-content: space-around;
-    margin-top: 10px;
+    justify-content: center;
+    align-items: center;
+    gap: 16px;
 }
 
-.mode-btn {
-    width: 60px;
-    height: 40px;
-    border-radius: 10px;
-    border: none;
-    background: #ddd;
+.control-btn {
+    padding: 14px 22px;
     font-size: 18px;
-}
-
-#trash {
-    width: 100px;
-    height: 40px;
-    border-radius: 10px;
+    border-radius: 12px;
     border: none;
-    background: #87cefa;
-    font-size: 18px;
+    background: #e0e0e0;
 }
 
-/* ステータス表示 */
-#status {
-    text-align: center;
-    margin-top: 5px;
-    font-size: 20px;
-    font-weight: bold;
+.control-btn:active {
+    opacity: 0.6;
 }
