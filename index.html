@@ -1,28 +1,9 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>debug</title>
-    <link rel="stylesheet" href="style.css">
-</head>
-<body>
+<div class="container">
+  <h1 class="title">検出候補</h1>
 
-<h1 class="title">検出候補</h1>
+  <div class="image-wrapper">
+    <img src="YOUR_IMAGE_URL" class="preview-image noselect">
+  </div>
 
-<div class="preview-area">
-    <img id="preview" class="preview" alt="">
+  <div class="status">待機中</div>
 </div>
-
-<div class="button-row">
-    <button id="btnQ" class="btn-small">Q</button>
-    <button id="btnA" class="btn-small">A</button>
-    <button id="btnCamera" class="btn-small">📸</button>
-    <button id="btnDelete" class="btn-bin">ゴミ箱</button>
-</div>
-
-<input type="file" id="fileInput" accept="image/*" style="display:none">
-
-<script src="script.js"></script>
-</body>
-</html>
