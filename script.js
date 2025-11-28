@@ -1,33 +1,21 @@
-let mode = "Q";
+const preview = document.getElementById("preview");
+const fileInput = document.getElementById("fileInput");
 
-/* モード切替 */
-document.getElementById("qMode").onclick = () => {
-    mode = "Q";
-    document.getElementById("status").textContent = "Qモード：お題読取り待機";
+// カメラ起動
+document.getElementById("btnCamera").onclick = () => {
+    fileInput.click();
 };
 
-document.getElementById("aMode").onclick = () => {
-    mode = "A";
-    document.getElementById("status").textContent = "Aモード：解答探索";
-};
-
-/* ゴミ箱 */
-document.getElementById("trash").onclick = () => {
-    document.getElementById("candidates").innerHTML = "";
-    document.getElementById("status").textContent = "クリア";
-};
-
-/* カメラ起動 */
-async function startCamera() {
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: "environment" },
-            audio: false
-        });
-        document.getElementById("camera").srcObject = stream;
-    } catch (e) {
-        alert("カメラが使用できません");
+// 画像読み込み
+fileInput.onchange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+        preview.src = URL.createObjectURL(file);
     }
-}
+};
 
-startCamera();
+// ゴミ箱ボタン
+document.getElementById("btnDelete").onclick = () => {
+    preview.src = "";
+    fileInput.value = "";
+};
