@@ -1,466 +1,126 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>検出UI（画像模写）</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+<title>Number Search Tool</title>
+
 <style>
-  :root{
-    --right-width: 34%;
-    --left-width: calc(100% - var(--right-width));
-    --bg: #ffffff; /* 指示どおり白背景 */
-    --accent: #e91e63;
-    --muted: #666;
-  }
-  html,body{height:100%;margin:0;background:var(--bg);font-family:Segoe UI, Roboto, "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;color:#111;}
-  /* 全体横レイアウト */
-  .root {display:flex;flex-direction:row;height:100vh;box-sizing:border-box;}
+    body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background: white;
+    }
 
-/* 左側：検出候補エリア */
-  .left {
-    width: var(--left-width);
-    padding:18px 22px;
-    box-sizing:border-box;
-  }
-  .left h2{margin:6px 0 12px 0;font-size:18px;color:#333;}
-  /* 上段に赤文字の小さなサムネが横並び（画像の上段） */
-  .topRow {
-    display:flex;
-    gap:12px;
-    align-items:flex-start;
-    margin-bottom:16px;
-    flex-wrap:wrap;
-  }
-  .topItem{
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-  }
-  .topItem .num { color: #d32f2f; font-weight:700; margin-bottom:6px; }
-  .thumb { width:68px; height:68px; object-fit:cover; border:2px solid #ddd; background:#fafafa; }
+    /* 横画面前提 */
+    .container {
+        display: flex;
+        width: 100vw;
+        height: 100vh;
+        flex-direction: row;
+        background: white;
+    }
 
-/* 中段：大きめ一覧（画像） */
-  .grid {
-    display:flex;
-    gap:12px;
-    flex-wrap:wrap;
-  }
-  .gridItem { text-align:center; width:110px; }
-  .gridItem .num2 { color:#111; font-weight:700; margin-bottom:6px; }
-  .gridItem img{ width:110px; height:110px; object-fit:cover; border:2px solid #ddd; background:#fafafa; }
+    /* 左側：白背景（読み取り結果を置く場所） */
+    .left-panel {
+        width: 65vw;
+        height: 100vh;
+        background: white;
+        border-right: 2px solid #e5e5e5;
+    }
 
-/* 右側：カメラ + コントロール */
-  .right {
-    width: var(--right-width);
-    border-left: 1px solid #eee;
-    box-sizing:border-box;
-    padding:12px;
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-  }
+    /* 右側 */
+    .right-panel {
+        width: 35vw;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        background: white;
+    }
 
-  /* top bar (trash + processing) */
-  .rightTop {
-    width:100%;
-    display:flex;
-    justify-content:flex-end;
-    align-items:center;
-    gap:14px;
-    margin-bottom:6px;
-  }
-  .trashBtn{ width:28px; height:28px; cursor:pointer; opacity:0.9; }
-  .processing { font-size:13px; color:#333; margin-right:6px; }
+    /* カメラ表示領域（16:9） */
+    .camera-wrapper {
+        width: 90%;
+        aspect-ratio: 16 / 9;
+        margin-top: 20px;
+        background: #000;
+        border-radius: 8px;
+        overflow: hidden;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
 
-  /* camera preview area (16:9)
-     NOTE: added min-height and flex-shrink:0 to prevent collapsing in landscape */
-  .cameraWrap {
-    width:100%;
-    aspect-ratio:16/9;
-    background:#000;
-    position:relative;
-    overflow:hidden;
-    border-radius:6px;
-    border:1px solid #ddd;
-    min-height:120px;       /* ensure some visible height even on narrow layouts */
-    flex-shrink: 0;         /* do not shrink when container changes */
-  }
-  #cameraVideo { width:100%; height:100%; object-fit:cover; display:block !important; background:#000; }
+    video {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
 
-  /* small labels overlay on camera if needed */
-  .overlayTopLeft { position:absolute; left:8px; top:8px; color:#fff; font-weight:700; background:rgba(0,0,0,0.35); padding:4px 6px; border-radius:4px; font-size:12px; }
+    /* ボタン（画像） */
+    .button-area {
+        margin-top: 20px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 15px;
+    }
 
-  /* controls under camera */
-  .controls {
-    width:100%;
-    margin-top:10px;
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    gap:10px;
-  }
-
-  /* directional / adjustment buttons area */
-  .navRow {
-    width:100%;
-    display:flex;
-    justify-content:center;
-    gap:8px;
-    align-items:center;
-  }
-  .navBtn {
-    width:40px; height:40px; border-radius:6px; border:1px solid #ddd; background:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer;
-    box-shadow: 0 1px 0 rgba(0,0,0,0.05);
-  }
-
-  /* ON button (capture) - must be an image element per your rule */
-  .onRow { display:flex; align-items:center; gap:12px; }
-  .onBtnImg { width:84px; height:42px; cursor:pointer; user-select:none; -webkit-user-select:none; }
-
-  /* adjustment sliders/controls */
-  .adjustRow { width:100%; display:flex; justify-content:space-around; gap:8px; margin-top:6px; }
-  .adjustCol { display:flex; flex-direction:column; gap:6px; align-items:center; }
-
-  .adjustBtn { width:34px; height:28px; border-radius:6px; border:1px solid #ddd; background:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center; }
-
-  /* bottom Q / A buttons */
-  .bottomRow { width:100%; display:flex; justify-content:space-between; gap:8px; margin-top:14px; }
-  .modeBtn {
-    flex:1;
-    height:48px;
-    border-radius:24px;
-    border:1px solid #ddd;
-    background:#fff;
-    font-size:18px;
-    font-weight:700;
-    cursor:pointer;
-  }
-  .modeBtn.active { background:#f0f0f0; border-color:#aaa; box-shadow:inset 0 -2px 0 rgba(0,0,0,0.04); }
-
-  /* small helper */
-  .muted { color:var(--muted); font-size:13px; margin-top:6px; text-align:center; }
+    .btn-img {
+        width: 120px;
+        height: auto;
+    }
 </style>
 </head>
+
 <body>
-  <div class="root">
-    <!-- LEFT: detected images -->
-    <div class="left" id="leftArea">
-      <h2>検出候補</h2>
 
-      <!-- top small row with red numbers above small thumbs -->
-      <div class="topRow" id="topRow">
-        <!-- dynamically filled -->
-      </div>
+<div class="container">
 
-      <!-- larger grid below -->
-      <div class="grid" id="gridArea">
-        <!-- dynamically filled -->
-      </div>
+    <!-- 左側：真っ白 -->
+    <div class="left-panel"></div>
+
+    <!-- 右側：カメラ＋ボタン -->
+    <div class="right-panel">
+
+        <!-- カメラ領域 -->
+        <div class="camera-wrapper">
+            <video id="camera" autoplay playsinline></video>
+        </div>
+
+        <!-- ボタンたち（今は ON ボタンのみ） -->
+        <div class="button-area">
+            <img src="on_button.png" class="btn-img" id="btnShoot" />
+        </div>
+
     </div>
-
-    <!-- RIGHT: camera + controls -->
-    <div class="right">
-      <div class="rightTop">
-        <img class="trashBtn" id="clearBtn" title="全てクリア" src="data:image/svg+xml;utf8,
-          <svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' fill='%23333' viewBox='0 0 24 24'><path d='M3 6h18v2H3V6zm2 3h14l-1 12H6L5 9zm3-6h6l1 2H7l1-2z'/></svg>" />
-        <div class="processing">処理中: <span id="processingCount">0</span></div>
-      </div>
-
-      <div class="cameraWrap">
-        <!-- video element; will try to use back camera -->
-        <video id="cameraVideo" autoplay playsinline muted></video>
-        <!-- overlay sample (optional) -->
-        <div class="overlayTopLeft" id="overlayLabel" style="display:none;">ラベル</div>
-      </div>
-
-      <div class="controls">
-        <!-- directional arrow row -->
-        <div class="navRow">
-          <div class="navBtn" id="upBtn" title="上">▲</div>
-        </div>
-        <div class="navRow" style="margin-top:6px;">
-          <div class="navBtn" id="leftBtn" title="左">◀</div>
-          <div style="width:16px;"></div>
-          <div class="navBtn" id="rightBtn" title="右">▶</div>
-        </div>
-        <div class="navRow">
-          <div class="navBtn" id="downBtn" title="下">▼</div>
-        </div>
-
-        <!-- ON button (capture) - MUST be image per your rule -->
-        <div class="onRow">
-          <img id="onBtn" class="onBtnImg" alt="ON" src="data:image/svg+xml;utf8,
-            <svg xmlns='http://www.w3.org/2000/svg' width='168' height='84' viewBox='0 0 168 84'>
-              <rect rx='22' ry='22' width='168' height='84' fill='%23f3e7ff' stroke='%239c83ff' stroke-width='2'/>
-              <text x='50%' y='55%' dominant-baseline='middle' text-anchor='middle' font-size='28' font-family='Arial' fill='%23333'>ON</text>
-            </svg>" />
-
-          <!-- status -->
-          <div id="onStatus" style="min-width:70px;text-align:left;color:#333;">&nbsp;</div>
-        </div>
-
-        <div class="adjustRow">
-          <div class="adjustCol">
-            <div style="font-size:12px;color:#444;">高</div>
-            <div style="display:flex;gap:6px;">
-              <button class="adjustBtn" id="highMinus">−</button>
-              <button class="adjustBtn" id="highPlus">＋</button>
-            </div>
-          </div>
-          <div class="adjustCol">
-            <div style="font-size:12px;color:#444;">幅</div>
-            <div style="display:flex;gap:6px;">
-              <button class="adjustBtn" id="widthMinus">−</button>
-              <button class="adjustBtn" id="widthPlus">＋</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="bottomRow">
-          <button id="modeQ" class="modeBtn">Q</button>
-          <button id="modeA" class="modeBtn">A</button>
-        </div>
-
-        <div class="muted">※ Q を押してお題読み取りモードにしてから ON を押してください</div>
-      </div>
-    </div>
-  </div>
+</div>
 
 <script>
-/*
-  UI-only implementation per your instruction:
-  - Recreates the layout from the supplied sample image.
-  - Q (mode) + ON (image-button) behavior: when in Q mode and ON clicked,
-    a "detected" thumbnail + red 3-digit label is added to the left top row.
-  - Clear (trash) empties left lists.
-  - Processing counter and temporary "処理中" pulses are emulated.
-  - Camera tries to use back camera; if unavailable a placeholder is shown.
-  - No OCR or Cloud Vision integration here (you asked first for UI).
-  - Uses bundled sample images (if available on the host) or fallback placeholder.
-*/
-
-(() => {
-  const topRow = document.getElementById('topRow');
-  const gridArea = document.getElementById('gridArea');
-  const clearBtn = document.getElementById('clearBtn');
-  const processingCount = document.getElementById('processingCount');
-  const onBtn = document.getElementById('onBtn');
-  const onStatus = document.getElementById('onStatus');
-  const modeQ = document.getElementById('modeQ');
-  const modeA = document.getElementById('modeA');
-  const cameraVideo = document.getElementById('cameraVideo');
-  const overlayLabel = document.getElementById('overlayLabel');
-
-  // sample "detections" to mimic the look in the provided image
-  // These use uploaded images if present in the session; otherwise fallback to same.
-  const sampleDetections = [
-    { num: '284', img: '/mnt/data/2A1B257C-EA6B-4552-9A08-26924A9C8246.jpeg' },
-    { num: '166', img: '/mnt/data/7F9984FD-98D4-40E9-93FF-51A8C903CAF8.jpeg' },
-    // duplicates / variety to fill grid
-    { num: '381', img: '/mnt/data/2A1B257C-EA6B-4552-9A08-26924A9C8246.jpeg' },
-    { num: '073', img: '/mnt/data/7F9984FD-98D4-40E9-93FF-51A8C903CAF8.jpeg' },
-    { num: '000', img: '/mnt/data/2A1B257C-EA6B-4552-9A08-26924A9C8246.jpeg' },
-    { num: '079', img: '/mnt/data/7F9984FD-98D4-40E9-93FF-51A8C903CAF8.jpeg' },
-    { num: '343', img: '/mnt/data/2A1B257C-EA6B-4552-9A08-26924A9C8246.jpeg' },
-    { num: '284b', img: '/mnt/data/7F9984FD-98D4-40E9-93FF-51A8C903CAF8.jpeg' }
-  ];
-
-  // pointer to next sample to show when capture is pressed
-  let nextSampleIndex = 0;
-  let processing = 0;
-  let qMode = false;
-
-  // try to start back camera (best effort)
-  async function startCamera(){
+/* カメラ起動（横画面でも必ず表示されるように修正済み） */
+async function startCamera() {
     try {
-      // try facingMode environment first
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: "environment" } }, audio:false });
-      cameraVideo.srcObject = stream;
-      // ensure playback starts and video is visible
-      await cameraVideo.play().catch(()=>{ /* autoplay might be blocked until user gesture */ });
-      cameraVideo.style.display = 'block';
-      return;
-    } catch (e) {
-      try {
-        // fallback
-        const s2 = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio:false });
-        cameraVideo.srcObject = s2;
-        await cameraVideo.play().catch(()=>{});
-        cameraVideo.style.display = 'block';
-        return;
-      } catch (e2) {
-        // no camera — show placeholder (keep black background)
-        console.warn('No camera available or permission denied.');
-        cameraVideo.style.display = 'none';
-        overlayLabel.style.display = 'block';
-        overlayLabel.textContent = 'カメラ未接続';
-      }
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+                facingMode: "environment",
+                width: { ideal: 1920 },
+                height: { ideal: 1080 }
+            },
+            audio: false
+        });
+
+        const video = document.getElementById("camera");
+        video.srcObject = stream;
+
+    } catch (error) {
+        console.error("カメラを起動できません:", error);
     }
-  }
+}
 
-  // ensure video stays visible on resize/orientation change
-  function ensureVideoVisibility(){
-    // if video has an active stream, make sure it's visible
-    if (cameraVideo && cameraVideo.srcObject) {
-      cameraVideo.style.display = 'block';
-      overlayLabel.style.display = 'none';
-    } else {
-      // keep overlay visible if no camera
-      cameraVideo.style.display = 'none';
-      overlayLabel.style.display = 'block';
-    }
-  }
-
-  // listen for resizes/orientation changes
-  window.addEventListener('resize', ensureVideoVisibility);
-  window.addEventListener('orientationchange', ensureVideoVisibility);
-
-  startCamera();
-
-  // Add a detection to the left top row (red number + small thumb)
-  function addTopDetection(num, imgSrc){
-    const item = document.createElement('div');
-    item.className = 'topItem';
-    const label = document.createElement('div');
-    label.className = 'num';
-    label.textContent = num;
-    const img = document.createElement('img');
-    img.className = 'thumb';
-    img.src = imgSrc;
-    img.onerror = () => {
-      // if unavailable, use a simple placeholder gray box
-      img.src = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="68" height="68"><rect width="100%" height="100%" fill="#f5f5f5"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#999" font-size="12">no img</text></svg>');
-    };
-    item.appendChild(label);
-    item.appendChild(img);
-    // insert at beginning to mimic newest-first behavior in sample image
-    topRow.insertBefore(item, topRow.firstChild);
-  }
-
-  // Add a larger grid item (number above a bigger crop)
-  function addGridDetection(num, imgSrc){
-    const div = document.createElement('div');
-    div.className = 'gridItem';
-    const label = document.createElement('div');
-    label.className = 'num2';
-    label.textContent = num;
-    const img = document.createElement('img');
-    img.src = imgSrc;
-    img.onerror = () => {
-      img.src = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="110" height="110"><rect width="100%" height="100%" fill="#fafafa"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#999" font-size="12">no img</text></svg>');
-    };
-    div.appendChild(label);
-    div.appendChild(img);
-    gridArea.insertBefore(div, gridArea.firstChild);
-  }
-
-  // clear
-  clearBtn.addEventListener('click', () => {
-    topRow.innerHTML = '';
-    gridArea.innerHTML = '';
-  });
-
-  // ON click behavior: if Q mode active, simulate detection
-  onBtn.addEventListener('click', async () => {
-    // emulate short processing pulse
-    processing += 1;
-    processingCount.textContent = processing;
-    onStatus.textContent = '処理中...';
-
-    // simulate processing delay
-    await new Promise(r => setTimeout(r, 300));
-
-    if (qMode){
-      // add sample detection (both top small and grid)
-      const item = sampleDetections[nextSampleIndex % sampleDetections.length];
-      // use only first 3 chars for label if longer
-      const labelNum = (item.num.length > 3 ? item.num.slice(0,3) : item.num);
-      addTopDetection(labelNum, item.img);
-      addGridDetection(labelNum, item.img);
-      nextSampleIndex++;
-    } else {
-      // not in Q mode — do nothing except a brief status flash
-      onStatus.textContent = 'Qモードでありません';
-      await new Promise(r => setTimeout(r, 600));
-    }
-
-    processing = Math.max(0, processing - 1);
-    processingCount.textContent = processing;
-    onStatus.textContent = '';
-  });
-
-  // long-press behavior to continuously capture while pressed
-  let pressTimer = null;
-  onBtn.addEventListener('mousedown', () => {
-    // immediate first capture
-    onBtn.dispatchEvent(new Event('click'));
-    pressTimer = setInterval(() => onBtn.dispatchEvent(new Event('click')), 700);
-  });
-  document.addEventListener('mouseup', () => {
-    if (pressTimer){ clearInterval(pressTimer); pressTimer = null; }
-  });
-
-  // touch support
-  onBtn.addEventListener('touchstart', (e) => {
-    e.preventDefault();
-    onBtn.dispatchEvent(new Event('click'));
-    pressTimer = setInterval(() => onBtn.dispatchEvent(new Event('click')), 700);
-  }, {passive:false});
-  document.addEventListener('touchend', () => {
-    if (pressTimer){ clearInterval(pressTimer); pressTimer = null; }
-  });
-
-  // mode buttons: only Q toggles "active"
-  modeQ.addEventListener('click', () => {
-    qMode = !qMode;
-    modeQ.classList.toggle('active', qMode);
-    modeA.classList.toggle('active', false);
-    // visual hint
-    if (qMode) {
-      modeQ.textContent = 'Q (ON)';
-    } else {
-      modeQ.textContent = 'Q';
-    }
-  });
-
-  modeA.addEventListener('click', () => {
-    qMode = false;
-    modeQ.classList.remove('active');
-    modeA.classList.toggle('active', true);
-  });
-
-  // directional and adjust buttons have no functional change now (UI-only)
-  ['upBtn','downBtn','leftBtn','rightBtn','highPlus','highMinus','widthPlus','widthMinus'].forEach(id=>{
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.addEventListener('click', ()=> {
-      // small visual feedback
-      el.style.transform = 'translateY(1px)';
-      setTimeout(()=>el.style.transform='',120);
-    });
-  });
-
-  // support keyboard Q / A toggles for convenience
-  document.addEventListener('keydown', (e)=>{
-    if (e.key.toLowerCase() === 'q'){ modeQ.click(); }
-    if (e.key.toLowerCase() === 'a'){ modeA.click(); }
-    if (e.key === ' '){ onBtn.click(); }
-  });
-
-  // initial sample fill to mimic screenshot layout (non-invasive)
-  (function initialFill(){
-    // place a few sample top items and grid items
-    for (let i=0;i<5;i++){
-      const s = sampleDetections[i % sampleDetections.length];
-      addTopDetection(s.num.slice(0,3), s.img);
-    }
-    for (let i=5;i<12;i++){
-      const s = sampleDetections[i % sampleDetections.length];
-      addGridDetection(s.num.slice(0,3), s.img);
-    }
-  })();
-
-})();
+startCamera();
 </script>
+
 </body>
 </html>
