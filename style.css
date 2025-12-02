@@ -2,6 +2,10 @@ body {
     margin: 0;
     font-family: sans-serif;
     background: white;
+
+    /* 追加：全要素を選択不可に */
+    -webkit-user-select: none;
+    user-select: none;
 }
 
 /* 全体を左右に分割 */
@@ -60,6 +64,7 @@ body {
     margin-top: 10px;
 }
 
+/* Q / A ボタン */
 .mode-btn {
     width: 60px;
     height: 40px;
@@ -69,6 +74,17 @@ body {
     font-size: 18px;
 }
 
+/* 撮影ボタン */
+#capture {
+    width: 60px;
+    height: 40px;
+    border-radius: 10px;
+    border: none;
+    background: #ffe066;
+    font-size: 20px;
+}
+
+/* ゴミ箱ボタン */
 #trash {
     width: 100px;
     height: 40px;
