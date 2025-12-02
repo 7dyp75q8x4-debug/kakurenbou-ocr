@@ -1,9 +1,37 @@
-<div class="container">
-  <h1 class="title">検出候補</h1>
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="style.css">
+    <title>UI固定版</title>
+</head>
+<body>
 
-  <div class="image-wrapper">
-    <img src="YOUR_IMAGE_URL" class="preview-image noselect">
-  </div>
+<div id="layout">
 
-  <div class="status">待機中</div>
+    <!-- 左側：検出候補エリア -->
+    <div id="left-panel">
+        <h1 id="title">検出候補</h1>
+        <div id="candidate-list"></div>
+    </div>
+
+    <!-- 右側：カメラ＋ボタン -->
+    <div id="right-panel">
+        <div id="camera-box">
+            <video id="camera" autoplay playsinline></video>
+        </div>
+
+        <div id="button-area">
+            <button class="action-btn">📷</button>
+            <button class="action-btn">🗑️</button>
+            <button class="action-btn">A</button>
+        </div>
+    </div>
 </div>
+
+<!-- 下中央：ステータス -->
+<div id="status">待機中</div>
+
+</body>
+</html>
