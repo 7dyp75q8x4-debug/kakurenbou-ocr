@@ -1,72 +1,99 @@
 body {
     margin: 0;
-    background: #f4e9f4;
-    font-family: sans-serif;
-    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    background: #f8eef8; /* 写真と同じ薄いピンク系 */
 }
 
+/* レイアウト */
 #container {
     display: flex;
+    width: 100vw;
     height: 100vh;
 }
 
-/* 左側 5×4 スロット領域 */
-#left {
+/* 左側（空白） */
+#left-panel {
+    flex: 1;
+    background: #f8eef8;
+}
+
+/* 右側 UI */
+#right-panel {
     width: 45%;
-    padding: 10px;
-    box-sizing: border-box;
-    overflow-y: scroll;
-}
-
-#candidates > div {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 8px;
-}
-
-#candidates img {
-    width: 70px;
-    border-radius: 8px;
-}
-
-/* 右側 */
-#right {
-    width: 55%;
+    padding: 16px;
     display: flex;
     flex-direction: column;
-    padding: 10px;
-    box-sizing: border-box;
+    align-items: center;
+}
+
+/* ゴミ箱アイコン */
+#trash {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    font-size: 26px;
+}
+
+/* カメラ 16:9 */
+#camera-wrapper {
+    width: 100%;
+    max-width: 520px;
+    aspect-ratio: 16 / 9;
+    background: white;
+    border-radius: 20px;
+    overflow: hidden;
+    margin-top: 40px;
 }
 
 #camera {
     width: 100%;
-    background: #000;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* ボタン共通 */
+.btn {
+    background: white;
+    border: 1px solid #ddd;
     border-radius: 12px;
+    padding: 10px 18px;
+    font-size: 18px;
+    margin: 6px;
 }
 
-#log {
-    flex: 1;
-    margin-top: 10px;
-    background: #fff;
-    border-radius: 12px;
-    padding: 10px;
-    overflow-y: scroll;
-}
-
-/* ボタン群 */
-#controls {
-    display: flex;
-    justify-content: space-between;
-    margin-top: 10px;
-}
-
-#controls button {
-    flex: 1;
-    background: #dfd6ff;
+/* ON ボタン（写真通り） */
+#onBtn {
+    background: #ebe3fa;
     border: none;
-    margin: 3px;
-    padding: 15px 0;
-    border-radius: 12px;
+    padding: 10px 26px;
+    border-radius: 20px;
     font-size: 20px;
+}
+
+/* Q / A ボタン（写真通り） */
+.mode-btn {
+    width: 120px;
+    background: #ebe3fa;
+    border: none;
+    padding: 14px 0;
+    border-radius: 20px;
+    font-size: 20px;
+    margin: 16px;
+}
+
+/* 矢印ボタン（写真の黒矢印）*/
+.arrow-btn {
+    background: none;
+    border: none;
+    font-size: 40px;
+}
+
+/* 高さ・幅 ボタン */
+.small-btn {
+    width: 40px;
+    height: 40px;
+    background: white;
+    border-radius: 12px;
+    border: none;
+    font-size: 24px;
 }
