@@ -3,36 +3,68 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>kakurenbou OCR</title>
-    <link rel="stylesheet" href="style.css">
+    <title>UI 完全版</title>
+    <link rel="stylesheet" href="style.css" />
 </head>
+
 <body>
+
+<div id="trash">🗑</div>
 
 <div id="container">
 
-    <!-- 左側5×4の枠 -->
-    <div id="left">
-        <div id="candidates"></div>
-    </div>
+    <!-- 左側：完全に空白 -->
+    <div id="left-panel"></div>
 
-    <!-- 右側：カメラ＋ログ＋ボタン4つ -->
-    <div id="right">
+    <!-- 右側：カメラ & ボタン -->
+    <div id="right-panel">
 
         <!-- カメラ -->
-        <video id="camera" autoplay playsinline></video>
+        <div id="camera-wrapper">
+            <video id="camera" autoplay playsinline></video>
+        </div>
 
-        <!-- ログ -->
-        <div id="log"></div>
+        <!-- 中央 ON ボタン -->
+        <div style="margin-top: 20px;">
+            <button id="onBtn">ON</button>
+        </div>
 
-        <!-- ボタンエリア -->
-        <div id="controls">
-            <button id="qMode">Q</button>
-            <button id="aMode">A</button>
-            <button id="capture">📷</button>
-            <button id="clear">🗑</button>
+        <!-- 矢印ボタン -->
+        <div style="margin-top: 10px; text-align:center;">
+            <button class="arrow-btn">⌃</button>
+        </div>
+
+        <div style="display:flex; justify-content:center;">
+            <button class="arrow-btn">〈</button>
+            <button class="arrow-btn">〉</button>
+        </div>
+
+        <div style="margin-top: 10px; text-align:center;">
+            <button class="arrow-btn">⌄</button>
+        </div>
+
+        <!-- 高さ 調整 -->
+        <div style="display:flex; align-items:center; margin-top:20px;">
+            <span style="font-size:22px; margin-right:10px;">高</span>
+            <button class="small-btn">−</button>
+            <button class="small-btn">＋</button>
+        </div>
+
+        <!-- 幅 調整 -->
+        <div style="display:flex; align-items:center; margin-top:10px;">
+            <span style="font-size:22px; margin-right:10px;">幅</span>
+            <button class="small-btn">−</button>
+            <button class="small-btn">＋</button>
+        </div>
+
+        <!-- Q / A -->
+        <div style="display:flex; margin-top:20px;">
+            <button class="mode-btn" id="qMode">Q</button>
+            <button class="mode-btn" id="aMode">A</button>
         </div>
 
     </div>
+
 </div>
 
 <script src="script.js"></script>
