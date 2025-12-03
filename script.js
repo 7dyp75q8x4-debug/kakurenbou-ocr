@@ -18,7 +18,7 @@ async function askForApiKeyIfNeeded() {
 window.addEventListener("DOMContentLoaded", askForApiKeyIfNeeded);
 
 /* === 設定 === */
-const API_KEY = "AIzaSyCg8VdPY-34m_wpY69Z2EtCiFJHM4YIZEg";
+const API_KEY = visionApiKey;
 let currentMode = "none";   // "Q" or "A"
 let captureInterval = null;
 
