@@ -1,3 +1,22 @@
+// ▼ ここを script.js の一番上に入れる（既存コードはそのまま）
+let visionApiKey = localStorage.getItem("vision_api_key");
+
+async function askForApiKeyIfNeeded() {
+    if (!visionApiKey) {
+        visionApiKey = prompt("Google Vision API キーを入力してください");
+
+        if (!visionApiKey) {
+            alert("APIキーが入力されないと画像解析ができません。");
+            return;
+        }
+
+        localStorage.setItem("vision_api_key", visionApiKey);
+        alert("APIキーを保存しました！");
+    }
+}
+
+window.addEventListener("DOMContentLoaded", askForApiKeyIfNeeded);
+
 /* === 設定 === */
 const API_KEY = "AIzaSyCg8VdPY-34m_wpY69Z2EtCiFJHM4YIZEg";
 let currentMode = "none";   // "Q" or "A"
