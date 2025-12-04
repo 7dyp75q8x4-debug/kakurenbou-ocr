@@ -1,171 +1,60 @@
-//------------------------------------------------------------
-// 要素取得
-//------------------------------------------------------------
-const video = document.getElementById("camera");
-const canvas = document.createElement("canvas");
-const ctx = canvas.getContext("2d");
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UI復元</title>
+    <link rel="stylesheet" href="style.css">
+</head>
 
-let currentMode = "A";
-let stream = null;
+<body>
 
-let answerHistory = new Set();
+<div id="container">
 
+    <!-- 左パネル -->
+    <div id="left-panel">
+        <div id="left-header">
+            <span id="dot"></span>
+            <span id="label">検出候補</span>
+        </div>
 
-//------------------------------------------------------------
-// 画面読み込み時：キーがなければ必ずモーダル表示
-//------------------------------------------------------------
-window.addEventListener("load", () => {
+        <!-- Qモード結果 -->
+        <div id="q-results"></div>
 
-    const camKey = localStorage.getItem("camera_key");
-    const ocrKey = localStorage.getItem("ocr_key");
+        <!-- Aモード結果 -->
+        <div id="a-results"></div>
+    </div>
 
-    if (!camKey || !ocrKey) {
-        showKeyModal();
-    } else {
-        startCamera();
-    }
-});
+    <!-- 右パネル -->
+    <div id="right-panel">
 
+        <!-- カメラ -->
+        <div id="camera-wrapper">
+            <video id="video" autoplay playsinline></video>
+        </div>
 
-//------------------------------------------------------------
-// モーダル開閉
-//------------------------------------------------------------
-function showKeyModal() {
-    document.getElementById("key-modal").style.display = "flex";
-}
+        <!-- ボタン群 -->
+        <div id="buttons">
 
-function hideKeyModal() {
-    document.getElementById("key-modal").style.display = "none";
-}
+            <div id="modeButtons">
+                <!-- JS のIDと合わせた -->
+                <button id="mode-q" class="mode-btn">Q</button>
+                <button id="mode-a" class="mode-btn">A</button>
+            </div>
 
+            <!-- カメラボタンは JS が #camera-btn を要求 -->
+            <button id="camera-btn" class="yellow-btn">📷</button>
 
-//------------------------------------------------------------
-// キー保存
-//------------------------------------------------------------
-document.getElementById("save-keys").addEventListener("click", () => {
-    const cam = document.getElementById("camera-key").value.trim();
-    const ocr = document.getElementById("ocr-key").value.trim();
+            <!-- ゴミ箱ボタンは必要ならID付けてもOK -->
+            <button id="clear-btn" class="blue-btn">🚮</button>
+        </div>
 
-    if (!cam || !ocr) {
-        alert("APIキーを入力してください！");
-        return;
-    }
+        <div id="clear-text">クリア</div>
 
-    localStorage.setItem("camera_key", cam);
-    localStorage.setItem("ocr_key", ocr);
+    </div>
 
-    hideKeyModal();
-    startCamera();
-});
+</div>
 
-
-//------------------------------------------------------------
-// カメラ起動
-//------------------------------------------------------------
-async function startCamera() {
-    try {
-        const key = localStorage.getItem("camera_key");
-        if (!key) {
-            showKeyModal();
-            return;
-        }
-
-        stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: "environment" }
-        });
-
-        video.srcObject = stream;
-    } catch (err) {
-        console.error("Camera error:", err);
-    }
-}
-
-
-//------------------------------------------------------------
-// 撮影
-//------------------------------------------------------------
-async function captureFrame() {
-    if (!video.videoWidth) return;
-
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-    if (currentMode === "A") {
-        await runAModeScan();
-    } else {
-        await runQModeScan();
-    }
-}
-
-
-//------------------------------------------------------------
-// ★ OCR API 呼び出し（ここが最重要）
-//------------------------------------------------------------
-async function callOCRApi(base64image) {
-    const ocrKey = localStorage.getItem("ocr_key");
-    if (!ocrKey) {
-        showKeyModal();
-        throw new Error("OCR APIキーがありません");
-    }
-
-    const response = await fetch(
-        "https://vision.googleapis.com/v1/images:annotate?key=" + ocrKey,
-        {
-            method: "POST",
-            body: JSON.stringify({
-                requests: [
-                    {
-                        image: { content: base64image },
-                        features: [{ type: "TEXT_DETECTION" }]
-                    }
-                ]
-            })
-        }
-    );
-
-    const json = await response.json();
-    return json;
-}
-
-
-//------------------------------------------------------------
-// detectThreeDigitNumbers：OCR 経由で検出
-//------------------------------------------------------------
-async function detectThreeDigitNumbers(bitmap) {
-
-    // キー無しで絶対動かないようにする
-    const ocrKey = localStorage.getItem("ocr_key");
-    if (!ocrKey) {
-        showKeyModal();
-        return [];
-    }
-
-    const dataURL = bitmap.toDataURL("image/jpeg");
-    const base64 = dataURL.replace(/^data:image\/jpeg;base64,/, "");
-
-    const ocrResult = await callOCRApi(base64);
-
-    // 必要な数字抽出（元のロジックに合わせて調整）
-    return extractNumbersFromOCR(ocrResult);
-}
-
-
-//------------------------------------------------------------
-// Qモード用 OCR も同じくキー必須
-//------------------------------------------------------------
-async function detectTargetForQuiz(bitmap) {
-    const ocrKey = localStorage.getItem("ocr_key");
-    if (!ocrKey) {
-        showKeyModal();
-        return null;
-    }
-
-    const dataURL = bitmap.toDataURL("image/jpeg");
-    const base64 = dataURL.replace(/^data:image\/jpeg;base64,/, "");
-
-    const ocrResult = await callOCRApi(base64);
-
-    return extractQuizTarget(ocrResult);
-}
+<script src="script.js"></script>
+</body>
+</html>
