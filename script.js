@@ -278,12 +278,60 @@ async function captureFrame() {
 //------------------------------------------------------------
 // イベント
 //------------------------------------------------------------
+
+// Q / A
 qBtn.addEventListener("click", () => setMode("Q"));
 aBtn.addEventListener("click", () => setMode("A"));
-camBtn.addEventListener("click", () => captureFrame());
 
+// 🚫 click イベント削除（長押しと干渉するため）
+// camBtn.addEventListener("click", () => captureFrame());
+
+// ゴミ箱
 clearBtn.addEventListener("click", () => {
     document.getElementById("q-results").innerHTML = "";
     document.getElementById("a-results").innerHTML = "";
     answerHistory.clear();
+});
+
+
+//------------------------------------------------------------
+// 📸 長押し・短押し撮影（追加）
+//------------------------------------------------------------
+let pressTimer = null;
+let isPressing = false;
+
+// PC：押す
+camBtn.addEventListener("mousedown", () => {
+    isPressing = true;
+    captureFrame();
+    pressTimer = setInterval(() => {
+        if (isPressing) captureFrame();
+    }, 350);
+});
+
+// PC：離す
+camBtn.addEventListener("mouseup", () => {
+    isPressing = false;
+    clearInterval(pressTimer);
+});
+
+// PC：指が外に出た時
+camBtn.addEventListener("mouseleave", () => {
+    isPressing = false;
+    clearInterval(pressTimer);
+});
+
+// スマホ：押す
+camBtn.addEventListener("touchstart", () => {
+    isPressing = true;
+    captureFrame();
+    pressTimer = setInterval(() => {
+        if (isPressing) captureFrame();
+    }, 350);
+});
+
+// スマホ：離す
+camBtn.addEventListener("touchend", () => {
+    isPressing = false;
+    clearInterval(pressTimer);
 });
