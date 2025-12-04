@@ -21,6 +21,7 @@ window.addEventListener("DOMContentLoaded", askForApiKey);
 const qBtn = document.getElementById("qMode");
 const aBtn = document.getElementById("aMode");
 const cameraBtn = document.querySelector(".yellow-btn");
+const trashBtn = document.querySelector(".blue-btn");
 
 let isQMode = true;
 let ocrInterval = null;
@@ -43,11 +44,18 @@ setMode("Q");
 
 
 /* =====================================================
-   左側パネル
+   左パネル要素
 ===================================================== */
-const questPanel = document.getElementById("left-panel");
+const qResults = document.getElementById("q-results");  // ★ Qモード結果
+const aResults = document.getElementById("a-results");  // ★ Aモード結果
 
-/* Camera → Canvas */
+// お題保存用
+let questList = [];   // ["284","166",...]
+
+
+/* =====================================================
+   カメラ → Canvas
+===================================================== */
 const ocrCanvas = document.createElement("canvas");
 const ocrCtx = ocrCanvas.getContext("2d");
 
@@ -56,15 +64,16 @@ const ocrCtx = ocrCanvas.getContext("2d");
    長押し OCR
 ===================================================== */
 function startOCRLoop() {
-    if (!isQMode) return;
     if (ocrInterval) return;
 
     cameraBtn.classList.add("pressing");
 
-    runQModeScan();
+    if (isQMode) runQModeScan();
+    else runAModeScan();
 
     ocrInterval = setInterval(() => {
-        runQModeScan();
+        if (isQMode) runQModeScan();
+        else runAModeScan();
     }, 1000);
 }
 
@@ -90,33 +99,31 @@ cameraBtn.addEventListener("touchend", stopOCRLoop);
 
 
 /* =====================================================
-   Vision API OCR 本体
+   Qモード（お題読み取り）
 ===================================================== */
 async function runQModeScan() {
-    if (!isQMode) return;
     if (!visionApiKey) return;
 
     const video = document.getElementById("camera");
     if (!video.videoWidth) return;
 
-    // フレーム取得
     ocrCanvas.width = video.videoWidth;
     ocrCanvas.height = video.videoHeight;
     ocrCtx.drawImage(video, 0, 0, ocrCanvas.width, ocrCanvas.height);
 
     const base64 = ocrCanvas.toDataURL("image/jpeg").replace(/^data:image\/jpeg;base64,/, "");
-
-    // Vision API 呼び出し
     const detected = await detectNumberPanels(base64);
 
-    questPanel.innerHTML = "";
+    qResults.innerHTML = "";  // Qの表示クリア
+    questList = [];           // お題もリセット
 
-    /* ★★★★★ 差し替えた部分（トリミング改善） ★★★★★ */
-
-    const margin = 60; // ← 余白（ピクセル）
+    const margin = 60;
 
     detected.forEach(item => {
+        // お題保存
+        questList.push(item.number);
 
+        // トリミング
         const sx = Math.max(item.x - margin, 0);
         const sy = Math.max(item.y - margin, 0);
         const sw = item.w + margin * 2;
@@ -146,13 +153,70 @@ async function runQModeScan() {
 
         div.appendChild(img);
         div.appendChild(txt);
-        questPanel.appendChild(div);
+        qResults.appendChild(div);
     });
 }
 
 
 /* =====================================================
-   Vision API を使って 3桁数字パネル抽出
+   Aモード（探索）
+===================================================== */
+async function runAModeScan() {
+    if (!visionApiKey) return;
+    if (questList.length === 0) return; // お題がないと探索不可
+
+    const video = document.getElementById("camera");
+    if (!video.videoWidth) return;
+
+    ocrCanvas.width = video.videoWidth;
+    ocrCanvas.height = video.videoHeight;
+    ocrCtx.drawImage(video, 0, 0, ocrCanvas.width, ocrCanvas.height);
+
+    const base64 = ocrCanvas.toDataURL("image/jpeg").replace(/^data:image\/jpeg;base64,/, "");
+    const detected = await detectNumberPanels(base64);
+
+    const margin = 60;
+
+    detected.forEach(item => {
+        if (!questList.includes(item.number)) return; // ★ 一致したものだけ表示
+
+        const sx = Math.max(item.x - margin, 0);
+        const sy = Math.max(item.y - margin, 0);
+        const sw = item.w + margin * 2;
+        const sh = item.h + margin * 2;
+
+        const cut = document.createElement("canvas");
+        cut.width = sw;
+        cut.height = sh;
+        const cctx = cut.getContext("2d");
+
+        cctx.drawImage(
+            ocrCanvas,
+            sx, sy, sw, sh,
+            0, 0, sw, sh
+        );
+
+        const div = document.createElement("div");
+        div.className = "quest-item";
+
+        const img = document.createElement("img");
+        img.className = "quest-thumb";
+        img.src = cut.toDataURL();
+
+        const txt = document.createElement("div");
+        txt.className = "quest-text";
+        txt.style.color = "black";   // ★ 黒字
+        txt.innerText = item.number;
+
+        div.appendChild(img);
+        div.appendChild(txt);
+        aResults.appendChild(div);
+    });
+}
+
+
+/* =====================================================
+   Vision API を使って 3桁数字抽出
 ===================================================== */
 async function detectNumberPanels(base64Image) {
 
@@ -192,7 +256,6 @@ async function detectNumberPanels(base64Image) {
     for (let i = 1; i < textAnn.length; i++) {
         const t = textAnn[i].description.trim();
 
-        // ★ 3桁数字だけ抽出
         if (!/^\d{3}$/.test(t)) continue;
 
         const box = textAnn[i].boundingPoly.vertices;
@@ -207,6 +270,16 @@ async function detectNumberPanels(base64Image) {
 
     return detected;
 }
+
+
+/* =====================================================
+   ゴミ箱：Q/A 全削除
+===================================================== */
+trashBtn.addEventListener("click", () => {
+    qResults.innerHTML = "";
+    aResults.innerHTML = "";
+    questList = [];
+});
 
 
 /* =====================================================
