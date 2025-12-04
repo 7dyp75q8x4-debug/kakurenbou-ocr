@@ -163,3 +163,9 @@ body {
 button, .mode-btn, .yellow-btn, .blue-btn, #clear-text {
     user-select: none;
 }
+
+/* カメラボタン押下中 */
+.yellow-btn.pressing {
+    filter: brightness(0.8); /* 少し暗くなる */
+    transform: scale(0.96);  /* 押した感 */
+}
