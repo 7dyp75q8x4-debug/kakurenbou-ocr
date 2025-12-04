@@ -1,41 +1,57 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Q/A 撮影</title>
-<link rel="stylesheet" href="style.css" />
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>UI復元</title>
+    <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
 <div id="container">
-    <div id="left-area">
-        <div id="video-wrap">
+
+    <!-- 左パネル -->
+    <div id="left-panel">
+        <div id="left-header">
+            <span id="dot"></span>
+            <span id="label">検出候補</span>
+        </div>
+
+        <!-- Qモード結果 -->
+        <div id="q-results"></div>
+
+        <!-- Aモード結果 -->
+        <div id="a-results"></div>
+    </div>
+
+    <!-- 右パネル -->
+    <div id="right-panel">
+
+        <!-- カメラ -->
+        <div id="camera-wrapper">
             <video id="video" autoplay playsinline></video>
-            <canvas id="canvas"></canvas>
         </div>
 
+        <!-- 撮影用キャンバス（非表示） -->
+        <canvas id="canvas" style="display:none;"></canvas>
+
+        <!-- ボタン群 -->
         <div id="buttons">
-            <button id="qMode" class="mode-btn active">Q</button>
-            <button id="aMode" class="mode-btn">A</button>
-            <button id="camera-btn">●</button>
-            <button id="clear-btn">クリア</button>
-        </div>
-    </div>
+            <div id="modeButtons">
+                <button id="qMode" class="mode-btn">Q</button>
+                <button id="aMode" class="mode-btn">A</button>
+            </div>
 
-    <div id="right-area">
-        <div class="result-block">
-            <div class="result-title">Q結果</div>
-            <div id="q-results" class="result-list"></div>
+            <button id="camera-btn" class="yellow-btn">📷</button>
+            <button id="clear-btn" class="blue-btn">🚮</button>
         </div>
 
-        <div class="result-block">
-            <div class="result-title">A結果</div>
-            <div id="a-results" class="result-list"></div>
-        </div>
+        <div id="clear-text">クリア</div>
+
     </div>
+
 </div>
 
-<script src="main.js"></script>
+<script src="script.js"></script>
 </body>
 </html>
