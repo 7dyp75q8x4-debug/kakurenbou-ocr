@@ -45,10 +45,7 @@ async function startCamera() {
         });
 
         video.srcObject = stream;
-
-        await video.play().catch(e => {
-            console.warn("video.play() was blocked:", e);
-        });
+        await video.play();
 
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
@@ -61,7 +58,7 @@ async function startCamera() {
 
 
 //------------------------------------------------------------
-// モード切替
+// モード切替（← 重要）
 //------------------------------------------------------------
 function setMode(mode) {
     currentMode = mode;
@@ -74,6 +71,12 @@ function setMode(mode) {
         qBtn.classList.remove("active");
     }
 }
+
+
+// Q/A ボタンクリックイベント（← これが無かった）
+//------------------------------------------------------------
+qBtn.addEventListener("click", () => setMode("Q"));
+aBtn.addEventListener("click", () => setMode("A"));
 
 
 //------------------------------------------------------------
@@ -105,6 +108,7 @@ async function callVisionAPI(base64) {
 // 3桁数字抽出
 //------------------------------------------------------------
 function parse3Digits(textAnnotations) {
+
     if (!textAnnotations || !Array.isArray(textAnnotations)) return [];
 
     const out = [];
@@ -148,6 +152,7 @@ async function detectNumbers(bitmap) {
 // Qモード
 //------------------------------------------------------------
 async function runQModeScan() {
+
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
     const results = await detectNumbers(canvas);
@@ -229,7 +234,7 @@ async function runAModeScan() {
 
 
 //------------------------------------------------------------
-// Aモード UI 追加
+// Aモード結果 UI 追加
 //------------------------------------------------------------
 function appendAModeResult(num, imgData) {
     const list = document.getElementById("a-results");
@@ -274,7 +279,7 @@ async function captureFrame() {
 
 
 //------------------------------------------------------------
-// 長押し撮影（stopPropagation なし！）
+// 長押し撮影（色変化付き）
 //------------------------------------------------------------
 let pressTimer = null;
 let isPressing = false;
@@ -282,7 +287,9 @@ let isPressing = false;
 function startPress() {
     isPressing = true;
     camBtn.classList.add("pressing");
+
     captureFrame();
+
     pressTimer = setInterval(() => {
         if (isPressing) captureFrame();
     }, 350);
@@ -300,12 +307,12 @@ camBtn.addEventListener("mouseup", endPress);
 camBtn.addEventListener("mouseleave", endPress);
 
 // スマホ
-camBtn.addEventListener("touchstart", startPress, { passive: true });
-camBtn.addEventListener("touchend", endPress, { passive: true });
+camBtn.addEventListener("touchstart", startPress);
+camBtn.addEventListener("touchend", endPress);
 
 
 //------------------------------------------------------------
-// ゴミ箱
+// クリア
 //------------------------------------------------------------
 clearBtn.addEventListener("click", () => {
     document.getElementById("q-results").innerHTML = "";
