@@ -160,3 +160,10 @@ body {
     font-weight: bold;
     color: #ff3333 !important; /* 赤を強制 */
 }
+
+.a-topic {
+    font-size: 32px;
+    font-weight: bold;
+    color: red;
+    margin-bottom: 10px;
+}
