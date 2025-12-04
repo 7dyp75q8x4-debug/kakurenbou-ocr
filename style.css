@@ -1,9 +1,7 @@
 body {
     margin: 0;
-    overflow: hidden;
+    background: #fff;
     font-family: sans-serif;
-    -webkit-user-select: none;
-    user-select: none;
 }
 
 #container {
@@ -12,158 +10,105 @@ body {
     height: 100vh;
 }
 
-/* 左パネル */
-#left-panel {
-    flex: 1;
-    background: #ffffff;
+#left-area {
+    width: 60%;
     position: relative;
-    padding: 20px;
-    box-sizing: border-box;
-}
-
-#left-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-#dot {
-    width: 10px;
-    height: 10px;
-    background: #00cc33;
-    border-radius: 50%;
-    display: inline-block;
-}
-
-#label {
-    font-size: 28px;
-    font-weight: bold;
-}
-
-/* 右パネル */
-#right-panel {
-    width: 40%;
-    padding: 20px;
-    box-sizing: border-box;
     display: flex;
     flex-direction: column;
 }
 
-/* カメラ枠 */
-#camera-wrapper {
-    width: 100%;
-    border-radius: 20px;
-    overflow: hidden;
-    aspect-ratio: 9 / 16;
-    background: black;
+#video-wrap {
+    flex: 1;
+    position: relative;
 }
 
-/* ★ video に修正（ここが重要） */
-#video {
+#video, #canvas {
     width: 100%;
     height: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
     object-fit: cover;
 }
 
-/* ボタン群 */
 #buttons {
-    margin-top: 20px;
     display: flex;
-    gap: 15px;
-    justify-content: space-between;
+    justify-content: space-around;
+    padding: 8px;
 }
 
-.gray-btn, .yellow-btn, .blue-btn {
-    flex: 1;
-    padding: 12px;
-    font-size: 20px;
-    border-radius: 12px;
-    border: none;
-    -webkit-user-select: none;
-    user-select: none;
-}
-
-.yellow-btn {
-    background: #ffe36d;
-    transition: background 0.15s;
-}
-
-.blue-btn {
-    background: #99ccff;
-}
-
-#clear-text {
-    text-align: center;
-    margin-top: 12px;
-    font-size: 22px;
-    font-weight: bold;
-}
-
-/* モードボタン */
 .mode-btn {
-    background: #e0e0e0;
-    color: #333;
-    border: none;
-    padding: 10px 20px;
+    padding: 8px 18px;
+    border-radius: 8px;
+    border: 2px solid #333;
+    background: #eee;
     font-size: 20px;
-    border-radius: 12px;
-    margin-right: 10px;
-    transition: 0.15s;
-    -webkit-user-select: none;
-    user-select: none;
 }
 
 .mode-btn.active {
-    background: #4d86ff;
-    color: white;
-    font-weight: bold;
+    background: #ff6666;
+    color: #fff;
+    border-color: #cc0000;
 }
 
-/* 🔥 長押し中色変化 */
+#camera-btn {
+    width: 80px;
+    height: 80px;
+    border-radius: 40px;
+    border: none;
+    font-size: 30px;
+    background: #ddd;
+}
+
 #camera-btn.pressing {
-    background-color: #ffcc00 !important;
-    opacity: 0.6;
+    background: #ff4444;
 }
 
-/* ==============================
-   Qモード：検出候補の表示整形
-   ============================== */
+#clear-btn {
+    padding: 10px 20px;
+    background: #ccc;
+    border-radius: 8px;
+    border: none;
+}
 
-#q-results {
+#right-area {
+    width: 40%;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+}
+
+.result-block {
+    border-bottom: 2px solid #ccc;
+    padding: 10px;
+}
+
+.result-title {
+    font-size: 20px;
+    font-weight: bold;
+    margin-bottom: 6px;
+}
+
+.result-list {
     display: flex;
     flex-wrap: wrap;
     gap: 12px;
-    padding-top: 10px;
 }
 
-/* 1つの候補ブロック */
 .quest-item {
-    display: inline-block;
-    width: 90px;
-    text-align: center;
-    margin-bottom: 10px;
+    width: 140px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
-/* サムネ */
 .quest-thumb {
-    width: 90px;
-    height: 90px;
-    object-fit: cover;
-    border-radius: 8px;
-    border: 1px solid #aaa;
+    width: 120px;
+    border: 2px solid #000;
 }
 
-/* 下のテキスト（赤字） */
 .quest-text {
-    margin-top: 5px;
-    font-size: 18px;
+    font-size: 26px;
+    margin-top: 4px;
     font-weight: bold;
-    color: #ff3333 !important; /* 赤を強制 */
-}
-
-.a-topic {
-    font-size: 32px;
-    font-weight: bold;
-    color: red;
-    margin-bottom: 10px;
 }
