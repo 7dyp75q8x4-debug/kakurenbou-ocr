@@ -1,15 +1,37 @@
 //------------------------------------------------------------
-// 初期セットアップ
+// 基本要素
 //------------------------------------------------------------
 const video = document.getElementById("video");
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 
-let currentMode = "A";
-let stream = null;
+const qBtn = document.getElementById("qMode");
+const aBtn = document.getElementById("aMode");
+const camBtn = document.getElementById("camera-btn");
+const clearBtn = document.getElementById("clear-btn");
 
-// 重複防止
+let currentMode = "Q";
+let stream = null;
+let lastQNumbers = [];
 let answerHistory = new Set();
+
+let visionApiKey = localStorage.getItem("vision_api_key");
+
+
+//------------------------------------------------------------
+// APIキー入力（初回のみ）
+//------------------------------------------------------------
+async function ensureApiKey() {
+    if (!visionApiKey) {
+        const key = prompt("Google Vision API キーを入力してください");
+        if (key && key.trim()) {
+            visionApiKey = key.trim();
+            localStorage.setItem("vision_api_key", visionApiKey);
+        } else {
+            alert("APIキーが必要です");
+        }
+    }
+}
 
 
 //------------------------------------------------------------
@@ -30,6 +52,7 @@ async function startCamera() {
 
     } catch (err) {
         console.error("Camera error:", err);
+        alert("カメラを開始できませんでした");
     }
 }
 
@@ -39,113 +62,175 @@ async function startCamera() {
 //------------------------------------------------------------
 function setMode(mode) {
     currentMode = mode;
-    console.log("Mode:", mode);
 
-    if (mode === "A") {
-        answerHistory.clear();
+    if (mode === "Q") {
+        qBtn.classList.add("active");
+        aBtn.classList.remove("active");
+    } else {
+        aBtn.classList.add("active");
+        qBtn.classList.remove("active");
     }
 }
 
 
 //------------------------------------------------------------
-// 撮影ボタン
+// Vision API 呼び出し
 //------------------------------------------------------------
-async function captureFrame() {
-    if (!video.videoWidth) return;
+async function callVisionAPI(base64) {
+    const url = `https://vision.googleapis.com/v1/images:annotate?key=${visionApiKey}`;
+
+    const body = {
+        requests: [
+            {
+                image: { content: base64 },
+                features: [{ type: "TEXT_DETECTION", maxResults: 50 }]
+            }
+        ]
+    };
+
+    const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+    });
+
+    return res.json();
+}
+
+
+//------------------------------------------------------------
+// 3桁数字抽出
+//------------------------------------------------------------
+function parse3Digits(textAnnotations) {
+
+    if (!textAnnotations || !Array.isArray(textAnnotations)) return [];
+
+    const out = [];
+
+    for (let i = 1; i < textAnnotations.length; i++) {
+        const t = textAnnotations[i].description.trim();
+        if (/^\d{3}$/.test(t)) {
+
+            const v = textAnnotations[i].boundingPoly.vertices;
+
+            const x = v[0]?.x || 0;
+            const y = v[0]?.y || 0;
+            const w = (v[1]?.x || x) - x;
+            const h = (v[2]?.y || y) - y;
+
+            out.push({ number: t, x, y, w, h });
+        }
+    }
+
+    return out;
+}
+
+
+//------------------------------------------------------------
+// OCR 実行
+//------------------------------------------------------------
+async function detectNumbers(bitmap) {
+    const dataUrl = bitmap.toDataURL("image/jpeg", 0.85);
+    const base64 = dataUrl.split(",")[1];
+
+    const resp = await callVisionAPI(base64);
+
+    const textAnn = resp?.responses?.[0]?.textAnnotations;
+    if (!textAnn) return [];
+
+    return parse3Digits(textAnn);
+}
+
+
+//------------------------------------------------------------
+// Qモード：3桁数字を表示
+//------------------------------------------------------------
+async function runQModeScan() {
 
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    if (currentMode === "A") {
-        await runAModeScan();
-    } else {
-        await runQModeScan();
-    }
+    const results = await detectNumbers(canvas);
+
+    lastQNumbers = results.map(r => r.number);
+
+    const list = document.getElementById("q-results");
+    list.innerHTML = "";
+
+    results.forEach(item => {
+        const box = document.createElement("div");
+        box.className = "q-item";
+
+        const cut = document.createElement("canvas");
+        cut.width = item.w + 60;
+        cut.height = item.h + 60;
+
+        cut.getContext("2d").drawImage(
+            canvas,
+            item.x - 30,
+            item.y - 30,
+            cut.width,
+            cut.height,
+            0, 0, cut.width, cut.height
+        );
+
+        const img = document.createElement("img");
+        img.src = cut.toDataURL();
+
+        const label = document.createElement("div");
+        label.textContent = item.number;
+
+        box.appendChild(img);
+        box.appendChild(label);
+        list.appendChild(box);
+    });
 }
 
 
 //------------------------------------------------------------
-// Aモード：数字＋対応するアルファベットのみを拡大トリミング
+// Aモード：Qで出た数字だけトリミングして追加
 //------------------------------------------------------------
 async function runAModeScan() {
+    if (lastQNumbers.length === 0) return;
 
-    const ocrCanvas = document.createElement("canvas");
-    ocrCanvas.width = canvas.width;
-    ocrCanvas.height = canvas.height;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    const ocrCtx = ocrCanvas.getContext("2d");
-    ocrCtx.drawImage(video, 0, 0, ocrCanvas.width, ocrCanvas.height);
+    const results = await detectNumbers(canvas);
 
-    const detected = await detectThreeDigitNumbers(ocrCanvas);
+    results.forEach(item => {
+        if (!lastQNumbers.includes(item.number)) return;
 
-    detected.forEach(item => {
-
-        //--------------------------------------------------------
-        // ① 重複防止
-        //--------------------------------------------------------
         const key = `${item.number}_${item.x}_${item.y}`;
         if (answerHistory.has(key)) return;
         answerHistory.add(key);
 
-        //--------------------------------------------------------
-        // ② トリミングをよりタイトに（数字＋直下のアルファベット）
-        //--------------------------------------------------------
-
-        // ● さらに寄せる！
-        //   → 数字周辺だけ強調し、上下左右の余分を削るロジック
-
-        const tightTop = 40;        // 上方向（数字の上の余白を少なく）
-        const tightBottom = 100;    // 下方向（アルファベット行まで）
-        const tightSide = 25;       // 左右余白も削る
+        const tightTop = 40;
+        const tightBottom = 100;
+        const tightSide = 25;
 
         const sx = Math.max(item.x - tightSide, 0);
         const sy = Math.max(item.y - tightTop, 0);
         const sw = item.w + tightSide * 2;
-        const sh = item.h + tightBottom + tightTop;
+        const sh = item.h + tightTop + tightBottom;
 
         const cut = document.createElement("canvas");
         cut.width = sw;
         cut.height = sh;
 
         cut.getContext("2d").drawImage(
-            ocrCanvas,
+            canvas,
             sx, sy, sw, sh,
             0, 0, sw, sh
         );
 
-        //--------------------------------------------------------
-        // ③ UIへ反映（テキストカラーを Aモード＝黒 に修正）
-        //--------------------------------------------------------
         appendAModeResult(item.number, cut.toDataURL());
     });
 }
 
 
 //------------------------------------------------------------
-// Qモード（変更なし）
+// Aモード結果 UI 追加
 //------------------------------------------------------------
-async function runQModeScan() {
-    const result = await detectTargetForQuiz(canvas);
-    showQModeResult(result);
-}
-
-
-//------------------------------------------------------------
-// OCR関数（ユーザーの既存実装）
-//------------------------------------------------------------
-async function detectThreeDigitNumbers(bitmap) {
-    return [];
-}
-
-async function detectTargetForQuiz(bitmap) {
-    return null;
-}
-
-
-//------------------------------------------------------------
-// Aモード結果追加（テキスト黒）
-//------------------------------------------------------------
-function appendAModeResult(number, imgData) {
-
+function appendAModeResult(num, imgData) {
     const list = document.getElementById("a-results");
 
     const box = document.createElement("div");
@@ -155,10 +240,7 @@ function appendAModeResult(number, imgData) {
     img.src = imgData;
 
     const label = document.createElement("div");
-    label.textContent = number;
-    label.className = "a-label";
-
-    // ★ 黒字に強制！
+    label.textContent = num;
     label.style.color = "black";
     label.style.fontWeight = "bold";
 
@@ -169,6 +251,36 @@ function appendAModeResult(number, imgData) {
 
 
 //------------------------------------------------------------
+// 撮影
+//------------------------------------------------------------
+async function captureFrame() {
+    if (currentMode === "Q") {
+        await runQModeScan();
+    } else {
+        await runAModeScan();
+    }
+}
+
+
+//------------------------------------------------------------
 // 初期起動
 //------------------------------------------------------------
-startCamera();
+(async () => {
+    await ensureApiKey();
+    await startCamera();
+    setMode("Q");
+})();
+
+
+//------------------------------------------------------------
+// イベント
+//------------------------------------------------------------
+qBtn.addEventListener("click", () => setMode("Q"));
+aBtn.addEventListener("click", () => setMode("A"));
+camBtn.addEventListener("click", () => captureFrame());
+
+clearBtn.addEventListener("click", () => {
+    document.getElementById("q-results").innerHTML = "";
+    document.getElementById("a-results").innerHTML = "";
+    answerHistory.clear();
+});
