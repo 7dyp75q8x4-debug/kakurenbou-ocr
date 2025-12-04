@@ -180,3 +180,26 @@ async function startCamera() {
 }
 
 startCamera();
+
+/* =====================================
+   カメラボタンの押下中は色を変える
+===================================== */
+const cameraBtn = document.querySelector(".yellow-btn");
+
+cameraBtn.addEventListener("mousedown", () => {
+    cameraBtn.classList.add("pressing");
+});
+cameraBtn.addEventListener("mouseup", () => {
+    cameraBtn.classList.remove("pressing");
+});
+cameraBtn.addEventListener("mouseleave", () => {
+    cameraBtn.classList.remove("pressing");
+});
+
+// スマホ用（iOS）
+cameraBtn.addEventListener("touchstart", () => {
+    cameraBtn.classList.add("pressing");
+});
+cameraBtn.addEventListener("touchend", () => {
+    cameraBtn.classList.remove("pressing");
+});
