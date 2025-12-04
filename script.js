@@ -145,7 +145,7 @@ async function detectNumbers(bitmap) {
 
 
 //------------------------------------------------------------
-// Qモード：3桁数字を表示
+// Qモード
 //------------------------------------------------------------
 async function runQModeScan() {
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -188,7 +188,7 @@ async function runQModeScan() {
 
 
 //------------------------------------------------------------
-// Aモード：Qで出た数字だけトリミングして追加
+// Aモード
 //------------------------------------------------------------
 async function runAModeScan() {
     if (lastQNumbers.length === 0) return;
@@ -229,7 +229,7 @@ async function runAModeScan() {
 
 
 //------------------------------------------------------------
-// Aモード結果 UI 追加
+// Aモード UI 追加
 //------------------------------------------------------------
 function appendAModeResult(num, imgData) {
     const list = document.getElementById("a-results");
@@ -274,28 +274,21 @@ async function captureFrame() {
 
 
 //------------------------------------------------------------
-// 長押し撮影（Q/A ボタンに干渉しないよう完全隔離）
+// 長押し撮影（stopPropagation なし！）
 //------------------------------------------------------------
 let pressTimer = null;
 let isPressing = false;
 
-function startPress(e) {
-    e.stopPropagation();      // ← 他ボタンへの干渉を完全停止
-    e.preventDefault();
-
+function startPress() {
     isPressing = true;
     camBtn.classList.add("pressing");
     captureFrame();
-
     pressTimer = setInterval(() => {
         if (isPressing) captureFrame();
     }, 350);
 }
 
-function endPress(e) {
-    e.stopPropagation();
-    e.preventDefault();
-
+function endPress() {
     isPressing = false;
     camBtn.classList.remove("pressing");
     clearInterval(pressTimer);
@@ -306,9 +299,9 @@ camBtn.addEventListener("mousedown", startPress);
 camBtn.addEventListener("mouseup", endPress);
 camBtn.addEventListener("mouseleave", endPress);
 
-// スマホ（passive:false が必須）
-camBtn.addEventListener("touchstart", startPress, { passive: false });
-camBtn.addEventListener("touchend", endPress, { passive: false });
+// スマホ
+camBtn.addEventListener("touchstart", startPress, { passive: true });
+camBtn.addEventListener("touchend", endPress, { passive: true });
 
 
 //------------------------------------------------------------
