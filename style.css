@@ -120,3 +120,19 @@ body {
     color: white;
     font-weight: bold;
 }
+
+
+.mode-btn {
+    padding: 4px 12px;
+    border-radius: 12px;
+    background: #e0e0e0;
+    border: none;
+    font-size: 14px;
+    transition: 0.15s;
+}
+
+.mode-btn.active {
+    background: #4d86ff;
+    color: white;
+    font-weight: bold;
+}
