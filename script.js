@@ -254,7 +254,7 @@ function appendAModeResult(num, imgData) {
 
 
 //------------------------------------------------------------
-// 撮影
+// 撮影実行（Q / A自動分岐）
 //------------------------------------------------------------
 async function captureFrame() {
     if (currentMode === "Q") {
@@ -276,17 +276,15 @@ async function captureFrame() {
 
 
 //------------------------------------------------------------
-// イベント
+// Q / A ボタン
 //------------------------------------------------------------
-
-// Q / A
 qBtn.addEventListener("click", () => setMode("Q"));
 aBtn.addEventListener("click", () => setMode("A"));
 
-// 🚫 click イベント削除（長押しと干渉するため）
-// camBtn.addEventListener("click", () => captureFrame());
 
-// ゴミ箱
+//------------------------------------------------------------
+// ゴミ箱（クリア）
+//------------------------------------------------------------
 clearBtn.addEventListener("click", () => {
     document.getElementById("q-results").innerHTML = "";
     document.getElementById("a-results").innerHTML = "";
@@ -295,43 +293,50 @@ clearBtn.addEventListener("click", () => {
 
 
 //------------------------------------------------------------
-// 📸 長押し・短押し撮影（追加）
+// 📸 長押し & 短押し撮影（押してる間色が変わる）
 //------------------------------------------------------------
 let pressTimer = null;
 let isPressing = false;
 
-// PC：押す
-camBtn.addEventListener("mousedown", () => {
+// 押した時の色（濃い黄色）
+const pressColor = "#c7b200";
+
+// 元の色（CSS に任せているため空文字で戻す）
+const originalColor = "";
+
+
+// 押し始め
+function pressStart() {
     isPressing = true;
+
+    // ★ 押している間だけ色を濃くする
+    camBtn.style.backgroundColor = pressColor;
+
     captureFrame();
     pressTimer = setInterval(() => {
         if (isPressing) captureFrame();
     }, 350);
-});
+}
 
-// PC：離す
-camBtn.addEventListener("mouseup", () => {
+// 押し終わり
+function pressEnd() {
     isPressing = false;
-    clearInterval(pressTimer);
-});
 
-// PC：指が外に出た時
-camBtn.addEventListener("mouseleave", () => {
-    isPressing = false;
     clearInterval(pressTimer);
-});
 
-// スマホ：押す
-camBtn.addEventListener("touchstart", () => {
-    isPressing = true;
-    captureFrame();
-    pressTimer = setInterval(() => {
-        if (isPressing) captureFrame();
-    }, 350);
-});
+    // ★ 元の色へ戻す
+    camBtn.style.backgroundColor = originalColor;
+}
 
-// スマホ：離す
-camBtn.addEventListener("touchend", () => {
-    isPressing = false;
-    clearInterval(pressTimer);
-});
+// PC
+camBtn.addEventListener("mousedown", pressStart);
+camBtn.addEventListener("mouseup", pressEnd);
+camBtn.addEventListener("mouseleave", pressEnd);
+
+// スマホ
+camBtn.addEventListener("touchstart", (e) => {
+    e.preventDefault();
+    pressStart();
+}, { passive: false });
+
+camBtn.addEventListener("touchend", pressEnd);
