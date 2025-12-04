@@ -18,10 +18,10 @@
             <span id="label">検出候補</span>
         </div>
 
-        <!-- ★ Qモード結果（お題） -->
+        <!-- Qモード結果 -->
         <div id="q-results"></div>
 
-        <!-- ★ Aモード結果（探索結果） -->
+        <!-- Aモード結果 -->
         <div id="a-results"></div>
     </div>
 
@@ -30,19 +30,23 @@
 
         <!-- カメラ -->
         <div id="camera-wrapper">
-            <video id="camera" autoplay playsinline></video>
+            <video id="video" autoplay playsinline></video>
         </div>
 
         <!-- ボタン群 -->
         <div id="buttons">
 
             <div id="modeButtons">
-                <button id="qMode" class="mode-btn">Q</button>
-                <button id="aMode" class="mode-btn">A</button>
+                <!-- JS のIDと合わせた -->
+                <button id="mode-q" class="mode-btn">Q</button>
+                <button id="mode-a" class="mode-btn">A</button>
             </div>
 
-            <button class="yellow-btn">📷</button>
-            <button class="blue-btn">🚮</button>
+            <!-- カメラボタンは JS が #camera-btn を要求 -->
+            <button id="camera-btn" class="yellow-btn">📷</button>
+
+            <!-- ゴミ箱ボタンは必要ならID付けてもOK -->
+            <button id="clear-btn" class="blue-btn">🚮</button>
         </div>
 
         <div id="clear-text">クリア</div>
