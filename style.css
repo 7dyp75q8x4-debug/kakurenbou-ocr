@@ -153,3 +153,9 @@ body {
 .yellow-btn.pressing {
     background: #ffcc33 !important; /* 少し濃い黄色 */
 }
+
+/* カメラボタン長押し中の色変化 */
+#camera-btn.pressing {
+    background-color: #ffcc00 !important;
+    opacity: 0.5;
+}
