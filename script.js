@@ -45,7 +45,10 @@ async function startCamera() {
         });
 
         video.srcObject = stream;
-        await video.play();
+
+        await video.play().catch(e => {
+            console.warn("video.play() was blocked:", e);
+        });
 
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
