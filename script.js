@@ -1,20 +1,20 @@
-// ------------------------------------------------------------
-//  初期セットアップ
-// ------------------------------------------------------------
+//------------------------------------------------------------
+// 初期セットアップ
+//------------------------------------------------------------
 const video = document.getElementById("video");
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 
-let currentMode = "A"; // Aモード/Qモード
+let currentMode = "A";
 let stream = null;
 
-// Aモードの重複防止セット
+// 重複防止
 let answerHistory = new Set();
 
 
-// ------------------------------------------------------------
-//  カメラ起動
-// ------------------------------------------------------------
+//------------------------------------------------------------
+// カメラ起動
+//------------------------------------------------------------
 async function startCamera() {
     try {
         stream = await navigator.mediaDevices.getUserMedia({
@@ -29,27 +29,27 @@ async function startCamera() {
         canvas.height = video.videoHeight;
 
     } catch (err) {
-        console.error("カメラ起動エラー:", err);
+        console.error("Camera error:", err);
     }
 }
 
 
-// ------------------------------------------------------------
-//  モード切替
-// ------------------------------------------------------------
+//------------------------------------------------------------
+// モード切替
+//------------------------------------------------------------
 function setMode(mode) {
     currentMode = mode;
     console.log("Mode:", mode);
 
     if (mode === "A") {
-        answerHistory.clear(); // Aモード時は毎回リセット
+        answerHistory.clear();
     }
 }
 
 
-// ------------------------------------------------------------
-//  撮影ボタン → スキャン処理
-// ------------------------------------------------------------
+//------------------------------------------------------------
+// 撮影ボタン
+//------------------------------------------------------------
 async function captureFrame() {
     if (!video.videoWidth) return;
 
@@ -63,9 +63,9 @@ async function captureFrame() {
 }
 
 
-// ------------------------------------------------------------
-//  ★ Aモード：画像内の "3桁数字" を検出 → トリミングして保存
-// ------------------------------------------------------------
+//------------------------------------------------------------
+// Aモード：数字＋対応するアルファベットのみを拡大トリミング
+//------------------------------------------------------------
 async function runAModeScan() {
 
     const ocrCanvas = document.createElement("canvas");
@@ -75,35 +75,32 @@ async function runAModeScan() {
     const ocrCtx = ocrCanvas.getContext("2d");
     ocrCtx.drawImage(video, 0, 0, ocrCanvas.width, ocrCanvas.height);
 
-    const bitmap = ocrCanvas;
-
-    // Google Vision API or Tesseract など OCR へ渡す処理（ユーザー環境のまま）
-    const detected = await detectThreeDigitNumbers(bitmap);
+    const detected = await detectThreeDigitNumbers(ocrCanvas);
 
     detected.forEach(item => {
 
-        // ------------------------------
-        // ① 重複防止（数字＋座標）
-        // ------------------------------
-        const key = item.number + "_" + item.x + "_" + item.y;
-
-        if (answerHistory.has(key)) {
-            console.log("重複スキップ:", key);
-            return;
-        }
+        //--------------------------------------------------------
+        // ① 重複防止
+        //--------------------------------------------------------
+        const key = `${item.number}_${item.x}_${item.y}`;
+        if (answerHistory.has(key)) return;
         answerHistory.add(key);
 
-        // ------------------------------
-        // ② トリミング（縦を大きく取る）
-        // ------------------------------
-        const marginTop = 120;     // 上方向広め
-        const marginBottom = 160;  // 下方向もっと広め（アルファベット部分）
-        const marginSide = 40;     // 左右少しだけ
+        //--------------------------------------------------------
+        // ② トリミングをよりタイトに（数字＋直下のアルファベット）
+        //--------------------------------------------------------
 
-        const sx = Math.max(item.x - marginSide, 0);
-        const sy = Math.max(item.y - marginTop, 0);
-        const sw = item.w + marginSide * 2;
-        const sh = item.h + marginTop + marginBottom;
+        // ● さらに寄せる！
+        //   → 数字周辺だけ強調し、上下左右の余分を削るロジック
+
+        const tightTop = 40;        // 上方向（数字の上の余白を少なく）
+        const tightBottom = 100;    // 下方向（アルファベット行まで）
+        const tightSide = 25;       // 左右余白も削る
+
+        const sx = Math.max(item.x - tightSide, 0);
+        const sy = Math.max(item.y - tightTop, 0);
+        const sw = item.w + tightSide * 2;
+        const sh = item.h + tightBottom + tightTop;
 
         const cut = document.createElement("canvas");
         cut.width = sw;
@@ -115,42 +112,38 @@ async function runAModeScan() {
             0, 0, sw, sh
         );
 
-        // ------------------------------
-        // ③ UIへ追加（既存レイアウトを絶対に変更しない）
-        // ------------------------------
+        //--------------------------------------------------------
+        // ③ UIへ反映（テキストカラーを Aモード＝黒 に修正）
+        //--------------------------------------------------------
         appendAModeResult(item.number, cut.toDataURL());
     });
 }
 
 
-
-// ------------------------------------------------------------
-//  Qモード（既存のまま、変更無し）
-// ------------------------------------------------------------
+//------------------------------------------------------------
+// Qモード（変更なし）
+//------------------------------------------------------------
 async function runQModeScan() {
     const result = await detectTargetForQuiz(canvas);
     showQModeResult(result);
 }
 
 
-
-// ------------------------------------------------------------
-//  ダミー：OCR検出関数（実際はユーザーの元の関数）
-// ------------------------------------------------------------
+//------------------------------------------------------------
+// OCR関数（ユーザーの既存実装）
+//------------------------------------------------------------
 async function detectThreeDigitNumbers(bitmap) {
-    // 元のコードそのまま使ってください
     return [];
 }
 
 async function detectTargetForQuiz(bitmap) {
-    // 元のコードそのまま使ってください
     return null;
 }
 
 
-// ------------------------------------------------------------
-//  UIへ結果を追加（既存UIを絶対に崩さない）
-// ------------------------------------------------------------
+//------------------------------------------------------------
+// Aモード結果追加（テキスト黒）
+//------------------------------------------------------------
 function appendAModeResult(number, imgData) {
 
     const list = document.getElementById("a-results");
@@ -165,18 +158,17 @@ function appendAModeResult(number, imgData) {
     label.textContent = number;
     label.className = "a-label";
 
+    // ★ 黒字に強制！
+    label.style.color = "black";
+    label.style.fontWeight = "bold";
+
     box.appendChild(img);
     box.appendChild(label);
     list.appendChild(box);
 }
 
-function showQModeResult(result) {
-    // 元のまま
-}
 
-
-
-// ------------------------------------------------------------
-//  初期起動
-// ------------------------------------------------------------
+//------------------------------------------------------------
+// 初期起動
+//------------------------------------------------------------
 startCamera();
