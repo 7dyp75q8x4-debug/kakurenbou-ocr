@@ -124,3 +124,39 @@ body {
     background-color: #ffcc00 !important;
     opacity: 0.6;
 }
+
+/* ==============================
+   Qモード：検出候補の表示整形
+   ============================== */
+
+#q-results {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding-top: 10px;
+}
+
+/* 1つの候補ブロック */
+.quest-item {
+    display: inline-block;
+    width: 90px;
+    text-align: center;
+    margin-bottom: 10px;
+}
+
+/* サムネ */
+.quest-thumb {
+    width: 90px;
+    height: 90px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 1px solid #aaa;
+}
+
+/* 下のテキスト（赤字） */
+.quest-text {
+    margin-top: 5px;
+    font-size: 18px;
+    font-weight: bold;
+    color: #ff3333 !important; /* 赤を強制 */
+}
