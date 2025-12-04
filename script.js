@@ -13,11 +13,11 @@ const clearBtn = document.getElementById("clear-btn");
 const qResultsEl = document.getElementById("q-results");
 const aResultsEl = document.getElementById("a-results");
 
-let currentMode = "Q";               // "Q" or "A"
+let currentMode = "Q";               
 let stream = null;
 
-let lastQNumbers = [];               // Qモードで抽出した番号
-let answerHistory = new Set();       // Aモードの重複完全排除
+let lastQNumbers = [];               
+let answerHistory = new Set();       
 
 let visionApiKey = localStorage.getItem("vision_api_key");
 
@@ -157,6 +157,7 @@ async function runQModeScan() {
     const frame = captureVideoFrameToCanvas();
     const detected = await detectThreeDigitFromCanvas(frame);
 
+    // 1フレーム内の重複数字を除去
     const uniqueMap = new Map();
     detected.forEach(item => {
         if (!uniqueMap.has(item.number)) uniqueMap.set(item.number, item);
@@ -207,15 +208,22 @@ async function runAModeScan() {
     const frame = captureVideoFrameToCanvas();
     const detected = await detectThreeDigitFromCanvas(frame);
 
+    /* ------ ★ 重要修正ポイント: Aモードも1フレーム内重複排除 ------ */
+    const uniqueMap = new Map();
+    detected.forEach(item => {
+        if (!uniqueMap.has(item.number)) uniqueMap.set(item.number, item);
+    });
+    const uniqueDetected = [...uniqueMap.values()];
+
     const tightTop = 40;
     const tightBottom = 100;
     const tightSide = 25;
 
-    detected.forEach(item => {
+    uniqueDetected.forEach(item => {
         // Qで指定された番号のみ
         if (!lastQNumbers.includes(item.number)) return;
 
-        // ★番号のみで重複管理（揺れによる位置ズレを完全無視）
+        // ★すでに記録済みなら追加しない（全体重複防止）
         if (answerHistory.has(item.number)) return;
         answerHistory.add(item.number);
 
