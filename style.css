@@ -113,3 +113,10 @@ body {
     background: #3b82f6; /* 明るいブルー */
     color: white;
 }
+
+/* Q / A アクティブ色 */
+.mode-btn.active {
+    background-color: #4D86FF;
+    color: white;
+    font-weight: bold;
+}
