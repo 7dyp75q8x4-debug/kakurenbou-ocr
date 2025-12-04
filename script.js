@@ -22,8 +22,7 @@ let visionApiKey = localStorage.getItem("vision_api_key");
 const INTERVAL_MS = 1000;            // 連写間隔（長押し時）
 
 /* =====================================================
-   APIキー入力（ページ読み込み時に一回）
-   ※ 必要になるまで prompt を繰り返す（前回の挙動尊重）
+   APIキー入力
 ===================================================== */
 async function askForApiKeyIfNeeded() {
     if (visionApiKey) return;
@@ -48,7 +47,6 @@ async function startCamera() {
         });
         video.srcObject = stream;
         await video.play().catch(()=>{});
-        // 読み取れるサイズで canvas を合わせる
         canvas.width = video.videoWidth || 1280;
         canvas.height = video.videoHeight || 720;
     } catch (e) {
@@ -58,7 +56,7 @@ async function startCamera() {
 }
 
 /* =====================================================
-   モード切替 UI と内部状態
+   モード切替
 ===================================================== */
 function setMode(mode) {
     currentMode = mode;
@@ -69,17 +67,13 @@ function setMode(mode) {
         aBtn.classList.add("active");
         qBtn.classList.remove("active");
     }
-
-    // Qに切替えたら Aの履歴は残しておくが、要望があればここで clear も可能
-    // （今は answerHistory を消さない。Qボタン押下で消したい場合はここで clear()）
 }
 
-/* イベント：ボタン押下でモード切替 */
 qBtn.addEventListener("click", () => setMode("Q"));
 aBtn.addEventListener("click", () => setMode("A"));
 
 /* =====================================================
-   Vision API 呼び出し
+   Vision API
 ===================================================== */
 async function callVisionTextDetection(base64Image) {
     if (!visionApiKey) {
@@ -108,7 +102,7 @@ async function callVisionTextDetection(base64Image) {
     }
 }
 
-/* テキスト注釈から 3桁数字を抽出する（boundingPoly を正規化して返す） */
+/* 3桁抽出 */
 function parseTextAnnotationsFor3Digit(textAnn) {
     if (!textAnn || !Array.isArray(textAnn)) return [];
     const out = [];
@@ -129,7 +123,7 @@ function parseTextAnnotationsFor3Digit(textAnn) {
     return out;
 }
 
-/* canvas -> Vision -> parsed results */
+/* canvas → OCR */
 async function detectThreeDigitFromCanvas(c) {
     const dataUrl = c.toDataURL("image/jpeg", 0.9);
     const base64 = dataUrl.split(",")[1];
@@ -140,7 +134,7 @@ async function detectThreeDigitFromCanvas(c) {
     return parseTextAnnotationsFor3Digit(textAnn);
 }
 
-/* capture current video frame into an ephemeral canvas */
+/* 現在の動画フレームを一時canvasへコピー */
 function captureVideoFrameToCanvas() {
     const c = document.createElement("canvas");
     c.width = video.videoWidth || canvas.width;
@@ -151,28 +145,38 @@ function captureVideoFrameToCanvas() {
 }
 
 /* =====================================================
-   Qモード：検出したお題を q-results に表示（赤）
-   それぞれは .quest-item/.quest-thumb/.quest-text を使う
+   Qモード（★重複削除版）
 ===================================================== */
 async function runQModeScan() {
     if (!video || !video.videoWidth) return;
+
     const frame = captureVideoFrameToCanvas();
     const detected = await detectThreeDigitFromCanvas(frame);
-    lastQNumbers = detected.map(d => d.number);
+
+    // ★重複削除（number が同じなら1つだけ残す）
+    const uniqueMap = new Map();
+    detected.forEach(item => {
+        if (!uniqueMap.has(item.number)) {
+            uniqueMap.set(item.number, item);
+        }
+    });
+    const uniqueDetected = Array.from(uniqueMap.values());
+
+    lastQNumbers = uniqueDetected.map(d => d.number);
 
     qResultsEl.innerHTML = "";
 
     const margin = 60;
-    detected.forEach(item => {
+    uniqueDetected.forEach(item => {
         const sx = Math.max(item.x - margin, 0);
         const sy = Math.max(item.y - margin, 0);
         const sw = item.w + margin * 2;
         const sh = item.h + margin * 2;
 
         const cut = document.createElement("canvas");
-        cut.width = sw; cut.height = sh;
-        const cctx = cut.getContext("2d");
-        cctx.drawImage(frame, sx, sy, sw, sh, 0, 0, sw, sh);
+        cut.width = sw; 
+        cut.height = sh;
+        cut.getContext("2d").drawImage(frame, sx, sy, sw, sh, 0, 0, sw, sh);
 
         const wrapper = document.createElement("div");
         wrapper.className = "quest-item";
@@ -184,7 +188,6 @@ async function runQModeScan() {
         const txt = document.createElement("div");
         txt.className = "quest-text";
         txt.innerText = item.number;
-        // 保険：Qは赤
         txt.style.color = "red";
 
         wrapper.appendChild(img);
@@ -194,17 +197,15 @@ async function runQModeScan() {
 }
 
 /* =====================================================
-   Aモード：Qのお題に一致するものだけ a-results に追加（黒）
-   重複は answerHistory で抑止
+   Aモード
 ===================================================== */
 async function runAModeScan() {
     if (!video || !video.videoWidth) return;
-    if (!lastQNumbers || lastQNumbers.length === 0) return; // 探索対象が無ければ無視
+    if (!lastQNumbers || lastQNumbers.length === 0) return;
 
     const frame = captureVideoFrameToCanvas();
     const detected = await detectThreeDigitFromCanvas(frame);
 
-    // tight crop params (tuneable)
     const tightTop = 40;
     const tightBottom = 100;
     const tightSide = 25;
@@ -222,10 +223,10 @@ async function runAModeScan() {
         const sh = item.h + tightTop + tightBottom;
 
         const cut = document.createElement("canvas");
-        cut.width = sw; cut.height = sh;
+        cut.width = sw; 
+        cut.height = sh;
         cut.getContext("2d").drawImage(frame, sx, sy, sw, sh, 0, 0, sw, sh);
 
-        // append to A-results (black text)
         const wrapper = document.createElement("div");
         wrapper.className = "quest-item";
 
@@ -245,7 +246,7 @@ async function runAModeScan() {
 }
 
 /* =====================================================
-   撮影（Q/A単発）
+   単発キャプチャ
 ===================================================== */
 async function captureOnce() {
     if (currentMode === "Q") {
@@ -256,15 +257,13 @@ async function captureOnce() {
 }
 
 /* =====================================================
-   長押し処理（押している間 1 秒ごとに capture）
-   長押し中はボタンに .pressing を追加して色変化
+   長押し
 ===================================================== */
 let ocrInterval = null;
 
 function startPress() {
     if (ocrInterval) return;
     camBtn.classList.add("pressing");
-    // immediate one-shot
     captureOnce();
     ocrInterval = setInterval(() => {
         captureOnce();
@@ -278,7 +277,6 @@ function stopPress() {
     ocrInterval = null;
 }
 
-/* register pointer/touch events */
 camBtn.addEventListener("mousedown", (e)=>{ e.preventDefault(); startPress(); });
 window.addEventListener("mouseup", (e)=>{ stopPress(); });
 camBtn.addEventListener("mouseleave", (e)=>{ stopPress(); });
@@ -286,11 +284,10 @@ camBtn.addEventListener("mouseleave", (e)=>{ stopPress(); });
 camBtn.addEventListener("touchstart", (e)=>{ e.preventDefault(); startPress(); }, {passive:false});
 window.addEventListener("touchend", (e)=>{ stopPress(); });
 
-/* single tap also triggers once (some platforms) */
-camBtn.addEventListener("click", (e)=>{ e.preventDefault(); /* click suppressed if longpress triggered */ });
+camBtn.addEventListener("click", (e)=>{ e.preventDefault(); });
 
 /* =====================================================
-   ゴミ箱（Q/A表示と履歴をクリア）
+   ゴミ箱
 ===================================================== */
 clearBtn.addEventListener("click", () => {
     qResultsEl.innerHTML = "";
@@ -300,10 +297,7 @@ clearBtn.addEventListener("click", () => {
 });
 
 /* =====================================================
-   初期化シーケンス
-   - APIキー入力（必須）
-   - カメラ起動
-   - 初期モード設定（Q）
+   初期化
 ===================================================== */
 window.addEventListener("DOMContentLoaded", async () => {
     await askForApiKeyIfNeeded();
