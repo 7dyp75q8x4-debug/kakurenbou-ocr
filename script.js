@@ -111,16 +111,26 @@ async function runQModeScan() {
 
     questPanel.innerHTML = "";
 
+    /* ★★★★★ 差し替えた部分（トリミング改善） ★★★★★ */
+
+    const margin = 60; // ← 余白（ピクセル）
+
     detected.forEach(item => {
+
+        const sx = Math.max(item.x - margin, 0);
+        const sy = Math.max(item.y - margin, 0);
+        const sw = item.w + margin * 2;
+        const sh = item.h + margin * 2;
+
         const cut = document.createElement("canvas");
-        cut.width = item.w;
-        cut.height = item.h;
+        cut.width = sw;
+        cut.height = sh;
         const cctx = cut.getContext("2d");
 
         cctx.drawImage(
             ocrCanvas,
-            item.x, item.y, item.w, item.h,
-            0, 0, item.w, item.h
+            sx, sy, sw, sh,
+            0, 0, sw, sh
         );
 
         const div = document.createElement("div");
