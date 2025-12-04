@@ -31,3 +31,6 @@ function setMode(mode) {
 
 qBtn.onclick = () => setMode("Q");
 aBtn.onclick = () => setMode("A");
+
+/* ページ読み込み時の初期状態（Qをアクティブ） */
+setMode("Q");
