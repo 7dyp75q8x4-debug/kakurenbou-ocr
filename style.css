@@ -98,3 +98,18 @@ body {
     font-size: 22px;
     font-weight: bold;
 }
+
+.mode-btn {
+    background: #eee;
+    color: #333;
+    border: none;
+    padding: 10px 20px;
+    font-size: 20px;
+    border-radius: 12px;
+    margin-right: 10px;
+}
+
+.mode-btn.active {
+    background: #3b82f6; /* 明るいブルー */
+    color: white;
+}
