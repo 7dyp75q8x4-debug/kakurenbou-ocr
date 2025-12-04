@@ -14,3 +14,20 @@ async function startCamera() {
 }
 
 startCamera();
+
+/* Q / A モード切替（シーソースイッチ） */
+const qBtn = document.getElementById("qMode");
+const aBtn = document.getElementById("aMode");
+
+function setMode(mode) {
+    if (mode === "Q") {
+        qBtn.classList.add("active");
+        aBtn.classList.remove("active");
+    } else {
+        aBtn.classList.add("active");
+        qBtn.classList.remove("active");
+    }
+}
+
+qBtn.onclick = () => setMode("Q");
+aBtn.onclick = () => setMode("A");
