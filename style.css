@@ -158,3 +158,8 @@ body {
     font-weight: bold;
     margin-top: 4px;
 }
+
+/* ボタン内のテキストや絵文字が選択されないようにする */
+button, .mode-btn, .yellow-btn, .blue-btn, #clear-text {
+    user-select: none;
+}
