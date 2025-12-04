@@ -310,3 +310,27 @@ window.addEventListener("DOMContentLoaded", async () => {
  - ブラウザのコンソール（開発者ツール）を開いてエラーや safeLog を確認してください。
  - APIキーは localStorage に保存されます。再入力したければ localStorage.removeItem('vision_api_key').
 */
+
+//------------------------------------------------------------
+// イベント接続
+//------------------------------------------------------------
+
+// カメラボタン
+document.getElementById("camera-btn").addEventListener("click", () => {
+    captureFrame();
+});
+
+// A / Q モードボタン
+document.getElementById("mode-a").addEventListener("click", () => {
+    setMode("A");
+
+    document.getElementById("mode-a").classList.add("active");
+    document.getElementById("mode-q").classList.remove("active");
+});
+
+document.getElementById("mode-q").addEventListener("click", () => {
+    setMode("Q");
+
+    document.getElementById("mode-q").classList.add("active");
+    document.getElementById("mode-a").classList.remove("active");
+});
