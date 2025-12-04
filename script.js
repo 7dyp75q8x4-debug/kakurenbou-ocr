@@ -1,5 +1,5 @@
 /* =====================================================
-   Vision API Key 管理（ページ開いたら1回だけ走る）
+   Vision API Key 管理
 ===================================================== */
 let visionApiKey = localStorage.getItem("vision_api_key");
 
@@ -22,10 +22,10 @@ window.addEventListener("DOMContentLoaded", askForApiKeyIfNeeded);
 ===================================================== */
 const qBtn = document.getElementById("qMode");
 const aBtn = document.getElementById("aMode");
-const cameraBtn = document.querySelector(".yellow-btn"); // 📷 ボタン
+const cameraBtn = document.querySelector(".yellow-btn");
 
-let isQMode = true;  // 初期は Q モード
-let ocrInterval = null; // 長押しで回すOCRタイマー
+let isQMode = true;      // 初期は Q モード
+let ocrInterval = null;  // 長押し OCR タイマー
 
 function setMode(mode) {
     if (mode === "Q") {
@@ -41,50 +41,25 @@ function setMode(mode) {
 
 qBtn.onclick = () => setMode("Q");
 aBtn.onclick = () => setMode("A");
-
-setMode("Q"); // 初期状態Q
+setMode("Q");
 
 /* =====================================================
    左側表示パネル
 ===================================================== */
 const questPanel = document.getElementById("left-panel");
 
-/* カメラ画像 → Canvas */
 const ocrCanvas = document.createElement("canvas");
 const ocrCtx = ocrCanvas.getContext("2d");
 
 /* =====================================================
-   Vision API キー（後で接続する想定）
-===================================================== */
-let visionApiKey = localStorage.getItem("vision_api_key");
-
-async function askForApiKeyIfNeeded() {
-    if (!visionApiKey) {
-        visionApiKey = prompt("Google Vision API キーを入力してください");
-        if (!visionApiKey) {
-            alert("APIキーが必要です");
-            return;
-        }
-        localStorage.setItem("vision_api_key", visionApiKey);
-        alert("APIキーを保存しました");
-    }
-}
-window.addEventListener("DOMContentLoaded", askForApiKeyIfNeeded);
-
-/* =====================================================
    長押しカメラ OCR（1秒ごと）
 ===================================================== */
-
 function startOCRLoop() {
-    if (!isQMode) return; // Qモード以外は動かさない
+    if (!isQMode) return;       // Qモード以外は動かさない
+    if (ocrInterval) return;    // 多重起動防止
 
-    if (ocrInterval) return; // 二重起動防止
-
-    runQModeScan(); // 最初に1回実行
-
-    ocrInterval = setInterval(() => {
-        runQModeScan();
-    }, 1000); // 1秒ごと
+    runQModeScan();             // 最初の1回
+    ocrInterval = setInterval(runQModeScan, 1000); // 1秒ごと
 }
 
 function stopOCRLoop() {
@@ -94,18 +69,17 @@ function stopOCRLoop() {
     }
 }
 
-/* PCクリック */
+/* PC用 */
 cameraBtn.addEventListener("mousedown", startOCRLoop);
 cameraBtn.addEventListener("mouseup", stopOCRLoop);
 cameraBtn.addEventListener("mouseleave", stopOCRLoop);
 
-/* スマホ長押し */
+/* スマホ用 */
 cameraBtn.addEventListener("touchstart", (e) => {
     e.preventDefault();
     startOCRLoop();
 });
 cameraBtn.addEventListener("touchend", stopOCRLoop);
-
 
 /* =====================================================
    Qモード OCR 実行本体
@@ -116,23 +90,24 @@ async function runQModeScan() {
     const video = document.getElementById("camera");
     if (!video.videoWidth) return;
 
-    // フレーム取得
+    // カメラフレームを Canvas に
     ocrCanvas.width = video.videoWidth;
     ocrCanvas.height = video.videoHeight;
-    ocrCtx.drawImage(video, 0, 0, ocrCanvas.width, ocrCanvas.height);
+    ocrCtx.drawImage(video, 0, 0);
+
     const frame = ocrCtx.getImageData(0, 0, ocrCanvas.width, ocrCanvas.height);
 
-    // ★ Vision API に置き換える場所 ★
+    // Vision API / OCR の結果（仮）
     const detected = await detectNumberPanels(frame);
 
-    questPanel.innerHTML = ""; //毎回クリア
+    questPanel.innerHTML = ""; // 毎回クリア
 
     detected.forEach(item => {
         const cut = document.createElement("canvas");
         cut.width = item.w;
         cut.height = item.h;
-        const cctx = cut.getContext("2d");
 
+        const cctx = cut.getContext("2d");
         cctx.drawImage(
             ocrCanvas,
             item.x, item.y, item.w, item.h,
@@ -148,7 +123,7 @@ async function runQModeScan() {
 
         const txt = document.createElement("div");
         txt.className = "quest-text";
-        txt.innerText = item.number;
+        txt.textContent = item.number;
 
         div.appendChild(img);
         div.appendChild(txt);
@@ -157,10 +132,10 @@ async function runQModeScan() {
 }
 
 /* =====================================================
-   3桁数字パネル検出ダミー（後で Vision API に置き換える）
+   3桁数字パネル検出ダミー
 ===================================================== */
 async function detectNumberPanels(frame) {
-    // Vision API の返り値に合わせて書き換える
+    // Vision API 実装前なので空を返す
     return [];
 }
 
@@ -181,25 +156,19 @@ async function startCamera() {
 
 startCamera();
 
-/* =====================================
-   カメラボタンの押下中は色を変える
-===================================== */
-const cameraBtn = document.querySelector(".yellow-btn");
-
-cameraBtn.addEventListener("mousedown", () => {
+/* =====================================================
+   カメラボタンの押下中に色を変える
+===================================================== */
+function addPressEffect() {
     cameraBtn.classList.add("pressing");
-});
-cameraBtn.addEventListener("mouseup", () => {
+}
+function removePressEffect() {
     cameraBtn.classList.remove("pressing");
-});
-cameraBtn.addEventListener("mouseleave", () => {
-    cameraBtn.classList.remove("pressing");
-});
+}
 
-// スマホ用（iOS）
-cameraBtn.addEventListener("touchstart", () => {
-    cameraBtn.classList.add("pressing");
-});
-cameraBtn.addEventListener("touchend", () => {
-    cameraBtn.classList.remove("pressing");
-});
+cameraBtn.addEventListener("mousedown", addPressEffect);
+cameraBtn.addEventListener("mouseup", removePressEffect);
+cameraBtn.addEventListener("mouseleave", removePressEffect);
+
+cameraBtn.addEventListener("touchstart", addPressEffect);
+cameraBtn.addEventListener("touchend", removePressEffect);
