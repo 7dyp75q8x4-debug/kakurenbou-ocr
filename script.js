@@ -47,7 +47,6 @@ async function startCamera() {
         video.srcObject = stream;
         await video.play();
 
-        // 取得できたサイズでキャンバス調整
         canvas.width = video.videoWidth || 1280;
         canvas.height = video.videoHeight || 720;
 
@@ -73,8 +72,6 @@ function setMode(mode) {
     }
 }
 
-
-// Q/A ボタンイベント
 qBtn.addEventListener("click", () => setMode("Q"));
 aBtn.addEventListener("click", () => setMode("A"));
 
@@ -108,7 +105,6 @@ async function callVisionAPI(base64) {
 // 3桁抽出
 //------------------------------------------------------------
 function parse3Digits(textAnnotations) {
-
     if (!textAnnotations || !Array.isArray(textAnnotations)) return [];
 
     const out = [];
@@ -127,7 +123,6 @@ function parse3Digits(textAnnotations) {
             out.push({ number: t, x, y, w, h });
         }
     }
-
     return out;
 }
 
@@ -139,14 +134,12 @@ async function detectNumbers(bitmap) {
     const dataUrl = bitmap.toDataURL("image/jpeg", 0.85);
     const base64 = dataUrl.split(",")[1];
 
-    // キー未設定なら OCR しない（重要）
     if (!visionApiKey) {
         console.warn("Vision API key not set — skipping OCR.");
         return [];
     }
 
     const resp = await callVisionAPI(base64);
-
     const textAnn = resp?.responses?.[0]?.textAnnotations;
     if (!textAnn) return [];
 
@@ -155,23 +148,21 @@ async function detectNumbers(bitmap) {
 
 
 //------------------------------------------------------------
-// Qモード処理（重要な修正点：class 名を CSS に合わせた）
+// Qモード処理
 //------------------------------------------------------------
 async function runQModeScan() {
 
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
     const results = await detectNumbers(canvas);
-
     lastQNumbers = results.map(r => r.number);
 
     const list = document.getElementById("q-results");
     list.innerHTML = "";
 
-    // --- ここで CSS に合わせたクラス名を付与 ---
     results.forEach(item => {
         const wrapper = document.createElement("div");
-        wrapper.className = "quest-item";        // <- CSS 側と一致させる（重要）
+        wrapper.className = "quest-item";
 
         const cut = document.createElement("canvas");
         cut.width = item.w + 60;
@@ -187,15 +178,13 @@ async function runQModeScan() {
         );
 
         const img = document.createElement("img");
-        img.className = "quest-thumb";          // <- CSS と一致
+        img.className = "quest-thumb";
         img.src = cut.toDataURL();
 
         const txt = document.createElement("div");
-        txt.className = "quest-text";           // <- CSS と一致
+        txt.className = "quest-text";
         txt.innerText = item.number;
-        // 保険でスタイルを明示（赤）
         txt.style.color = "red";
-        txt.style.fontWeight = "bold";
 
         wrapper.appendChild(img);
         wrapper.appendChild(txt);
@@ -205,7 +194,7 @@ async function runQModeScan() {
 
 
 //------------------------------------------------------------
-// Aモード処理（Aは黒、重複防止済み）
+// Aモード処理
 //------------------------------------------------------------
 async function runAModeScan() {
     if (lastQNumbers.length === 0) return;
@@ -246,14 +235,13 @@ async function runAModeScan() {
 
 
 //------------------------------------------------------------
-// Aモード結果追加（黒テキスト）
- //（A結果は q 用と異なる見た目でもよければ class を分ける）
- //------------------------------------------------------------
+// Aモード結果
+//------------------------------------------------------------
 function appendAModeResult(num, imgData) {
     const list = document.getElementById("a-results");
 
     const wrapper = document.createElement("div");
-    wrapper.className = "quest-item"; // レイアウト揃えたいなら同じクラスでも OK
+    wrapper.className = "quest-item";
 
     const img = document.createElement("img");
     img.className = "quest-thumb";
@@ -262,8 +250,7 @@ function appendAModeResult(num, imgData) {
     const txt = document.createElement("div");
     txt.className = "quest-text";
     txt.innerText = num;
-    txt.style.color = "black"; // A は黒
-    txt.style.fontWeight = "bold";
+    txt.style.color = "black";
 
     wrapper.appendChild(img);
     wrapper.appendChild(txt);
@@ -272,8 +259,8 @@ function appendAModeResult(num, imgData) {
 
 
 //------------------------------------------------------------
-// 撮影（Q/A）
- //------------------------------------------------------------
+// 撮影（長押し対応）
+//------------------------------------------------------------
 async function captureFrame() {
     if (currentMode === "Q") {
         await runQModeScan();
@@ -282,20 +269,6 @@ async function captureFrame() {
     }
 }
 
-
-//------------------------------------------------------------
-// 初期起動
-//------------------------------------------------------------
-(async () => {
-    await ensureApiKey();
-    await startCamera();
-    setMode("Q");
-})();
-
-
-//------------------------------------------------------------
-// 長押し撮影（色変化）
-//------------------------------------------------------------
 let pressTimer = null;
 let isPressing = false;
 
@@ -336,3 +309,13 @@ clearBtn.addEventListener("click", () => {
     document.getElementById("a-results").innerHTML = "";
     answerHistory.clear();
 });
+
+
+//------------------------------------------------------------
+// 初期化
+//------------------------------------------------------------
+(async () => {
+    await ensureApiKey();
+    await startCamera();
+    setMode("Q");
+})();
