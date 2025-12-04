@@ -254,7 +254,7 @@ function appendAModeResult(num, imgData) {
 
 
 //------------------------------------------------------------
-// 撮影実行（Q / A自動分岐）
+// 撮影
 //------------------------------------------------------------
 async function captureFrame() {
     if (currentMode === "Q") {
@@ -276,67 +276,43 @@ async function captureFrame() {
 
 
 //------------------------------------------------------------
-// Q / A ボタン
-//------------------------------------------------------------
-qBtn.addEventListener("click", () => setMode("Q"));
-aBtn.addEventListener("click", () => setMode("A"));
-
-
-//------------------------------------------------------------
-// ゴミ箱（クリア）
-//------------------------------------------------------------
-clearBtn.addEventListener("click", () => {
-    document.getElementById("q-results").innerHTML = "";
-    document.getElementById("a-results").innerHTML = "";
-    answerHistory.clear();
-});
-
-
-//------------------------------------------------------------
-// 📸 長押し & 短押し撮影（押してる間色が変わる）
+// 長押し撮影（改良版）
 //------------------------------------------------------------
 let pressTimer = null;
 let isPressing = false;
 
-// 押した時の色（濃い黄色）
-const pressColor = "#c7b200";
-
-// 元の色（CSS に任せているため空文字で戻す）
-const originalColor = "";
-
-
-// 押し始め
-function pressStart() {
+// 押した瞬間
+function startPress() {
     isPressing = true;
-
-    // ★ 押している間だけ色を濃くする
-    camBtn.style.backgroundColor = pressColor;
-
+    camBtn.classList.add("pressing");   // ← ★追加：色変更クラス
     captureFrame();
     pressTimer = setInterval(() => {
         if (isPressing) captureFrame();
     }, 350);
 }
 
-// 押し終わり
-function pressEnd() {
+// 離れた瞬間
+function endPress() {
     isPressing = false;
-
+    camBtn.classList.remove("pressing"); // ← ★追加：色戻す
     clearInterval(pressTimer);
-
-    // ★ 元の色へ戻す
-    camBtn.style.backgroundColor = originalColor;
 }
 
 // PC
-camBtn.addEventListener("mousedown", pressStart);
-camBtn.addEventListener("mouseup", pressEnd);
-camBtn.addEventListener("mouseleave", pressEnd);
+camBtn.addEventListener("mousedown", startPress);
+camBtn.addEventListener("mouseup", endPress);
+camBtn.addEventListener("mouseleave", endPress);
 
 // スマホ
-camBtn.addEventListener("touchstart", (e) => {
-    e.preventDefault();
-    pressStart();
-}, { passive: false });
+camBtn.addEventListener("touchstart", startPress);
+camBtn.addEventListener("touchend", endPress);
 
-camBtn.addEventListener("touchend", pressEnd);
+
+//------------------------------------------------------------
+// ゴミ箱
+//------------------------------------------------------------
+clearBtn.addEventListener("click", () => {
+    document.getElementById("q-results").innerHTML = "";
+    document.getElementById("a-results").innerHTML = "";
+    answerHistory.clear();
+});
