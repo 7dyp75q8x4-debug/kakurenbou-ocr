@@ -13,13 +13,13 @@ const clearBtn = document.getElementById("clear-btn");
 const qResultsEl = document.getElementById("q-results");
 const aResultsEl = document.getElementById("a-results");
 
-let currentMode = "Q";               // "Q" または "A"
+let currentMode = "Q";
 let stream = null;
-let lastQNumbers = [];               // 最新のお題リスト
-let answerHistory = new Set();       // Aモード結果の重複防止
+let lastQNumbers = [];
+let answerHistory = new Set();
 
 let visionApiKey = localStorage.getItem("vision_api_key");
-const INTERVAL_MS = 1000;            // 連写間隔（長押し時）
+const INTERVAL_MS = 1000;  // 長押しは1秒ごとに1回撮影
 
 /* =====================================================
    APIキー入力
@@ -47,8 +47,10 @@ async function startCamera() {
         });
         video.srcObject = stream;
         await video.play().catch(()=>{});
+
         canvas.width = video.videoWidth || 1280;
         canvas.height = video.videoHeight || 720;
+
     } catch (e) {
         console.error("Camera start error:", e);
         alert("カメラを開始できませんでした: " + (e && e.message ? e.message : e));
@@ -82,12 +84,10 @@ async function callVisionTextDetection(base64Image) {
     }
     const url = `https://vision.googleapis.com/v1/images:annotate?key=${visionApiKey}`;
     const body = {
-        requests: [
-            {
-                image: { content: base64Image },
-                features: [{ type: "TEXT_DETECTION", maxResults: 50 }]
-            }
-        ]
+        requests: [{
+            image: { content: base64Image },
+            features: [{ type: "TEXT_DETECTION", maxResults: 50 }]
+        }]
     };
     try {
         const res = await fetch(url, {
@@ -106,19 +106,27 @@ async function callVisionTextDetection(base64Image) {
 function parseTextAnnotationsFor3Digit(textAnn) {
     if (!textAnn || !Array.isArray(textAnn)) return [];
     const out = [];
+
     for (let i = 1; i < textAnn.length; i++) {
         const ta = textAnn[i];
-        if (!ta || !ta.description) continue;
+        if (!ta?.description) continue;
+
         const txt = ta.description.trim();
         if (!/^\d{3}$/.test(txt)) continue;
-        const verts = (ta.boundingPoly && ta.boundingPoly.vertices) || [];
+
+        const verts = ta.boundingPoly?.vertices || [];
         const x0 = verts[0]?.x || 0;
         const y0 = verts[0]?.y || 0;
         const x1 = verts[1]?.x || x0;
         const y2 = verts[2]?.y || y0;
-        const w = Math.max(x1 - x0, 8);
-        const h = Math.max(y2 - y0, 8);
-        out.push({ number: txt, x: x0, y: y0, w, h });
+
+        out.push({
+            number: txt,
+            x: x0,
+            y: y0,
+            w: Math.max(x1 - x0, 8),
+            h: Math.max(y2 - y0, 8)
+        });
     }
     return out;
 }
@@ -128,45 +136,41 @@ async function detectThreeDigitFromCanvas(c) {
     const dataUrl = c.toDataURL("image/jpeg", 0.9);
     const base64 = dataUrl.split(",")[1];
     const resp = await callVisionTextDetection(base64);
-    if (!resp || !resp.responses || !resp.responses[0]) return [];
-    const textAnn = resp.responses[0].textAnnotations;
-    if (!textAnn) return [];
-    return parseTextAnnotationsFor3Digit(textAnn);
+    if (!resp?.responses?.[0]) return [];
+    return parseTextAnnotationsFor3Digit(resp.responses[0].textAnnotations);
 }
 
-/* 現在の動画フレームを一時canvasへコピー */
+/* 動画フレームを一時canvasへコピー */
 function captureVideoFrameToCanvas() {
     const c = document.createElement("canvas");
     c.width = video.videoWidth || canvas.width;
     c.height = video.videoHeight || canvas.height;
-    const cx = c.getContext("2d");
-    cx.drawImage(video, 0, 0, c.width, c.height);
+    c.getContext("2d").drawImage(video, 0, 0, c.width, c.height);
     return c;
 }
 
 /* =====================================================
-   Qモード（★重複削除版）
+   Qモード（完全・重複排除）
 ===================================================== */
 async function runQModeScan() {
-    if (!video || !video.videoWidth) return;
+    if (!video.videoWidth) return;
 
     const frame = captureVideoFrameToCanvas();
     const detected = await detectThreeDigitFromCanvas(frame);
 
-    // ★重複削除（number が同じなら1つだけ残す）
-    const uniqueMap = new Map();
-    detected.forEach(item => {
-        if (!uniqueMap.has(item.number)) {
-            uniqueMap.set(item.number, item);
-        }
-    });
-    const uniqueDetected = Array.from(uniqueMap.values());
+    // ★数字で重複排除（位置ではなく number をキーにする）
+    const uniq = new Map();
+    for (const d of detected) {
+        if (!uniq.has(d.number)) uniq.set(d.number, d);
+    }
+    const uniqueDetected = Array.from(uniq.values());
 
+    // Q表示を毎回リセット
+    qResultsEl.innerHTML = "";
     lastQNumbers = uniqueDetected.map(d => d.number);
 
-    qResultsEl.innerHTML = "";
-
     const margin = 60;
+
     uniqueDetected.forEach(item => {
         const sx = Math.max(item.x - margin, 0);
         const sy = Math.max(item.y - margin, 0);
@@ -174,12 +178,12 @@ async function runQModeScan() {
         const sh = item.h + margin * 2;
 
         const cut = document.createElement("canvas");
-        cut.width = sw; 
+        cut.width = sw;
         cut.height = sh;
         cut.getContext("2d").drawImage(frame, sx, sy, sw, sh, 0, 0, sw, sh);
 
-        const wrapper = document.createElement("div");
-        wrapper.className = "quest-item";
+        const wrap = document.createElement("div");
+        wrap.className = "quest-item";
 
         const img = document.createElement("img");
         img.className = "quest-thumb";
@@ -190,18 +194,18 @@ async function runQModeScan() {
         txt.innerText = item.number;
         txt.style.color = "red";
 
-        wrapper.appendChild(img);
-        wrapper.appendChild(txt);
-        qResultsEl.appendChild(wrapper);
+        wrap.appendChild(img);
+        wrap.appendChild(txt);
+        qResultsEl.appendChild(wrap);
     });
 }
 
 /* =====================================================
-   Aモード
+   Aモード（重複排除）
 ===================================================== */
 async function runAModeScan() {
-    if (!video || !video.videoWidth) return;
-    if (!lastQNumbers || lastQNumbers.length === 0) return;
+    if (!video.videoWidth) return;
+    if (!lastQNumbers.length) return;
 
     const frame = captureVideoFrameToCanvas();
     const detected = await detectThreeDigitFromCanvas(frame);
@@ -223,12 +227,12 @@ async function runAModeScan() {
         const sh = item.h + tightTop + tightBottom;
 
         const cut = document.createElement("canvas");
-        cut.width = sw; 
+        cut.width = sw;
         cut.height = sh;
         cut.getContext("2d").drawImage(frame, sx, sy, sw, sh, 0, 0, sw, sh);
 
-        const wrapper = document.createElement("div");
-        wrapper.className = "quest-item";
+        const wrap = document.createElement("div");
+        wrap.className = "quest-item";
 
         const img = document.createElement("img");
         img.className = "quest-thumb";
@@ -239,9 +243,9 @@ async function runAModeScan() {
         txt.innerText = item.number;
         txt.style.color = "black";
 
-        wrapper.appendChild(img);
-        wrapper.appendChild(txt);
-        aResultsEl.appendChild(wrapper);
+        wrap.appendChild(img);
+        wrap.appendChild(txt);
+        aResultsEl.appendChild(wrap);
     });
 }
 
@@ -249,22 +253,20 @@ async function runAModeScan() {
    単発キャプチャ
 ===================================================== */
 async function captureOnce() {
-    if (currentMode === "Q") {
-        await runQModeScan();
-    } else {
-        await runAModeScan();
-    }
+    if (currentMode === "Q") await runQModeScan();
+    else await runAModeScan();
 }
 
 /* =====================================================
-   長押し
+   長押し（1秒ごとに1回だけ）
 ===================================================== */
 let ocrInterval = null;
 
 function startPress() {
     if (ocrInterval) return;
     camBtn.classList.add("pressing");
-    captureOnce();
+
+    // ★即時撮影を廃止 → 1秒後から開始
     ocrInterval = setInterval(() => {
         captureOnce();
     }, INTERVAL_MS);
@@ -277,14 +279,14 @@ function stopPress() {
     ocrInterval = null;
 }
 
-camBtn.addEventListener("mousedown", (e)=>{ e.preventDefault(); startPress(); });
-window.addEventListener("mouseup", (e)=>{ stopPress(); });
-camBtn.addEventListener("mouseleave", (e)=>{ stopPress(); });
+camBtn.addEventListener("mousedown", e => { e.preventDefault(); startPress(); });
+window.addEventListener("mouseup", () => stopPress());
+camBtn.addEventListener("mouseleave", () => stopPress());
 
-camBtn.addEventListener("touchstart", (e)=>{ e.preventDefault(); startPress(); }, {passive:false});
-window.addEventListener("touchend", (e)=>{ stopPress(); });
+camBtn.addEventListener("touchstart", e => { e.preventDefault(); startPress(); }, { passive: false });
+window.addEventListener("touchend", () => stopPress());
 
-camBtn.addEventListener("click", (e)=>{ e.preventDefault(); });
+camBtn.addEventListener("click", e => e.preventDefault());
 
 /* =====================================================
    ゴミ箱
