@@ -1,8 +1,8 @@
 //------------------------------------------------------------
-// 初期セットアップ
+// 初期セットアップ（ID を camera に統一済）
 //------------------------------------------------------------
-const video = document.getElementById("video");
-const canvas = document.getElementById("canvas");
+const video = document.getElementById("camera");
+const canvas = document.createElement("canvas");
 const ctx = canvas.getContext("2d");
 
 let currentMode = "A";
@@ -25,8 +25,11 @@ async function startCamera() {
         video.srcObject = stream;
         await video.play();
 
+        // canvas は画面には出さないが内部処理用にサイズを合わせる
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
+
+        console.log("Camera started:", canvas.width, canvas.height);
 
     } catch (err) {
         console.error("Camera error:", err);
@@ -48,11 +51,13 @@ function setMode(mode) {
 
 
 //------------------------------------------------------------
-// 撮影ボタン
+// 撮影ボタンから呼ばれる
 //------------------------------------------------------------
 async function captureFrame() {
+
     if (!video.videoWidth) return;
 
+    // 内部 canvas に描画
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
     if (currentMode === "A") {
@@ -64,16 +69,16 @@ async function captureFrame() {
 
 
 //------------------------------------------------------------
-// Aモード：数字＋対応するアルファベットのみを拡大トリミング
+// Aモード：数字＋対応するアルファベットのトリミング
 //------------------------------------------------------------
 async function runAModeScan() {
 
+    // OCR 用にフレームをコピー
     const ocrCanvas = document.createElement("canvas");
     ocrCanvas.width = canvas.width;
     ocrCanvas.height = canvas.height;
 
-    const ocrCtx = ocrCanvas.getContext("2d");
-    ocrCtx.drawImage(video, 0, 0, ocrCanvas.width, ocrCanvas.height);
+    ocrCanvas.getContext("2d").drawImage(video, 0, 0);
 
     const detected = await detectThreeDigitNumbers(ocrCanvas);
 
@@ -87,15 +92,11 @@ async function runAModeScan() {
         answerHistory.add(key);
 
         //--------------------------------------------------------
-        // ② トリミングをよりタイトに（数字＋直下のアルファベット）
+        // ② 余白をより削ったトリミング
         //--------------------------------------------------------
-
-        // ● さらに寄せる！
-        //   → 数字周辺だけ強調し、上下左右の余分を削るロジック
-
-        const tightTop = 40;        // 上方向（数字の上の余白を少なく）
-        const tightBottom = 100;    // 下方向（アルファベット行まで）
-        const tightSide = 25;       // 左右余白も削る
+        const tightTop = 40;
+        const tightBottom = 100;
+        const tightSide = 25;
 
         const sx = Math.max(item.x - tightSide, 0);
         const sy = Math.max(item.y - tightTop, 0);
@@ -113,7 +114,7 @@ async function runAModeScan() {
         );
 
         //--------------------------------------------------------
-        // ③ UIへ反映（テキストカラーを Aモード＝黒 に修正）
+        // ③ UI に黒字で追加
         //--------------------------------------------------------
         appendAModeResult(item.number, cut.toDataURL());
     });
@@ -121,7 +122,7 @@ async function runAModeScan() {
 
 
 //------------------------------------------------------------
-// Qモード（変更なし）
+// Qモード
 //------------------------------------------------------------
 async function runQModeScan() {
     const result = await detectTargetForQuiz(canvas);
@@ -130,19 +131,19 @@ async function runQModeScan() {
 
 
 //------------------------------------------------------------
-// OCR関数（ユーザーの既存実装）
+// OCR（ユーザー側で実装）
 //------------------------------------------------------------
 async function detectThreeDigitNumbers(bitmap) {
-    return [];
+    return []; // ← あなたの実装に差し替える
 }
 
 async function detectTargetForQuiz(bitmap) {
-    return null;
+    return null; // ← あなたの実装に差し替える
 }
 
 
 //------------------------------------------------------------
-// Aモード結果追加（テキスト黒）
+// Aモード結果：UI に追加（黒字）
 //------------------------------------------------------------
 function appendAModeResult(number, imgData) {
 
@@ -157,8 +158,6 @@ function appendAModeResult(number, imgData) {
     const label = document.createElement("div");
     label.textContent = number;
     label.className = "a-label";
-
-    // ★ 黒字に強制！
     label.style.color = "black";
     label.style.fontWeight = "bold";
 
@@ -169,6 +168,40 @@ function appendAModeResult(number, imgData) {
 
 
 //------------------------------------------------------------
-// 初期起動
+// イベント登録（あなたの HTML に合わせて復元）
+//------------------------------------------------------------
+
+// Q / A モードボタン
+document.getElementById("qMode").addEventListener("click", () => {
+    setMode("Q");
+    document.getElementById("qMode").classList.add("active");
+    document.getElementById("aMode").classList.remove("active");
+});
+
+document.getElementById("aMode").addEventListener("click", () => {
+    setMode("A");
+    document.getElementById("aMode").classList.add("active");
+    document.getElementById("qMode").classList.remove("active");
+});
+
+// 📷 ボタン
+document.querySelector(".yellow-btn").addEventListener("click", async () => {
+    const btn = document.querySelector(".yellow-btn");
+    btn.classList.add("pressing");
+
+    await captureFrame();
+
+    setTimeout(() => btn.classList.remove("pressing"), 120);
+});
+
+// 🚮 ボタン（Aモードの結果クリア）
+document.querySelector(".blue-btn").addEventListener("click", () => {
+    document.getElementById("a-results").innerHTML = "";
+    answerHistory.clear();
+});
+
+
+//------------------------------------------------------------
+// 起動
 //------------------------------------------------------------
 startCamera();
