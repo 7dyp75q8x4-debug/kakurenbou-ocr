@@ -2,6 +2,8 @@ body {
     margin: 0;
     overflow: hidden;
     font-family: sans-serif;
+    -webkit-user-select: none;
+    user-select: none; /* ← 全体のテキスト選択防止 */
 }
 
 /* 全体：左右に配置 */
@@ -54,7 +56,7 @@ body {
     width: 100%;
     border-radius: 20px;
     overflow: hidden;
-    aspect-ratio: 9 / 16; /* 画像通り縦長に */
+    aspect-ratio: 9 / 16;
     background: black;
 }
 
@@ -78,6 +80,8 @@ body {
     font-size: 20px;
     border-radius: 12px;
     border: none;
+    -webkit-user-select: none;
+    user-select: none;
 }
 
 .gray-btn {
@@ -86,6 +90,7 @@ body {
 
 .yellow-btn {
     background: #ffe36d;
+    transition: background 0.15s;
 }
 
 .blue-btn {
@@ -99,36 +104,18 @@ body {
     font-weight: bold;
 }
 
+/* モードボタン */
 .mode-btn {
-    background: #eee;
+    background: #e0e0e0;
     color: #333;
     border: none;
     padding: 10px 20px;
     font-size: 20px;
     border-radius: 12px;
     margin-right: 10px;
-}
-
-.mode-btn.active {
-    background: #3b82f6; /* 明るいブルー */
-    color: white;
-}
-
-/* Q / A アクティブ色 */
-.mode-btn.active {
-    background-color: #4D86FF;
-    color: white;
-    font-weight: bold;
-}
-
-
-.mode-btn {
-    padding: 4px 12px;
-    border-radius: 12px;
-    background: #e0e0e0;
-    border: none;
-    font-size: 14px;
     transition: 0.15s;
+    -webkit-user-select: none;
+    user-select: none;
 }
 
 .mode-btn.active {
@@ -159,13 +146,10 @@ body {
     margin-top: 4px;
 }
 
-/* ボタン内のテキストや絵文字が選択されないようにする */
-button, .mode-btn, .yellow-btn, .blue-btn, #clear-text {
-    user-select: none;
-}
-
-/* カメラボタン押下中 */
+/* =====================================================
+   📷 ボタン押下中の色
+   （JS が pressing クラスを付与）
+===================================================== */
 .yellow-btn.pressing {
-    filter: brightness(0.8); /* 少し暗くなる */
-    transform: scale(0.96);  /* 押した感 */
+    background: #ffcc33 !important; /* 少し濃い黄色 */
 }
