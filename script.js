@@ -1,5 +1,5 @@
 /* =====================================================
-   Vision API Key 管理（ページ開いたら1回だけ走る）
+   Vision API Key 管理（script読み込み時に必ず実行）
 ===================================================== */
 let visionApiKey = localStorage.getItem("vision_api_key");
 
@@ -7,7 +7,7 @@ async function askForApiKeyIfNeeded() {
     if (!visionApiKey) {
         visionApiKey = prompt("Google Vision API キーを入力してください");
         if (!visionApiKey) {
-            alert("APIキーが必要です");
+            alert("APIキーが必要です。ページを再読み込みしてください。");
             return;
         }
         localStorage.setItem("vision_api_key", visionApiKey);
@@ -15,7 +15,9 @@ async function askForApiKeyIfNeeded() {
     }
 }
 
-window.addEventListener("DOMContentLoaded", askForApiKeyIfNeeded);
+// ← これが重要！DOMContentLoadedを使わない
+askForApiKeyIfNeeded();
+
 
 
 /* =====================================================
@@ -23,10 +25,10 @@ window.addEventListener("DOMContentLoaded", askForApiKeyIfNeeded);
 ===================================================== */
 const qBtn = document.getElementById("qMode");
 const aBtn = document.getElementById("aMode");
-const cameraBtn = document.querySelector(".yellow-btn"); // 📷 ボタン
+const cameraBtn = document.querySelector(".yellow-btn"); // 📷ボタン
 
-let isQMode = true;  // 初期は Q モード
-let ocrInterval = null; // 長押しOCRタイマー
+let isQMode = true;
+let ocrInterval = null;
 
 function setMode(mode) {
     if (mode === "Q") {
@@ -43,7 +45,8 @@ function setMode(mode) {
 qBtn.onclick = () => setMode("Q");
 aBtn.onclick = () => setMode("A");
 
-setMode("Q"); // 初期状態
+setMode("Q"); // 初期状態Q
+
 
 
 /* =====================================================
@@ -51,19 +54,19 @@ setMode("Q"); // 初期状態
 ===================================================== */
 const questPanel = document.getElementById("left-panel");
 
-/* カメラ画像 → Canvas */
 const ocrCanvas = document.createElement("canvas");
 const ocrCtx = ocrCanvas.getContext("2d");
 
 
+
 /* =====================================================
-   長押しカメラ OCR（1秒ごと）
+   長押しによるOCR（1秒間隔）
 ===================================================== */
 function startOCRLoop() {
-    if (!isQMode) return; 
+    if (!isQMode) return;
     if (ocrInterval) return;
 
-    cameraBtn.classList.add("pressing"); // 色変更
+    cameraBtn.classList.add("pressing");
 
     runQModeScan();
 
@@ -93,8 +96,9 @@ cameraBtn.addEventListener("touchstart", (e) => {
 cameraBtn.addEventListener("touchend", stopOCRLoop);
 
 
+
 /* =====================================================
-   Qモード OCR 実行本体
+   Qモード OCR 実行
 ===================================================== */
 async function runQModeScan() {
     if (!isQMode) return;
@@ -108,10 +112,9 @@ async function runQModeScan() {
 
     const frame = ocrCtx.getImageData(0, 0, ocrCanvas.width, ocrCanvas.height);
 
-    // Vision API を使った検出（まだダミー）
     const detected = await detectNumberPanels(frame);
 
-    questPanel.innerHTML = ""; 
+    questPanel.innerHTML = "";
 
     detected.forEach(item => {
         const cut = document.createElement("canvas");
@@ -143,12 +146,14 @@ async function runQModeScan() {
 }
 
 
+
 /* =====================================================
-   3桁数字パネル検出ダミー（後で Vision API に置き換える）
+   3桁数字パネル検出（ダミー）
 ===================================================== */
 async function detectNumberPanels(frame) {
-    return []; 
+    return [];
 }
+
 
 
 /* =====================================================
