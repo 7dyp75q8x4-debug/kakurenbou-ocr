@@ -40,18 +40,47 @@ async function askForApiKeyIfNeeded() {
 }
 
 /* =====================================================
-   カメラ起動
+   iPhone用：超広角カメラ取得
+===================================================== */
+async function getUltraWideCameraId() {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const videoDevices = devices.filter(d => d.kind === "videoinput");
+
+    // iOS Safari では label に "0.5x" "超広角" が含まれることが多い
+    const ultra = videoDevices.find(d =>
+        d.label.includes("0.5") ||
+        d.label.toLowerCase().includes("ultra") ||
+        d.label.includes("超広角")
+    );
+
+    return ultra?.deviceId || videoDevices[0]?.deviceId || null;
+}
+
+/* =====================================================
+   カメラ起動（iPhone専用・超広角優先）
 ===================================================== */
 async function startCamera() {
     try {
+        const deviceId = await getUltraWideCameraId();
+
         stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
+            video: {
+                deviceId: deviceId ? { exact: deviceId } : undefined,
+                facingMode: { ideal: "environment" },
+                width: { ideal: 1920 },
+                height: { ideal: 1080 },
+                advanced: [
+                    { zoom: 0 }
+                ]
+            },
             audio: false
         });
+
         video.srcObject = stream;
         await video.play().catch(()=>{});
-        canvas.width = video.videoWidth || 1280;
-        canvas.height = video.videoHeight || 720;
+
+        canvas.width = video.videoWidth || 1920;
+        canvas.height = video.videoHeight || 1080;
     } catch (e) {
         console.error("Camera start error:", e);
         alert("カメラを開始できませんでした: " + (e?.message || e));
@@ -157,7 +186,6 @@ async function runQModeScan() {
     const frame = captureVideoFrameToCanvas();
     const detected = await detectThreeDigitFromCanvas(frame);
 
-    // 1フレーム内の重複数字を除去
     const uniqueMap = new Map();
     detected.forEach(item => {
         if (!uniqueMap.has(item.number)) uniqueMap.set(item.number, item);
@@ -208,7 +236,6 @@ async function runAModeScan() {
     const frame = captureVideoFrameToCanvas();
     const detected = await detectThreeDigitFromCanvas(frame);
 
-    /* ------ ★ 重要修正ポイント: Aモードも1フレーム内重複排除 ------ */
     const uniqueMap = new Map();
     detected.forEach(item => {
         if (!uniqueMap.has(item.number)) uniqueMap.set(item.number, item);
@@ -220,10 +247,7 @@ async function runAModeScan() {
     const tightSide = 25;
 
     uniqueDetected.forEach(item => {
-        // Qで指定された番号のみ
         if (!lastQNumbers.includes(item.number)) return;
-
-        // ★すでに記録済みなら追加しない（全体重複防止）
         if (answerHistory.has(item.number)) return;
         answerHistory.add(item.number);
 
