@@ -40,13 +40,12 @@ async function askForApiKeyIfNeeded() {
 }
 
 /* =====================================================
-   iPhone用：超広角カメラ取得
+   iPhone用：超広角カメラのdeviceId取得
 ===================================================== */
 async function getUltraWideCameraId() {
     const devices = await navigator.mediaDevices.enumerateDevices();
     const videoDevices = devices.filter(d => d.kind === "videoinput");
 
-    // iOS Safari では label に "0.5x" "超広角" が含まれることが多い
     const ultra = videoDevices.find(d =>
         d.label.includes("0.5") ||
         d.label.toLowerCase().includes("ultra") ||
@@ -57,35 +56,57 @@ async function getUltraWideCameraId() {
 }
 
 /* =====================================================
-   カメラ起動（iPhone専用・超広角優先）
+   カメラ起動（横画面16:9 + 超広角優先）
 ===================================================== */
 async function startCamera() {
     try {
         const deviceId = await getUltraWideCameraId();
 
-        stream = await navigator.mediaDevices.getUserMedia({
+        const isLandscape = window.innerWidth > window.innerHeight;
+
+        const constraints = {
             video: {
                 deviceId: deviceId ? { exact: deviceId } : undefined,
                 facingMode: { ideal: "environment" },
-                width: { ideal: 1920 },
-                height: { ideal: 1080 },
+                width: isLandscape
+                    ? { ideal: 1920 }
+                    : { ideal: 1280 },
+                height: isLandscape
+                    ? { ideal: 1080 }
+                    : { ideal: 720 },
+                aspectRatio: isLandscape
+                    ? { exact: 16 / 9 }
+                    : undefined,
                 advanced: [
                     { zoom: 0 }
                 ]
             },
             audio: false
-        });
+        };
+
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
 
         video.srcObject = stream;
         await video.play().catch(()=>{});
 
-        canvas.width = video.videoWidth || 1920;
-        canvas.height = video.videoHeight || 1080;
+        canvas.width = video.videoWidth || (isLandscape ? 1920 : 1280);
+        canvas.height = video.videoHeight || (isLandscape ? 1080 : 720);
+
     } catch (e) {
         console.error("Camera start error:", e);
         alert("カメラを開始できませんでした: " + (e?.message || e));
     }
 }
+
+/* =====================================================
+   向きが変わったら再起動（16:9維持）
+===================================================== */
+window.addEventListener("orientationchange", async () => {
+    if (stream) {
+        stream.getTracks().forEach(t => t.stop());
+    }
+    await startCamera();
+});
 
 /* =====================================================
    モード切替
@@ -178,7 +199,7 @@ function captureVideoFrameToCanvas() {
 }
 
 /* =====================================================
-   Qモード（重複排除）
+   Qモード
 ===================================================== */
 async function runQModeScan() {
     if (!video.videoWidth) return;
@@ -193,7 +214,6 @@ async function runQModeScan() {
     const uniqueDetected = [...uniqueMap.values()];
 
     lastQNumbers = uniqueDetected.map(d => d.number);
-
     qResultsEl.innerHTML = "";
     const margin = 60;
 
@@ -227,7 +247,7 @@ async function runQModeScan() {
 }
 
 /* =====================================================
-   Aモード（番号だけで重複完全排除）
+   Aモード
 ===================================================== */
 async function runAModeScan() {
     if (!video.videoWidth) return;
@@ -291,7 +311,7 @@ async function captureOnce() {
 }
 
 /* =====================================================
-   長押し（1秒間隔）
+   長押し
 ===================================================== */
 let ocrInterval = null;
 
@@ -317,7 +337,6 @@ camBtn.addEventListener("mouseleave", stopPress);
 
 camBtn.addEventListener("touchstart", e => { e.preventDefault(); startPress(); }, { passive: false });
 window.addEventListener("touchend", stopPress);
-
 camBtn.addEventListener("click", e => e.preventDefault());
 
 /* =====================================================
