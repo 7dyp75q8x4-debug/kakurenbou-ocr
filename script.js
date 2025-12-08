@@ -10,6 +10,9 @@ const aBtn = document.getElementById("aMode");
 const camBtn = document.getElementById("camera-btn");
 const clearBtn = document.getElementById("clear-btn");
 
+// ★ ガチゴミ箱
+const hardClearBtn = document.getElementById("hard-clear-btn");
+
 const qResultsEl = document.getElementById("q-results");
 const aResultsEl = document.getElementById("a-results");
 
@@ -53,14 +56,12 @@ async function askForApiKeyIfNeeded() {
 }
 
 /* =====================================================
-   超広角・外カメラを探す（内カメラは使わない）
+   超広角・外カメラ取得
 ===================================================== */
 async function getBackUltraWideCameraId() {
     const devices = await navigator.mediaDevices.enumerateDevices();
     const videoDevices = devices.filter(d => d.kind === "videoinput");
 
-    // できる限りラベル取得のために一度権限確保
-    // (iOS Safari対策)
     try {
         await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
     } catch {}
@@ -68,12 +69,10 @@ async function getBackUltraWideCameraId() {
     const updated = await navigator.mediaDevices.enumerateDevices();
     const cams = updated.filter(d => d.kind === "videoinput");
 
-    // 明示的に front / user を除外
     const backCams = cams.filter(d =>
         !/front|user|face/i.test(d.label)
     );
 
-    // 超広角っぽいもの優先
     const ultra = backCams.find(d =>
         d.label.includes("0.5") ||
         d.label.toLowerCase().includes("ultra") ||
@@ -83,12 +82,11 @@ async function getBackUltraWideCameraId() {
     if (ultra) return ultra.deviceId;
     if (backCams[0]) return backCams[0].deviceId;
 
-    // 最悪時のフォールバック（それでも facingMode=environment 固定）
     return cams[0]?.deviceId || null;
 }
 
 /* =====================================================
-   カメラ起動（外カメラ固定 + 超広角優先）
+   カメラ起動
 ===================================================== */
 async function startCamera() {
     try {
@@ -98,7 +96,7 @@ async function startCamera() {
         const constraints = {
             video: {
                 deviceId: deviceId ? { exact: deviceId } : undefined,
-                facingMode: { exact: "environment" }, // ← 内カメラ禁止
+                facingMode: { exact: "environment" },
                 width: isLandscape ? { ideal: 1920 } : { ideal: 1280 },
                 height: isLandscape ? { ideal: 1080 } : { ideal: 720 },
                 aspectRatio: isLandscape ? { exact: 16 / 9 } : undefined
@@ -125,7 +123,7 @@ async function startCamera() {
 }
 
 /* =====================================================
-   画面回転時に再起動
+   回転対応
 ===================================================== */
 window.addEventListener("orientationchange", async () => {
     await startCamera();
@@ -169,7 +167,6 @@ async function callVisionTextDetection(base64Image) {
         });
         return await res.json();
     } catch (e) {
-        console.error("Vision API call failed:", e);
         return null;
     }
 }
@@ -184,6 +181,7 @@ function parseTextAnnotationsFor3Digit(textAnn) {
     for (let i = 1; i < textAnn.length; i++) {
         const ta = textAnn[i];
         if (!ta?.description) continue;
+
         const num = normalizeNumber(ta.description);
         if (!/^\d{3}$/.test(num)) continue;
 
@@ -192,16 +190,18 @@ function parseTextAnnotationsFor3Digit(textAnn) {
         const y0 = verts[0]?.y || 0;
         const x1 = verts[1]?.x || x0;
         const y2 = verts[2]?.y || y0;
+
         const w = Math.max(x1 - x0, 8);
         const h = Math.max(y2 - y0, 8);
 
         out.push({ number: num, x: x0, y: y0, w, h });
     }
+
     return out;
 }
 
 /* =====================================================
-   OCR from canvas
+   OCR
 ===================================================== */
 async function detectThreeDigitFromCanvas(c) {
     const dataUrl = c.toDataURL("image/jpeg", 0.95);
@@ -296,7 +296,6 @@ async function runAModeScan() {
     const tightSide = 25;
 
     unique.forEach(item => {
-        // 全部保存
         const sx = Math.max(item.x - tightSide, 0);
         const sy = Math.max(item.y - tightTop, 0);
         const sw = item.w + tightSide * 2;
@@ -306,11 +305,9 @@ async function runAModeScan() {
         cut.width = sw;
         cut.height = sh;
         cut.getContext("2d").drawImage(frame, sx, sy, sw, sh, 0, 0, sw, sh);
-        const dataUrl = cut.toDataURL();
 
-        savedANumbers.set(item.number, dataUrl);
+        savedANumbers.set(item.number, cut.toDataURL());
 
-        // 表示はお題一致のみ
         if (!lastQNumbers.includes(item.number)) return;
         if (answerHistory.has(item.number)) return;
 
@@ -321,7 +318,7 @@ async function runAModeScan() {
 
         const img = document.createElement("img");
         img.className = "quest-thumb";
-        img.src = dataUrl;
+        img.src = savedANumbers.get(item.number);
 
         const txt = document.createElement("div");
         txt.className = "quest-text";
@@ -335,7 +332,7 @@ async function runAModeScan() {
 }
 
 /* =====================================================
-   保存済み即表示（Q後）
+   Q後に即反映
 ===================================================== */
 function syncSavedAnswersToA() {
     lastQNumbers.forEach(num => {
@@ -344,14 +341,12 @@ function syncSavedAnswersToA() {
 
         answerHistory.add(num);
 
-        const dataUrl = savedANumbers.get(num);
-
         const wrap = document.createElement("div");
         wrap.className = "quest-item";
 
         const img = document.createElement("img");
         img.className = "quest-thumb";
-        img.src = dataUrl;
+        img.src = savedANumbers.get(num);
 
         const txt = document.createElement("div");
         txt.className = "quest-text";
@@ -373,7 +368,7 @@ async function captureOnce() {
 }
 
 /* =====================================================
-   ボタン操作
+   長押し
 ===================================================== */
 let ocrInterval = null;
 
@@ -396,21 +391,35 @@ function stopPress() {
 camBtn.addEventListener("mousedown", e => { e.preventDefault(); startPress(); });
 window.addEventListener("mouseup", stopPress);
 camBtn.addEventListener("mouseleave", stopPress);
-
 camBtn.addEventListener("touchstart", e => { e.preventDefault(); startPress(); }, { passive: false });
 window.addEventListener("touchend", stopPress);
 camBtn.addEventListener("click", e => e.preventDefault());
 
 /* =====================================================
-   クリア
+   通常クリア
 ===================================================== */
 clearBtn.addEventListener("click", () => {
     qResultsEl.innerHTML = "";
     aResultsEl.innerHTML = "";
     lastQNumbers = [];
     answerHistory.clear();
-    // savedANumbers は保持
 });
+
+/* =====================================================
+   ✅ ガチゴミ箱（完全リセット）復活
+===================================================== */
+if (hardClearBtn) {
+    hardClearBtn.addEventListener("click", () => {
+        const ok = confirm("新規でかくれんぼを開始しますか？\n読み取って保存した数字は全てリセットされます");
+        if (!ok) return;
+
+        qResultsEl.innerHTML = "";
+        aResultsEl.innerHTML = "";
+        lastQNumbers = [];
+        answerHistory.clear();
+        savedANumbers.clear();
+    });
+}
 
 /* =====================================================
    初期化
