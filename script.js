@@ -10,9 +10,6 @@ const aBtn = document.getElementById("aMode");
 const camBtn = document.getElementById("camera-btn");
 const clearBtn = document.getElementById("clear-btn");
 
-// ガチゴミ箱（赤） — HTML に存在する前提
-const hardClearBtn = document.getElementById("hard-clear-btn");
-
 const qResultsEl = document.getElementById("q-results");
 const aResultsEl = document.getElementById("a-results");
 
@@ -20,12 +17,11 @@ let currentMode = "Q";
 let stream = null;
 
 let lastQNumbers = [];
-let answerHistory = new Set();        // 表示済み管理
-const savedANumbers = new Map();      // number -> dataURL
+let answerHistory = new Set();        
+const savedANumbers = new Map();      
 
 let visionApiKey = localStorage.getItem("vision_api_key");
 
-// 撮影間隔（1秒）
 const INTERVAL_MS = 1000;
 
 /* =====================================================
@@ -56,7 +52,7 @@ async function askForApiKeyIfNeeded() {
 }
 
 /* =====================================================
-   超広角・外カメラ取得
+   外カメラ（超広角優先・内カメラ除外）
 ===================================================== */
 async function getBackUltraWideCameraId() {
     const devices = await navigator.mediaDevices.enumerateDevices();
@@ -69,9 +65,7 @@ async function getBackUltraWideCameraId() {
     const updated = await navigator.mediaDevices.enumerateDevices();
     const cams = updated.filter(d => d.kind === "videoinput");
 
-    const backCams = cams.filter(d =>
-        !/front|user|face/i.test(d.label)
-    );
+    const backCams = cams.filter(d => !/front|user|face/i.test(d.label));
 
     const ultra = backCams.find(d =>
         d.label.includes("0.5") ||
@@ -81,7 +75,6 @@ async function getBackUltraWideCameraId() {
 
     if (ultra) return ultra.deviceId;
     if (backCams[0]) return backCams[0].deviceId;
-
     return cams[0]?.deviceId || null;
 }
 
@@ -104,33 +97,31 @@ async function startCamera() {
             audio: false
         };
 
-        if (stream) {
-            stream.getTracks().forEach(t => t.stop());
-        }
+        if (stream) stream.getTracks().forEach(t => t.stop());
 
         stream = await navigator.mediaDevices.getUserMedia(constraints);
 
         video.srcObject = stream;
-        await video.play().catch(()=>{});
+        await video.play().catch(() => {});
 
         canvas.width = video.videoWidth || (isLandscape ? 1920 : 1280);
         canvas.height = video.videoHeight || (isLandscape ? 1080 : 720);
 
     } catch (e) {
-        console.error("Camera start error:", e);
-        alert("外カメラを開始できません: " + (e?.message || e));
+        alert("外カメラを開始できません");
+        console.error(e);
     }
 }
 
 /* =====================================================
-   回転対応
+   回転時
 ===================================================== */
 window.addEventListener("orientationchange", async () => {
     await startCamera();
 });
 
 /* =====================================================
-   モード切替
+   モード
 ===================================================== */
 function setMode(mode) {
     currentMode = mode;
@@ -142,6 +133,7 @@ function setMode(mode) {
         qBtn.classList.remove("active");
     }
 }
+
 qBtn.addEventListener("click", () => setMode("Q"));
 aBtn.addEventListener("click", () => setMode("A"));
 
@@ -152,6 +144,7 @@ async function callVisionTextDetection(base64Image) {
     if (!visionApiKey) return null;
 
     const url = `https://vision.googleapis.com/v1/images:annotate?key=${visionApiKey}`;
+
     const body = {
         requests: [{
             image: { content: base64Image },
@@ -166,8 +159,7 @@ async function callVisionTextDetection(base64Image) {
             body: JSON.stringify(body)
         });
         return await res.json();
-    } catch (e) {
-        console.error("Vision API call failed:", e);
+    } catch {
         return null;
     }
 }
@@ -307,7 +299,9 @@ async function runAModeScan() {
         cut.height = sh;
         cut.getContext("2d").drawImage(frame, sx, sy, sw, sh, 0, 0, sw, sh);
 
-        savedANumbers.set(item.number, cut.toDataURL());
+        const dataUrl = cut.toDataURL();
+
+        savedANumbers.set(item.number, dataUrl);
 
         if (!lastQNumbers.includes(item.number)) return;
         if (answerHistory.has(item.number)) return;
@@ -319,7 +313,7 @@ async function runAModeScan() {
 
         const img = document.createElement("img");
         img.className = "quest-thumb";
-        img.src = savedANumbers.get(item.number);
+        img.src = dataUrl;
 
         const txt = document.createElement("div");
         txt.className = "quest-text";
@@ -333,7 +327,7 @@ async function runAModeScan() {
 }
 
 /* =====================================================
-   Q後に即反映
+   保存済み反映
 ===================================================== */
 function syncSavedAnswersToA() {
     lastQNumbers.forEach(num => {
@@ -342,12 +336,14 @@ function syncSavedAnswersToA() {
 
         answerHistory.add(num);
 
+        const dataUrl = savedANumbers.get(num);
+
         const wrap = document.createElement("div");
         wrap.className = "quest-item";
 
         const img = document.createElement("img");
         img.className = "quest-thumb";
-        img.src = savedANumbers.get(num);
+        img.src = dataUrl;
 
         const txt = document.createElement("div");
         txt.className = "quest-text";
@@ -369,7 +365,7 @@ async function captureOnce() {
 }
 
 /* =====================================================
-   長押し撮影（カメラボタン）
+   ボタン
 ===================================================== */
 let ocrInterval = null;
 
@@ -392,36 +388,20 @@ function stopPress() {
 camBtn.addEventListener("mousedown", e => { e.preventDefault(); startPress(); });
 window.addEventListener("mouseup", stopPress);
 camBtn.addEventListener("mouseleave", stopPress);
+
 camBtn.addEventListener("touchstart", e => { e.preventDefault(); startPress(); }, { passive: false });
 window.addEventListener("touchend", stopPress);
 camBtn.addEventListener("click", e => e.preventDefault());
 
 /* =====================================================
-   通常クリア（青ボタン） — お題＆検出結果のみリセット
+   クリア
 ===================================================== */
 clearBtn.addEventListener("click", () => {
     qResultsEl.innerHTML = "";
     aResultsEl.innerHTML = "";
     lastQNumbers = [];
     answerHistory.clear();
-    // savedANumbers は残す（Aで保存したデータは維持）
 });
-
-/* =====================================================
-   ✅ ガチゴミ箱（赤ボタン） — 完全リセット（保存含む）
-===================================================== */
-if (hardClearBtn) {
-    hardClearBtn.addEventListener("click", () => {
-        const ok = confirm("新規でかくれんぼを開始しますか？\n読み取って保存した数字は全てリセットされます");
-        if (!ok) return;
-
-        qResultsEl.innerHTML = "";
-        aResultsEl.innerHTML = "";
-        lastQNumbers = [];
-        answerHistory.clear();
-        savedANumbers.clear();
-    });
-}
 
 /* =====================================================
    初期化
