@@ -1,64 +1,69 @@
-body {
+html, body {
     margin: 0;
+    padding: 0;
+    height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    background: #111;
+    color: white;
     overflow: hidden;
-    font-family: sans-serif;
-    -webkit-user-select: none;
-    user-select: none;
 }
 
-/* 全体 */
 #container {
     display: flex;
-    width: 100vw;
     height: 100vh;
 }
 
-/* 左 */
+/* 左側 */
 #left-panel {
-    flex: 1;
-    background: #ffffff;
-    position: relative;
-    padding: 20px;
-    box-sizing: border-box;
-    overflow: hidden; /* スクロール禁止 */
+    width: 50%;
+    border-right: 1px solid #333;
+    display: flex;
+    flex-direction: column;
 }
 
-/* ヘッダ */
 #left-header {
+    height: 40px;
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-bottom: 8px;
+    padding: 0 10px;
+    background: #000;
 }
 
 #dot {
     width: 10px;
     height: 10px;
-    background: #00cc33;
+    background: red;
     border-radius: 50%;
 }
 
 #label {
-    font-size: 28px;
-    font-weight: bold;
+    font-size: 14px;
 }
 
-/* 右 */
-#right-panel {
-    width: 40%;
-    padding: 20px;
-    box-sizing: border-box;
+#q-results, #a-results {
+    flex: 1;
+    overflow-y: auto;
     display: flex;
     flex-direction: column;
+    gap: 6px;
+    padding: 6px;
 }
 
-/* カメラ */
+/* 右側 */
+#right-panel {
+    width: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
 #camera-wrapper {
     width: 100%;
-    border-radius: 20px;
+    aspect-ratio: 16 / 9;
+    background: #000;
     overflow: hidden;
-    aspect-ratio: 9 / 16;
-    background: black;
+    position: relative;
 }
 
 #video {
@@ -67,86 +72,47 @@ body {
     object-fit: cover;
 }
 
-/* ボタン */
+/* ボタンエリア */
 #buttons {
-    margin-top: 20px;
+    width: 100%;
     display: flex;
-    gap: 10px;
+    justify-content: space-around;
     align-items: center;
+    padding: 8px 0;
 }
 
-.gray-btn, .yellow-btn, .blue-btn, .red-btn {
-    flex: 1;
-    padding: 10px;
-    font-size: 20px;
-    border-radius: 12px;
-    border: none;
-}
-
-.yellow-btn { background: #ffe36d; }
-.blue-btn { background: #99ccff; }
-
-/* ガチゴミ箱（赤） */
-.red-btn {
-    background: #ff4d4d;
-    color: white;
-    font-weight: bold;
-}
-
-/* モードボタン */
 .mode-btn {
-    background: #e0e0e0;
+    width: 44px;
+    height: 44px;
+    border-radius: 8px;
+    font-size: 16px;
     border: none;
-    padding: 10px 20px;
-    font-size: 20px;
-    border-radius: 12px;
-    transition: 0.15s;
 }
 
-.mode-btn.active {
-    background: #4d86ff;
-    color: white;
-    font-weight: bold;
+.yellow-btn {
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    background: #ffc107;
+    font-size: 28px;
+    border: none;
+}
+
+.blue-btn {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: #2196f3;
+    font-size: 22px;
+    border: none;
+}
+
+.trash-wrap {
+    display: flex;
+    gap: 8px;
 }
 
 #clear-text {
-    text-align: center;
-    margin-top: 12px;
-    font-size: 22px;
-    font-weight: bold;
-}
-
-/* 検出一覧 */
-.quest-item {
-    display: inline-block;
-    margin: 5px;
-    text-align: center;
-}
-
-.quest-thumb {
-    width: 70px;
-    height: 70px;
-    object-fit: cover;
-    border-radius: 6px;
-    border: 1px solid #999;
-}
-
-.quest-text {
-    font-size: 16px;
-    font-weight: bold;
-    margin-top: 4px;
-}
-
-.yellow-btn.pressing { background: #ffcc33 !important; }
-
-#camera-btn.pressing {
-    background-color: #ffcc00 !important;
-    opacity: 0.85;
-}
-
-#q-results, #a-results {
-    margin-top: 12px;
-    display:flex;
-    flex-wrap:wrap;
-    gap:8px;
+    font-size: 12px;
+    margin-bottom: 8px;
 }
