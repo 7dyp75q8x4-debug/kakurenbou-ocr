@@ -22,16 +22,17 @@ let currentMode = "Q";
 let stream = null;
 
 let lastQNumbers = [];
-let answerHistory = new Set();
+let answerHistory = new Set();       // A表示済み履歴（手動+自動 共通）
 
 // Aモードで一度でも認識した数字を保存
 let savedNumbers = new Set();
 
-// Q→自動表示済み管理（Aとは別履歴）
+// ★ 自動表示専用の履歴（お題が変わったらリセット）
 let autoShownHistory = new Set();
 
 let visionApiKey = localStorage.getItem("vision_api_key");
 
+// 撮影間隔
 const INTERVAL_MS = 1000;
 
 /* =====================================================
@@ -214,7 +215,11 @@ async function runQModeScan() {
     });
 
     const uniqueDetected = [...uniqueMap.values()];
+
     lastQNumbers = uniqueDetected.map(d => d.number);
+
+    // ★ お題が変わるたびに「自動表示履歴」をリセット
+    autoShownHistory.clear();
 
     qResultsEl.innerHTML = "";
 
@@ -249,6 +254,7 @@ async function runQModeScan() {
         qResultsEl.appendChild(wrapper);
     });
 
+    // 保存済みと照合して即A表示
     showAutoResultsFromSaved(uniqueDetected, frame);
 }
 
@@ -276,7 +282,7 @@ async function runAModeScan() {
     uniqueDetected.forEach(item => {
         if (!lastQNumbers.includes(item.number)) return;
 
-        // Aで認識した数字を保存
+        // Aで初認識 → 保存
         savedNumbers.add(item.number);
 
         if (answerHistory.has(item.number)) return;
@@ -330,6 +336,7 @@ function showAutoResultsFromSaved(qDetected, frame) {
         if (autoShownHistory.has(item.number)) return;
 
         autoShownHistory.add(item.number);
+        answerHistory.add(item.number);
 
         renderAResult(item, frame, tightSide, tightTop, tightBottom);
     });
@@ -383,7 +390,6 @@ clearBtn.addEventListener("click", () => {
     aResultsEl.innerHTML = "";
     lastQNumbers = [];
     answerHistory.clear();
-    autoShownHistory.clear();
 });
 
 /* =====================================================
