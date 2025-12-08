@@ -55,17 +55,14 @@ async function askForApiKeyIfNeeded() {
    外カメラ（超広角優先・内カメラ除外）
 ===================================================== */
 async function getBackUltraWideCameraId() {
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const videoDevices = devices.filter(d => d.kind === "videoinput");
-
     try {
         await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
     } catch {}
 
-    const updated = await navigator.mediaDevices.enumerateDevices();
-    const cams = updated.filter(d => d.kind === "videoinput");
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const cams = devices.filter(d => d.kind === "videoinput");
 
-    const backCams = cams.filter(d => !/front|user|face/i.test(d.label));
+    const backCams = cams.filter(d => !/front|user|face|内側|前面/i.test(d.label));
 
     const ultra = backCams.find(d =>
         d.label.includes("0.5") ||
@@ -79,7 +76,7 @@ async function getBackUltraWideCameraId() {
 }
 
 /* =====================================================
-   カメラ起動
+   カメラ起動（横画面16:9 + 外カメラ固定）
 ===================================================== */
 async function startCamera() {
     try {
@@ -90,9 +87,13 @@ async function startCamera() {
             video: {
                 deviceId: deviceId ? { exact: deviceId } : undefined,
                 facingMode: { exact: "environment" },
-                width: isLandscape ? { ideal: 1920 } : { ideal: 1280 },
-                height: isLandscape ? { ideal: 1080 } : { ideal: 720 },
-                aspectRatio: isLandscape ? { exact: 16 / 9 } : undefined
+
+                // 横画面のときだけ 16:9 を強制
+                aspectRatio: isLandscape ? { exact: 16 / 9 } : undefined,
+
+                // 横画面のときだけサイズ強制
+                width: isLandscape ? { ideal: 1920 } : undefined,
+                height: isLandscape ? { ideal: 1080 } : undefined
             },
             audio: false
         };
@@ -100,8 +101,8 @@ async function startCamera() {
         if (stream) stream.getTracks().forEach(t => t.stop());
 
         stream = await navigator.mediaDevices.getUserMedia(constraints);
-
         video.srcObject = stream;
+
         await video.play().catch(() => {});
 
         canvas.width = video.videoWidth || (isLandscape ? 1920 : 1280);
