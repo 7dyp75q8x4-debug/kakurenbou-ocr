@@ -3,7 +3,7 @@ html, body {
     padding: 0;
     height: 100%;
     font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-    background: #111;
+    background: #000;
     color: white;
     overflow: hidden;
 }
@@ -13,10 +13,10 @@ html, body {
     height: 100vh;
 }
 
-/* 左側 */
+/* 左パネル */
 #left-panel {
     width: 50%;
-    border-right: 1px solid #333;
+    border-right: 1px solid #222;
     display: flex;
     flex-direction: column;
 }
@@ -41,16 +41,35 @@ html, body {
     font-size: 14px;
 }
 
-#q-results, #a-results {
+#q-results,
+#a-results {
     flex: 1;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    padding: 6px;
+    gap: 4px;
+    padding: 4px;
 }
 
-/* 右側 */
+/* 件数アイテムサイズを元の小ささに戻す */
+.quest-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.quest-thumb {
+    width: 72px;     /* ← 元サイズ寄り */
+    height: auto;
+    border-radius: 4px;
+}
+
+.quest-text {
+    font-size: 16px;
+    font-weight: bold;
+}
+
+/* 右パネル */
 #right-panel {
     width: 50%;
     display: flex;
@@ -61,24 +80,27 @@ html, body {
 #camera-wrapper {
     width: 100%;
     aspect-ratio: 16 / 9;
-    background: #000;
-    overflow: hidden;
+    background: black;
     position: relative;
+    z-index: 1;
 }
 
 #video {
     width: 100%;
     height: 100%;
     object-fit: cover;
+    pointer-events: none;   /* ← ボタンを塞がないように */
 }
 
-/* ボタンエリア */
+/* ボタン */
 #buttons {
     width: 100%;
     display: flex;
     justify-content: space-around;
     align-items: center;
     padding: 8px 0;
+    z-index: 10;
+    position: relative;
 }
 
 .mode-btn {
@@ -87,6 +109,13 @@ html, body {
     border-radius: 8px;
     font-size: 16px;
     border: none;
+    background: #333;
+    color: white;
+    pointer-events: auto;
+}
+
+.mode-btn.active {
+    background: #666;
 }
 
 .yellow-btn {
