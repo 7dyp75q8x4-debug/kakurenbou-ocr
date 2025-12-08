@@ -17,8 +17,8 @@ let currentMode = "Q";
 let stream = null;
 
 let lastQNumbers = [];
-let answerHistory = new Set();        
-const savedANumbers = new Map();      
+let answerHistory = new Set();
+const savedANumbers = new Map();
 
 let visionApiKey = localStorage.getItem("vision_api_key");
 
@@ -55,14 +55,16 @@ async function askForApiKeyIfNeeded() {
    外カメラ（超広角優先・内カメラ除外）
 ===================================================== */
 async function getBackUltraWideCameraId() {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+
     try {
         await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
     } catch {}
 
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const cams = devices.filter(d => d.kind === "videoinput");
+    const updated = await navigator.mediaDevices.enumerateDevices();
+    const cams = updated.filter(d => d.kind === "videoinput");
 
-    const backCams = cams.filter(d => !/front|user|face|内側|前面/i.test(d.label));
+    const backCams = cams.filter(d => !/front|user|face/i.test(d.label));
 
     const ultra = backCams.find(d =>
         d.label.includes("0.5") ||
@@ -76,41 +78,46 @@ async function getBackUltraWideCameraId() {
 }
 
 /* =====================================================
-   カメラ起動（横画面16:9 + 外カメラ固定）
+   カメラ起動（UIを崩さない16:9広角固定）
 ===================================================== */
 async function startCamera() {
     try {
         const deviceId = await getBackUltraWideCameraId();
-        const isLandscape = window.innerWidth > window.innerHeight;
 
+        // UIを壊さないために高さ幅はCSSに任せる
         const constraints = {
             video: {
                 deviceId: deviceId ? { exact: deviceId } : undefined,
                 facingMode: { exact: "environment" },
 
-                // 横画面のときだけ 16:9 を強制
-                aspectRatio: isLandscape ? { exact: 16 / 9 } : undefined,
+                // 16:9 を「理想値」にする (exact だとUI崩れる)
+                width: { ideal: 1920 },
+                height: { ideal: 1080 },
 
-                // 横画面のときだけサイズ強制
-                width: isLandscape ? { ideal: 1920 } : undefined,
-                height: isLandscape ? { ideal: 1080 } : undefined
+                // iOS Safari対策（超広角寄りにする）
+                advanced: [
+                    { zoom: 0 }
+                ]
             },
             audio: false
         };
 
-        if (stream) stream.getTracks().forEach(t => t.stop());
+        if (stream) {
+            stream.getTracks().forEach(t => t.stop());
+        }
 
         stream = await navigator.mediaDevices.getUserMedia(constraints);
+
         video.srcObject = stream;
+        await video.play().catch(()=>{});
 
-        await video.play().catch(() => {});
-
-        canvas.width = video.videoWidth || (isLandscape ? 1920 : 1280);
-        canvas.height = video.videoHeight || (isLandscape ? 1080 : 720);
+        // canvas は現実のストリームサイズに合わせる
+        canvas.width = video.videoWidth || 1920;
+        canvas.height = video.videoHeight || 1080;
 
     } catch (e) {
+        console.error("Camera error:", e);
         alert("外カメラを開始できません");
-        console.error(e);
     }
 }
 
@@ -145,7 +152,6 @@ async function callVisionTextDetection(base64Image) {
     if (!visionApiKey) return null;
 
     const url = `https://vision.googleapis.com/v1/images:annotate?key=${visionApiKey}`;
-
     const body = {
         requests: [{
             image: { content: base64Image },
@@ -190,7 +196,6 @@ function parseTextAnnotationsFor3Digit(textAnn) {
 
         out.push({ number: num, x: x0, y: y0, w, h });
     }
-
     return out;
 }
 
