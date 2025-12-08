@@ -27,6 +27,9 @@ let answerHistory = new Set();
 // Aモードで一度でも認識した数字を保存
 let savedNumbers = new Set();
 
+// Q→自動表示済み管理（Aとは別履歴）
+let autoShownHistory = new Set();
+
 let visionApiKey = localStorage.getItem("vision_api_key");
 
 const INTERVAL_MS = 1000;
@@ -246,7 +249,6 @@ async function runQModeScan() {
         qResultsEl.appendChild(wrapper);
     });
 
-    // ★ここで「保存済み」と突合してA風に表示
     showAutoResultsFromSaved(uniqueDetected, frame);
 }
 
@@ -325,9 +327,10 @@ function showAutoResultsFromSaved(qDetected, frame) {
 
     qDetected.forEach(item => {
         if (!savedNumbers.has(item.number)) return;
-        if (answerHistory.has(item.number)) return;
+        if (autoShownHistory.has(item.number)) return;
 
-        answerHistory.add(item.number);
+        autoShownHistory.add(item.number);
+
         renderAResult(item, frame, tightSide, tightTop, tightBottom);
     });
 }
@@ -380,6 +383,7 @@ clearBtn.addEventListener("click", () => {
     aResultsEl.innerHTML = "";
     lastQNumbers = [];
     answerHistory.clear();
+    autoShownHistory.clear();
 });
 
 /* =====================================================
@@ -394,6 +398,7 @@ hardClearBtn.addEventListener("click", () => {
     lastQNumbers = [];
     answerHistory.clear();
     savedNumbers.clear();
+    autoShownHistory.clear();
 });
 
 /* =====================================================
