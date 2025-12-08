@@ -3,27 +3,27 @@ body {
     overflow: hidden;
     font-family: sans-serif;
     -webkit-user-select: none;
-    user-select: none; /* テキスト選択防止 */
+    user-select: none;
 }
 
-/* 全体：左右に配置 */
+/* 全体 */
 #container {
     display: flex;
     width: 100vw;
     height: 100vh;
 }
 
-/* 左側エリア */
+/* 左 */
 #left-panel {
     flex: 1;
     background: #ffffff;
     position: relative;
     padding: 20px;
     box-sizing: border-box;
-    overflow-y: auto;
+    overflow: hidden; /* スクロール禁止 */
 }
 
-/* 検出候補ヘッダ */
+/* ヘッダ */
 #left-header {
     display: flex;
     align-items: center;
@@ -36,7 +36,6 @@ body {
     height: 10px;
     background: #00cc33;
     border-radius: 50%;
-    display: inline-block;
 }
 
 #label {
@@ -44,7 +43,7 @@ body {
     font-weight: bold;
 }
 
-/* 右パネル */
+/* 右 */
 #right-panel {
     width: 40%;
     padding: 20px;
@@ -68,53 +67,40 @@ body {
     object-fit: cover;
 }
 
-/* ボタン行 */
+/* ボタン */
 #buttons {
     margin-top: 20px;
     display: flex;
-    gap: 15px;
-    justify-content: space-between;
-    align-items:center;
+    gap: 10px;
+    align-items: center;
 }
 
-.gray-btn, .yellow-btn, .blue-btn {
+.gray-btn, .yellow-btn, .blue-btn, .red-btn {
     flex: 1;
-    padding: 12px;
+    padding: 10px;
     font-size: 20px;
     border-radius: 12px;
     border: none;
-    -webkit-user-select: none;
-    user-select: none;
 }
 
-.gray-btn { background: #eeeeee; }
-
-.yellow-btn {
-    background: #ffe36d;
-    transition: background 0.15s, opacity 0.15s;
-}
-
+.yellow-btn { background: #ffe36d; }
 .blue-btn { background: #99ccff; }
 
-#clear-text {
-    text-align: center;
-    margin-top: 12px;
-    font-size: 22px;
+/* ガチゴミ箱（赤） */
+.red-btn {
+    background: #ff4d4d;
+    color: white;
     font-weight: bold;
 }
 
 /* モードボタン */
 .mode-btn {
     background: #e0e0e0;
-    color: #333;
     border: none;
     padding: 10px 20px;
     font-size: 20px;
     border-radius: 12px;
-    margin-right: 10px;
     transition: 0.15s;
-    -webkit-user-select: none;
-    user-select: none;
 }
 
 .mode-btn.active {
@@ -123,7 +109,14 @@ body {
     font-weight: bold;
 }
 
-/* 左上に並べる「お題パネル」 */
+#clear-text {
+    text-align: center;
+    margin-top: 12px;
+    font-size: 22px;
+    font-weight: bold;
+}
+
+/* 検出一覧 */
 .quest-item {
     display: inline-block;
     margin: 5px;
@@ -140,29 +133,20 @@ body {
 
 .quest-text {
     font-size: 16px;
-    color: red; /* Qは赤（AはJSで黒に差し替え） */
     font-weight: bold;
     margin-top: 4px;
 }
 
-/* 📷 ボタン押下中の色（JS が pressing クラスを付与） */
 .yellow-btn.pressing { background: #ffcc33 !important; }
 
-/* カメラボタン長押し中の色変化（IDにも対応） */
 #camera-btn.pressing {
     background-color: #ffcc00 !important;
     opacity: 0.85;
 }
 
-/* 微調整：q-results/a-results スタイル */
 #q-results, #a-results {
     margin-top: 12px;
     display:flex;
     flex-wrap:wrap;
     gap:8px;
-}
-
-/* a-item/q-item can reuse quest-item layout */
-.a-item, .q-item { /* kept for compatibility */
-    display:inline-block;
 }
