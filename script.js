@@ -19,12 +19,11 @@ let stream = null;
 let lastQNumbers = [];               
 let answerHistory = new Set();       
 
+// ★ 追加：Aで一度でも読み取った数字＋画像を保存
+let savedNumbers = new Map();  // "100" => "data:image/..."
+
 let visionApiKey = localStorage.getItem("vision_api_key");
 
-// ★ 追加：Aで保存済みの画像付き数字
-const savedANumbers = new Map();  // { "100": "data:image/..." }
-
-// 撮影間隔（1秒）
 const INTERVAL_MS = 1000;
 
 /* =====================================================
@@ -210,7 +209,6 @@ async function runQModeScan() {
     lastQNumbers = uniqueDetected.map(d => d.number);
 
     qResultsEl.innerHTML = "";
-
     const margin = 60;
 
     uniqueDetected.forEach(item => {
@@ -222,7 +220,6 @@ async function runQModeScan() {
         const cut = document.createElement("canvas");
         cut.width = sw;
         cut.height = sh;
-
         cut.getContext("2d").drawImage(frame, sx, sy, sw, sh, 0, 0, sw, sh);
 
         const wrapper = document.createElement("div");
@@ -242,8 +239,31 @@ async function runQModeScan() {
         qResultsEl.appendChild(wrapper);
     });
 
-    // ★ Q確定時に保存済みと同期
-    syncSavedAnswersToA();
+    // ★ 追加機能：保存済みならA欄に自動表示
+    lastQNumbers.forEach(num => {
+        if (!savedNumbers.has(num)) return;
+        if (answerHistory.has(num)) return;
+
+        answerHistory.add(num);
+
+        const dataUrl = savedNumbers.get(num);
+
+        const wrapper = document.createElement("div");
+        wrapper.className = "quest-item";
+
+        const img = document.createElement("img");
+        img.className = "quest-thumb";
+        img.src = dataUrl;
+
+        const txt = document.createElement("div");
+        txt.className = "quest-text";
+        txt.innerText = num;
+        txt.style.color = "black";
+
+        wrapper.appendChild(img);
+        wrapper.appendChild(txt);
+        aResultsEl.appendChild(wrapper);
+    });
 }
 
 /* =====================================================
@@ -271,8 +291,6 @@ async function runAModeScan() {
         if (!lastQNumbers.includes(item.number)) return;
         if (answerHistory.has(item.number)) return;
 
-        answerHistory.add(item.number);
-
         const sx = Math.max(item.x - tightSide, 0);
         const sy = Math.max(item.y - tightTop, 0);
         const sw = item.w + tightSide * 2;
@@ -285,8 +303,10 @@ async function runAModeScan() {
 
         const dataUrl = cut.toDataURL();
 
-        // ★ 保存
-        savedANumbers.set(item.number, dataUrl);
+        // ★ Aで見つけた数字を保存
+        savedNumbers.set(item.number, dataUrl);
+
+        answerHistory.add(item.number);
 
         const wrapper = document.createElement("div");
         wrapper.className = "quest-item";
@@ -298,36 +318,6 @@ async function runAModeScan() {
         const txt = document.createElement("div");
         txt.className = "quest-text";
         txt.innerText = item.number;
-        txt.style.color = "black";
-
-        wrapper.appendChild(img);
-        wrapper.appendChild(txt);
-        aResultsEl.appendChild(wrapper);
-    });
-}
-
-/* =====================================================
-   Q→保存済みをAに反映
-===================================================== */
-function syncSavedAnswersToA() {
-    lastQNumbers.forEach(num => {
-        if (!savedANumbers.has(num)) return;
-        if (answerHistory.has(num)) return;
-
-        answerHistory.add(num);
-
-        const dataUrl = savedANumbers.get(num);
-
-        const wrapper = document.createElement("div");
-        wrapper.className = "quest-item";
-
-        const img = document.createElement("img");
-        img.className = "quest-thumb";
-        img.src = dataUrl;
-
-        const txt = document.createElement("div");
-        txt.className = "quest-text";
-        txt.innerText = num;
         txt.style.color = "black";
 
         wrapper.appendChild(img);
@@ -383,8 +373,7 @@ clearBtn.addEventListener("click", () => {
     qResultsEl.innerHTML = "";
     aResultsEl.innerHTML = "";
     lastQNumbers = [];
-    answerHistory.clear();
-    savedANumbers.clear();
+    answerHistory.clear();   // savedNumbers は消さない
 });
 
 /* =====================================================
