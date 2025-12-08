@@ -61,25 +61,16 @@ async function getUltraWideCameraId() {
 async function startCamera() {
     try {
         const deviceId = await getUltraWideCameraId();
-
         const isLandscape = window.innerWidth > window.innerHeight;
 
         const constraints = {
             video: {
                 deviceId: deviceId ? { exact: deviceId } : undefined,
                 facingMode: { ideal: "environment" },
-                width: isLandscape
-                    ? { ideal: 1920 }
-                    : { ideal: 1280 },
-                height: isLandscape
-                    ? { ideal: 1080 }
-                    : { ideal: 720 },
-                aspectRatio: isLandscape
-                    ? { exact: 16 / 9 }
-                    : undefined,
-                advanced: [
-                    { zoom: 0 }
-                ]
+                width: isLandscape ? { ideal: 1920 } : { ideal: 1280 },
+                height: isLandscape ? { ideal: 1080 } : { ideal: 720 },
+                aspectRatio: isLandscape ? { exact: 16 / 9 } : undefined,
+                advanced: [{ zoom: 0 }]
             },
             audio: false
         };
@@ -102,9 +93,7 @@ async function startCamera() {
    向きが変わったら再起動（16:9維持）
 ===================================================== */
 window.addEventListener("orientationchange", async () => {
-    if (stream) {
-        stream.getTracks().forEach(t => t.stop());
-    }
+    if (stream) stream.getTracks().forEach(t => t.stop());
     await startCamera();
 });
 
@@ -189,12 +178,31 @@ async function detectThreeDigitFromCanvas(c) {
     return parseTextAnnotationsFor3Digit(textAnn);
 }
 
-/* フレームコピー */
+/* =====================================================
+   Safariでも16:9に強制するフレームコピー
+===================================================== */
 function captureVideoFrameToCanvas() {
+    const srcW = video.videoWidth || canvas.width;
+    const srcH = video.videoHeight || canvas.height;
+
+    const targetRatio = 16 / 9;
+    const srcRatio = srcW / srcH;
+
+    let sx = 0, sy = 0, sw = srcW, sh = srcH;
+
+    if (srcRatio > targetRatio) {
+        sw = Math.floor(srcH * targetRatio);
+        sx = Math.floor((srcW - sw) / 2);
+    } else if (srcRatio < targetRatio) {
+        sh = Math.floor(srcW / targetRatio);
+        sy = Math.floor((srcH - sh) / 2);
+    }
+
     const c = document.createElement("canvas");
-    c.width = video.videoWidth || canvas.width;
-    c.height = video.videoHeight || canvas.height;
-    c.getContext("2d").drawImage(video, 0, 0, c.width, c.height);
+    c.width = sw;
+    c.height = sh;
+
+    c.getContext("2d").drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
     return c;
 }
 
