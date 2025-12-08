@@ -3,39 +3,30 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>UI復元</title>
+    <title>かくれんぼOCR</title>
     <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
 <div id="container">
 
-    <!-- 左パネル -->
     <div id="left-panel">
         <div id="left-header">
             <span id="dot"></span>
             <span id="label">検出候補</span>
         </div>
 
-        <!-- Qモード結果 -->
         <div id="q-results"></div>
-
-        <!-- Aモード結果 -->
         <div id="a-results"></div>
     </div>
 
-    <!-- 右パネル -->
     <div id="right-panel">
-
-        <!-- カメラ -->
         <div id="camera-wrapper">
             <video id="video" autoplay playsinline></video>
         </div>
 
-        <!-- 撮影用キャンバス（非表示） -->
         <canvas id="canvas" style="display:none;"></canvas>
 
-        <!-- ボタン群 -->
         <div id="buttons">
             <div id="modeButtons">
                 <button id="qMode" class="mode-btn">Q</button>
@@ -43,14 +34,14 @@
             </div>
 
             <button id="camera-btn" class="yellow-btn">📷</button>
-            <button id="clear-btn" class="blue-btn">🚮</button>
 
-            <!-- ★ 追加したボタン（UIは崩れない） -->
-            <button id="clear-memory-btn" class="blue-btn">🗑️</button>
+            <div class="trash-wrap">
+                <button id="clear-btn" class="blue-btn">🚮</button>
+                <button id="hard-clear-btn" class="red-btn">🚮</button>
+            </div>
         </div>
 
         <div id="clear-text">クリア</div>
-
     </div>
 
 </div>
