@@ -1,9 +1,10 @@
+/* 基本レイアウト */
 body {
     margin: 0;
     overflow: hidden;
-    font-family: sans-serif;
-    -webkit-user-select: none;
-    user-select: none; /* テキスト選択防止 */
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+    background: #ffffff;
+    color: #111;
 }
 
 /* 全体：左右に配置 */
@@ -51,6 +52,7 @@ body {
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
+    align-items: center;
 }
 
 /* カメラ */
@@ -58,8 +60,11 @@ body {
     width: 100%;
     border-radius: 20px;
     overflow: hidden;
-    aspect-ratio: 9 / 16;
+    aspect-ratio: 16 / 9; /* 横画面で 16:9 の見た目 */
     background: black;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 #video {
@@ -75,6 +80,7 @@ body {
     gap: 15px;
     justify-content: space-between;
     align-items:center;
+    width: 100%;
 }
 
 .gray-btn, .yellow-btn, .blue-btn {
@@ -87,20 +93,29 @@ body {
     user-select: none;
 }
 
-.gray-btn { background: #eeeeee; }
-
+/* 黄色カメラボタン */
 .yellow-btn {
+    width: 72px;
+    height: 72px;
+    border-radius: 14px;
     background: #ffe36d;
-    transition: background 0.15s, opacity 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    box-shadow: 0 3px 0 rgba(0,0,0,0.08) inset;
 }
 
-.blue-btn { background: #99ccff; }
-
-#clear-text {
-    text-align: center;
-    margin-top: 12px;
-    font-size: 22px;
-    font-weight: bold;
+/* 青（クリア） */
+.blue-btn {
+    background: #99ccff;
+    border-radius: 12px;
+    height: 48px;
+    width: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
 }
 
 /* モードボタン */
@@ -108,10 +123,9 @@ body {
     background: #e0e0e0;
     color: #333;
     border: none;
-    padding: 10px 20px;
+    padding: 10px 16px;
     font-size: 20px;
     border-radius: 12px;
-    margin-right: 10px;
     transition: 0.15s;
     -webkit-user-select: none;
     user-select: none;
@@ -123,10 +137,10 @@ body {
     font-weight: bold;
 }
 
-/* 左上に並べる「お題パネル」 */
+/* q-results / a-results のサムネイル */
 .quest-item {
     display: inline-block;
-    margin: 5px;
+    margin: 6px;
     text-align: center;
 }
 
@@ -142,19 +156,10 @@ body {
     font-size: 16px;
     color: red; /* Qは赤（AはJSで黒に差し替え） */
     font-weight: bold;
-    margin-top: 4px;
+    margin-top: 6px;
 }
 
-/* 📷 ボタン押下中の色（JS が pressing クラスを付与） */
-.yellow-btn.pressing { background: #ffcc33 !important; }
-
-/* カメラボタン長押し中の色変化（IDにも対応） */
-#camera-btn.pressing {
-    background-color: #ffcc00 !important;
-    opacity: 0.85;
-}
-
-/* 微調整：q-results/a-results スタイル */
+/* q-results / a-results ラップ */
 #q-results, #a-results {
     margin-top: 12px;
     display:flex;
@@ -162,7 +167,14 @@ body {
     gap:8px;
 }
 
-/* a-item/q-item can reuse quest-item layout */
-.a-item, .q-item { /* kept for compatibility */
-    display:inline-block;
+/* 撮影押下中 */
+.yellow-btn.pressing { background: #ffcc33 !important; }
+
+/* 下のクリアテキスト */
+#clear-text {
+    text-align: center;
+    margin-top: 12px;
+    font-size: 18px;
+    font-weight: bold;
+    color: #222;
 }
