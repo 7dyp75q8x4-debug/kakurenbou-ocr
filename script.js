@@ -17,8 +17,8 @@ let currentMode = "Q";
 let stream = null;
 
 let lastQNumbers = [];
-let answerHistory = new Set();        
-const savedANumbers = new Map();      
+let answerHistory = new Set();
+const savedANumbers = new Map();
 
 let visionApiKey = localStorage.getItem("vision_api_key");
 
@@ -52,47 +52,37 @@ async function askForApiKeyIfNeeded() {
 }
 
 /* =====================================================
-   外カメラ（超広角優先・内カメラ除外）
+   外カメラ + 超広角
 ===================================================== */
 async function getBackUltraWideCameraId() {
+    await navigator.mediaDevices.getUserMedia({ video: true, audio: false }).catch(()=>{});
     const devices = await navigator.mediaDevices.enumerateDevices();
-    const videoDevices = devices.filter(d => d.kind === "videoinput");
+    const cams = devices.filter(d => d.kind === "videoinput");
 
-    try {
-        await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-    } catch {}
-
-    const updated = await navigator.mediaDevices.enumerateDevices();
-    const cams = updated.filter(d => d.kind === "videoinput");
-
-    const backCams = cams.filter(d => !/front|user|face/i.test(d.label));
-
-    const ultra = backCams.find(d =>
+    const back = cams.filter(d => !/front|user|face/i.test(d.label));
+    const ultra = back.find(d =>
         d.label.includes("0.5") ||
         d.label.toLowerCase().includes("ultra") ||
         d.label.includes("超広角")
     );
 
-    if (ultra) return ultra.deviceId;
-    if (backCams[0]) return backCams[0].deviceId;
-    return cams[0]?.deviceId || null;
+    return ultra?.deviceId || back[0]?.deviceId || cams[0]?.deviceId || null;
 }
 
 /* =====================================================
-   カメラ起動
+   カメラ起動（16:9強制）
 ===================================================== */
 async function startCamera() {
     try {
         const deviceId = await getBackUltraWideCameraId();
-        const isLandscape = window.innerWidth > window.innerHeight;
 
         const constraints = {
             video: {
                 deviceId: deviceId ? { exact: deviceId } : undefined,
                 facingMode: { exact: "environment" },
-                width: isLandscape ? { ideal: 1920 } : { ideal: 1280 },
-                height: isLandscape ? { ideal: 1080 } : { ideal: 720 },
-                aspectRatio: isLandscape ? { exact: 16 / 9 } : undefined
+                width: { exact: 1920 },
+                height: { exact: 1080 },
+                aspectRatio: { exact: 16 / 9 }
             },
             audio: false
         };
@@ -100,12 +90,11 @@ async function startCamera() {
         if (stream) stream.getTracks().forEach(t => t.stop());
 
         stream = await navigator.mediaDevices.getUserMedia(constraints);
-
         video.srcObject = stream;
-        await video.play().catch(() => {});
+        await video.play().catch(()=>{});
 
-        canvas.width = video.videoWidth || (isLandscape ? 1920 : 1280);
-        canvas.height = video.videoHeight || (isLandscape ? 1080 : 720);
+        canvas.width = 1920;
+        canvas.height = 1080;
 
     } catch (e) {
         alert("外カメラを開始できません");
@@ -114,28 +103,16 @@ async function startCamera() {
 }
 
 /* =====================================================
-   回転時
-===================================================== */
-window.addEventListener("orientationchange", async () => {
-    await startCamera();
-});
-
-/* =====================================================
-   モード
+   モード切替
 ===================================================== */
 function setMode(mode) {
     currentMode = mode;
-    if (mode === "Q") {
-        qBtn.classList.add("active");
-        aBtn.classList.remove("active");
-    } else {
-        aBtn.classList.add("active");
-        qBtn.classList.remove("active");
-    }
+    qBtn.classList.toggle("active", mode === "Q");
+    aBtn.classList.toggle("active", mode === "A");
 }
 
-qBtn.addEventListener("click", () => setMode("Q"));
-aBtn.addEventListener("click", () => setMode("A"));
+qBtn.onclick = () => setMode("Q");
+aBtn.onclick = () => setMode("A");
 
 /* =====================================================
    Vision API
@@ -152,44 +129,35 @@ async function callVisionTextDetection(base64Image) {
         }]
     };
 
-    try {
-        const res = await fetch(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body)
-        });
-        return await res.json();
-    } catch {
-        return null;
-    }
+    const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+    }).catch(()=>null);
+
+    return res ? res.json() : null;
 }
 
 /* =====================================================
-   3桁抽出
+   OCR抽出
 ===================================================== */
 function parseTextAnnotationsFor3Digit(textAnn) {
-    if (!textAnn || !Array.isArray(textAnn)) return [];
+    if (!textAnn) return [];
     const out = [];
 
     for (let i = 1; i < textAnn.length; i++) {
         const ta = textAnn[i];
-        if (!ta?.description) continue;
-
-        const num = normalizeNumber(ta.description);
+        const num = normalizeNumber(ta?.description);
         if (!/^\d{3}$/.test(num)) continue;
 
-        const verts = ta.boundingPoly?.vertices || [];
-        const x0 = verts[0]?.x || 0;
-        const y0 = verts[0]?.y || 0;
-        const x1 = verts[1]?.x || x0;
-        const y2 = verts[2]?.y || y0;
-
-        const w = Math.max(x1 - x0, 8);
-        const h = Math.max(y2 - y0, 8);
+        const v = ta.boundingPoly.vertices;
+        const x0 = v[0].x || 0;
+        const y0 = v[0].y || 0;
+        const w  = Math.max((v[1].x || x0) - x0, 8);
+        const h  = Math.max((v[2].y || y0) - y0, 8);
 
         out.push({ number: num, x: x0, y: y0, w, h });
     }
-
     return out;
 }
 
@@ -199,11 +167,9 @@ function parseTextAnnotationsFor3Digit(textAnn) {
 async function detectThreeDigitFromCanvas(c) {
     const dataUrl = c.toDataURL("image/jpeg", 0.95);
     const base64 = dataUrl.split(",")[1];
-
     const resp = await callVisionTextDetection(base64);
-    if (!resp?.responses?.[0]) return [];
 
-    return parseTextAnnotationsFor3Digit(resp.responses[0].textAnnotations);
+    return parseTextAnnotationsFor3Digit(resp?.responses?.[0]?.textAnnotations);
 }
 
 /* =====================================================
@@ -211,9 +177,9 @@ async function detectThreeDigitFromCanvas(c) {
 ===================================================== */
 function captureVideoFrameToCanvas() {
     const c = document.createElement("canvas");
-    c.width = video.videoWidth || canvas.width;
-    c.height = video.videoHeight || canvas.height;
-    c.getContext("2d").drawImage(video, 0, 0, c.width, c.height);
+    c.width = 1920;
+    c.height = 1080;
+    c.getContext("2d").drawImage(video, 0, 0, 1920, 1080);
     return c;
 }
 
@@ -221,17 +187,10 @@ function captureVideoFrameToCanvas() {
    Qモード
 ===================================================== */
 async function runQModeScan() {
-    if (!video.videoWidth) return;
-
     const frame = captureVideoFrameToCanvas();
     const detected = await detectThreeDigitFromCanvas(frame);
 
-    const map = new Map();
-    detected.forEach(d => {
-        if (!map.has(d.number)) map.set(d.number, d);
-    });
-    const unique = [...map.values()];
-
+    const unique = [...new Map(detected.map(d => [d.number, d])).values()];
     lastQNumbers = unique.map(d => d.number);
 
     qResultsEl.innerHTML = "";
@@ -239,31 +198,10 @@ async function runQModeScan() {
     const margin = 60;
 
     unique.forEach(item => {
-        const sx = Math.max(item.x - margin, 0);
-        const sy = Math.max(item.y - margin, 0);
-        const sw = item.w + margin * 2;
-        const sh = item.h + margin * 2;
+        const cut = crop(frame, item, margin);
 
-        const cut = document.createElement("canvas");
-        cut.width = sw;
-        cut.height = sh;
-        cut.getContext("2d").drawImage(frame, sx, sy, sw, sh, 0, 0, sw, sh);
-
-        const wrap = document.createElement("div");
-        wrap.className = "quest-item";
-
-        const img = document.createElement("img");
-        img.className = "quest-thumb";
-        img.src = cut.toDataURL();
-
-        const txt = document.createElement("div");
-        txt.className = "quest-text";
-        txt.innerText = item.number;
-        txt.style.color = "red";
-
-        wrap.appendChild(img);
-        wrap.appendChild(txt);
-        qResultsEl.appendChild(wrap);
+        const el = createItem(cut, item.number, "red");
+        qResultsEl.prepend(el);
     });
 
     syncSavedAnswersToA();
@@ -273,32 +211,13 @@ async function runQModeScan() {
    Aモード
 ===================================================== */
 async function runAModeScan() {
-    if (!video.videoWidth) return;
-
     const frame = captureVideoFrameToCanvas();
     const detected = await detectThreeDigitFromCanvas(frame);
 
-    const map = new Map();
-    detected.forEach(d => {
-        if (!map.has(d.number)) map.set(d.number, d);
-    });
-    const unique = [...map.values()];
-
-    const tightTop = 40;
-    const tightBottom = 100;
-    const tightSide = 25;
+    const unique = [...new Map(detected.map(d => [d.number, d])).values()];
 
     unique.forEach(item => {
-        const sx = Math.max(item.x - tightSide, 0);
-        const sy = Math.max(item.y - tightTop, 0);
-        const sw = item.w + tightSide * 2;
-        const sh = item.h + tightTop + tightBottom;
-
-        const cut = document.createElement("canvas");
-        cut.width = sw;
-        cut.height = sh;
-        cut.getContext("2d").drawImage(frame, sx, sy, sw, sh, 0, 0, sw, sh);
-
+        const cut = crop(frame, item, 25, 40, 100);
         const dataUrl = cut.toDataURL();
 
         savedANumbers.set(item.number, dataUrl);
@@ -307,27 +226,49 @@ async function runAModeScan() {
         if (answerHistory.has(item.number)) return;
 
         answerHistory.add(item.number);
-
-        const wrap = document.createElement("div");
-        wrap.className = "quest-item";
-
-        const img = document.createElement("img");
-        img.className = "quest-thumb";
-        img.src = dataUrl;
-
-        const txt = document.createElement("div");
-        txt.className = "quest-text";
-        txt.innerText = item.number;
-        txt.style.color = "black";
-
-        wrap.appendChild(img);
-        wrap.appendChild(txt);
-        aResultsEl.appendChild(wrap);
+        aResultsEl.prepend(createItem(cut, item.number, "black"));
     });
 }
 
 /* =====================================================
-   保存済み反映
+   トリミング（元サイズ復元済み）
+===================================================== */
+function crop(frame, item, side=60, top=60, bottom=60) {
+    const sx = Math.max(item.x - side, 0);
+    const sy = Math.max(item.y - top, 0);
+    const sw = item.w + side * 2;
+    const sh = item.h + top + bottom;
+
+    const c = document.createElement("canvas");
+    c.width = sw;
+    c.height = sh;
+    c.getContext("2d").drawImage(frame, sx, sy, sw, sh, 0, 0, sw, sh);
+    return c;
+}
+
+/* =====================================================
+   要素生成（元レイアウト）
+===================================================== */
+function createItem(cutCanvas, number, color) {
+    const wrap = document.createElement("div");
+    wrap.className = "quest-item";
+
+    const img = document.createElement("img");
+    img.className = "quest-thumb";
+    img.src = cutCanvas.toDataURL();
+
+    const txt = document.createElement("div");
+    txt.className = "quest-text";
+    txt.innerText = number;
+    txt.style.color = color;
+
+    wrap.appendChild(img);
+    wrap.appendChild(txt);
+    return wrap;
+}
+
+/* =====================================================
+   Q後：保存済み即反映
 ===================================================== */
 function syncSavedAnswersToA() {
     lastQNumbers.forEach(num => {
@@ -336,28 +277,27 @@ function syncSavedAnswersToA() {
 
         answerHistory.add(num);
 
-        const dataUrl = savedANumbers.get(num);
-
+        const imgUrl = savedANumbers.get(num);
         const wrap = document.createElement("div");
         wrap.className = "quest-item";
 
         const img = document.createElement("img");
         img.className = "quest-thumb";
-        img.src = dataUrl;
+        img.src = imgUrl;
 
         const txt = document.createElement("div");
         txt.className = "quest-text";
         txt.innerText = num;
-        txt.style.color = "black";
 
         wrap.appendChild(img);
         wrap.appendChild(txt);
-        aResultsEl.appendChild(wrap);
+
+        aResultsEl.prepend(wrap);
     });
 }
 
 /* =====================================================
-   キャプチャ
+   実行
 ===================================================== */
 async function captureOnce() {
     if (currentMode === "Q") await runQModeScan();
@@ -365,17 +305,20 @@ async function captureOnce() {
 }
 
 /* =====================================================
-   ボタン
+   カメラボタン
 ===================================================== */
 let ocrInterval = null;
+
+camBtn.onmousedown = (e) => { e.preventDefault(); startPress(); };
+camBtn.ontouchstart = (e) => { e.preventDefault(); startPress(); };
+window.onmouseup = stopPress;
+window.ontouchend = stopPress;
 
 function startPress() {
     if (ocrInterval) return;
     camBtn.classList.add("pressing");
     captureOnce();
-    ocrInterval = setInterval(() => {
-        captureOnce();
-    }, INTERVAL_MS);
+    ocrInterval = setInterval(captureOnce, INTERVAL_MS);
 }
 
 function stopPress() {
@@ -385,29 +328,21 @@ function stopPress() {
     ocrInterval = null;
 }
 
-camBtn.addEventListener("mousedown", e => { e.preventDefault(); startPress(); });
-window.addEventListener("mouseup", stopPress);
-camBtn.addEventListener("mouseleave", stopPress);
-
-camBtn.addEventListener("touchstart", e => { e.preventDefault(); startPress(); }, { passive: false });
-window.addEventListener("touchend", stopPress);
-camBtn.addEventListener("click", e => e.preventDefault());
-
 /* =====================================================
    クリア
 ===================================================== */
-clearBtn.addEventListener("click", () => {
+clearBtn.onclick = () => {
     qResultsEl.innerHTML = "";
     aResultsEl.innerHTML = "";
     lastQNumbers = [];
     answerHistory.clear();
-});
+};
 
 /* =====================================================
    初期化
 ===================================================== */
-window.addEventListener("DOMContentLoaded", async () => {
+window.onload = async () => {
     await askForApiKeyIfNeeded();
     await startCamera();
     setMode("Q");
-});
+};
