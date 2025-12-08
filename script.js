@@ -9,8 +9,6 @@ const qBtn = document.getElementById("qMode");
 const aBtn = document.getElementById("aMode");
 const camBtn = document.getElementById("camera-btn");
 const clearBtn = document.getElementById("clear-btn");
-
-// ← ここで新ボタン取得 (HTMLに追加する必要あり)
 const clearMemoryBtn = document.getElementById("clear-memory-btn");
 
 const qResultsEl = document.getElementById("q-results");
@@ -20,12 +18,21 @@ let currentMode = "Q";
 let stream = null;
 
 let lastQNumbers = [];
-let answerHistory = new Set();  // 既存 — 全回答履歴
-let memorySet = new Set();      // 新規 — Aモードで見つけた数字のメモリ
+let answerHistory = new Set();
+let memorySet = new Set();
 
 let visionApiKey = localStorage.getItem("vision_api_key");
 
 const INTERVAL_MS = 1000;
+
+/* =====================================================
+   ガチゴミ箱ボタン 見た目設定（赤色化）
+===================================================== */
+if (clearMemoryBtn) {
+    clearMemoryBtn.style.background = "#d32f2f"; // 赤
+    clearMemoryBtn.style.color = "#fff";
+    clearMemoryBtn.style.border = "none";
+}
 
 /* =====================================================
    APIキー入力
@@ -43,35 +50,19 @@ async function askForApiKeyIfNeeded() {
 }
 
 /* =====================================================
-   iPhone用：超広角カメラのdeviceId取得
-   (以前のまま)
-===================================================== */
-async function getUltraWideCameraId() {
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const videoDevices = devices.filter(d => d.kind === "videoinput");
-    const ultra = videoDevices.find(d =>
-        d.label.includes("0.5") ||
-        d.label.toLowerCase().includes("ultra") ||
-        d.label.includes("超広角")
-    );
-    return ultra?.deviceId || videoDevices[0]?.deviceId || null;
-}
-
-/* =====================================================
    カメラ起動
 ===================================================== */
 async function startCamera() {
     try {
-        const deviceId = await getUltraWideCameraId();
         stream = await navigator.mediaDevices.getUserMedia({
             video: {
-                deviceId: deviceId ? { exact: deviceId } : undefined,
-                facingMode: { ideal: "environment" },
+                facingMode: "environment",
                 width: { ideal: 1280 },
-                height: { ideal: 720 },
+                height: { ideal: 720 }
             },
             audio: false
         });
+
         video.srcObject = stream;
         await video.play().catch(()=>{});
         canvas.width = video.videoWidth || 1280;
@@ -99,7 +90,7 @@ qBtn.addEventListener("click", () => setMode("Q"));
 aBtn.addEventListener("click", () => setMode("A"));
 
 /* =====================================================
-   Vision API 呼び出し
+   Vision API
 ===================================================== */
 async function callVisionTextDetection(base64Image) {
     if (!visionApiKey) {
@@ -108,12 +99,10 @@ async function callVisionTextDetection(base64Image) {
     }
     const url = `https://vision.googleapis.com/v1/images:annotate?key=${visionApiKey}`;
     const body = {
-        requests: [
-            {
-                image: { content: base64Image },
-                features: [{ type: "TEXT_DETECTION", maxResults: 50 }]
-            }
-        ]
+        requests: [{
+            image: { content: base64Image },
+            features: [{ type: "TEXT_DETECTION", maxResults: 50 }]
+        }]
     };
     try {
         const res = await fetch(url, {
@@ -162,7 +151,7 @@ async function detectThreeDigitFromCanvas(c) {
     return parseTextAnnotationsFor3Digit(textAnn);
 }
 
-/* フレームコピー */
+/* フレーム */
 function captureVideoFrameToCanvas() {
     const c = document.createElement("canvas");
     c.width = video.videoWidth || canvas.width;
@@ -172,7 +161,7 @@ function captureVideoFrameToCanvas() {
 }
 
 /* =====================================================
-   Qモード処理 → “メモリヒット時” を Aモード処理と同じに
+   Qモード
 ===================================================== */
 async function runQModeScan() {
     if (!video.videoWidth) return;
@@ -184,82 +173,44 @@ async function runQModeScan() {
     detected.forEach(item => {
         if (!uniqueMap.has(item.number)) uniqueMap.set(item.number, item);
     });
+
     const uniqueDetected = [...uniqueMap.values()];
-
     lastQNumbers = uniqueDetected.map(d => d.number);
-
     qResultsEl.innerHTML = "";
 
     const margin = 60;
 
     uniqueDetected.forEach(item => {
-        const num = item.number;
+        const sx = Math.max(item.x - margin, 0);
+        const sy = Math.max(item.y - margin, 0);
+        const sw = item.w + margin * 2;
+        const sh = item.h + margin * 2;
 
-        // もし memorySet に入っていたら → Aモード扱いで表示
-        if (memorySet.has(num)) {
-            // Aモードと同じ処理
-            const sx = Math.max(item.x - margin, 0);
-            const sy = Math.max(item.y - margin, 0);
-            const sw = item.w + margin * 2;
-            const sh = item.h + margin * 2;
+        const cut = document.createElement("canvas");
+        cut.width = sw;
+        cut.height = sh;
+        cut.getContext("2d").drawImage(frame, sx, sy, sw, sh, 0, 0, sw, sh);
 
-            const cut = document.createElement("canvas");
-            cut.width = sw;
-            cut.height = sh;
-            cut.getContext("2d").drawImage(frame, sx, sy, sw, sh, 0, 0, sw, sh);
+        const wrapper = document.createElement("div");
+        wrapper.className = "quest-item";
 
-            const wrapper = document.createElement("div");
-            wrapper.className = "quest-item";
+        const img = document.createElement("img");
+        img.className = "quest-thumb";
+        img.src = cut.toDataURL();
 
-            const img = document.createElement("img");
-            img.className = "quest-thumb";
-            img.src = cut.toDataURL();
+        const txt = document.createElement("div");
+        txt.className = "quest-text";
+        txt.innerText = item.number;
+        txt.style.color = "red";
 
-            const txt = document.createElement("div");
-            txt.className = "quest-text";
-            txt.innerText = num;
-            txt.style.color = "black";  // Aモード表示色
-
-            wrapper.appendChild(img);
-            wrapper.appendChild(txt);
-            aResultsEl.appendChild(wrapper);
-
-            // 保存しておく answerHistory も更新
-            answerHistory.add(num);
-        } else {
-            // memory になければ従来どおり Q モード候補として表示
-            const sx = Math.max(item.x - margin, 0);
-            const sy = Math.max(item.y - margin, 0);
-            const sw = item.w + margin * 2;
-            const sh = item.h + margin * 2;
-
-            const cut = document.createElement("canvas");
-            cut.width = sw;
-            cut.height = sh;
-            cut.getContext("2d").drawImage(frame, sx, sy, sw, sh, 0, 0, sw, sh);
-
-            const wrapper = document.createElement("div");
-            wrapper.className = "quest-item";
-
-            const img = document.createElement("img");
-            img.className = "quest-thumb";
-            img.src = cut.toDataURL();
-
-            const txt = document.createElement("div");
-            txt.className = "quest-text";
-            txt.innerText = num;
-            txt.style.color = "red";
-
-            wrapper.appendChild(img);
-            wrapper.appendChild(txt);
-            qResultsEl.appendChild(wrapper);
-        }
+        wrapper.appendChild(img);
+        wrapper.appendChild(txt);
+        qResultsEl.appendChild(wrapper);
     });
 }
 
 /* =====================================================
-   Aモード処理
-   認識 → memorySet に追加
+   Aモード（保存）
 ===================================================== */
 async function runAModeScan() {
     if (!video.videoWidth) return;
@@ -308,14 +259,13 @@ async function runAModeScan() {
         wrapper.appendChild(txt);
         aResultsEl.appendChild(wrapper);
 
-        // メモリに追加
-        memorySet.add(item.number);
         answerHistory.add(item.number);
+        memorySet.add(item.number);
     });
 }
 
 /* =====================================================
-   単発キャプチャ
+   シャッター
 ===================================================== */
 async function captureOnce() {
     if (currentMode === "Q") {
@@ -333,9 +283,7 @@ function startPress() {
     if (ocrInterval) return;
     camBtn.classList.add("pressing");
     captureOnce();
-    ocrInterval = setInterval(() => {
-        captureOnce();
-    }, INTERVAL_MS);
+    ocrInterval = setInterval(captureOnce, INTERVAL_MS);
 }
 function stopPress() {
     if (!ocrInterval) return;
@@ -347,31 +295,39 @@ function stopPress() {
 camBtn.addEventListener("mousedown", e => { e.preventDefault(); startPress(); });
 window.addEventListener("mouseup", stopPress);
 camBtn.addEventListener("mouseleave", stopPress);
+
 camBtn.addEventListener("touchstart", e => { e.preventDefault(); startPress(); }, { passive: false });
 window.addEventListener("touchend", stopPress);
+
 camBtn.addEventListener("click", e => e.preventDefault());
 
 /* =====================================================
-   クリアボタン（今までどおり） — Q/A結果だけクリア
+   通常ゴミ箱
 ===================================================== */
 clearBtn.addEventListener("click", () => {
     qResultsEl.innerHTML = "";
     aResultsEl.innerHTML = "";
     lastQNumbers = [];
     answerHistory.clear();
-    // memorySet はクリアしない
 });
 
 /* =====================================================
-   新ボタン：メモリ＋履歴＋表示を全クリア
+   ガチゴミ箱（確認付き）
 ===================================================== */
-clearMemoryBtn.addEventListener("click", () => {
-    qResultsEl.innerHTML = "";
-    aResultsEl.innerHTML = "";
-    lastQNumbers = [];
-    answerHistory.clear();
-    memorySet.clear();
-});
+if (clearMemoryBtn) {
+    clearMemoryBtn.addEventListener("click", () => {
+        const ok = confirm(
+            "新規でかくれんぼを開始しますか？\n読み取って保存した数字は全てリセットされます"
+        );
+        if (!ok) return;
+
+        qResultsEl.innerHTML = "";
+        aResultsEl.innerHTML = "";
+        lastQNumbers = [];
+        answerHistory.clear();
+        memorySet.clear();
+    });
+}
 
 /* =====================================================
    初期化
