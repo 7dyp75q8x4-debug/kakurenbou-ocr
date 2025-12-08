@@ -1,3 +1,4 @@
+/* 共通 */
 html, body {
     margin: 0;
     padding: 0;
@@ -56,14 +57,17 @@ html, body {
     display: flex;
     flex-direction: column;
     align-items: center;
+    position: relative;
 }
 
+/* カメラ */
 #camera-wrapper {
     width: 100%;
     aspect-ratio: 16 / 9;
     background: #000;
     overflow: hidden;
     position: relative;
+    z-index: 1;
 }
 
 #video {
@@ -72,21 +76,32 @@ html, body {
     object-fit: cover;
 }
 
-/* ボタンエリア */
+/* ✅ canvas がボタンを邪魔しない */
+#canvas {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+/* ✅ ボタンを最前面へ */
 #buttons {
     width: 100%;
     display: flex;
     justify-content: space-around;
     align-items: center;
     padding: 8px 0;
+    position: relative;
+    z-index: 10;
 }
 
+/* ボタン */
 .mode-btn {
     width: 44px;
     height: 44px;
     border-radius: 8px;
     font-size: 16px;
     border: none;
+    z-index: 11;
 }
 
 .yellow-btn {
@@ -96,6 +111,7 @@ html, body {
     background: #ffc107;
     font-size: 28px;
     border: none;
+    z-index: 11;
 }
 
 .blue-btn {
@@ -105,6 +121,7 @@ html, body {
     background: #2196f3;
     font-size: 22px;
     border: none;
+    z-index: 11;
 }
 
 .trash-wrap {
@@ -115,32 +132,4 @@ html, body {
 #clear-text {
     font-size: 12px;
     margin-bottom: 8px;
-}
-
-#camera-wrapper {
-    pointer-events: none;     /* ← これを追加 */
-}
-
-#buttons {
-    pointer-events: auto;     /* ← 念のためUIは生かす */
-    position: relative;
-    z-index: 10;
-}
-
-#video,
-#canvas {
-    pointer-events: none !important;
-    z-index: 1;
-}
-
-#buttons {
-    position: relative;
-    z-index: 9999;
-    pointer-events: auto !important;
-}
-
-.mode-btn,
-.yellow-btn,
-.blue-btn {
-    pointer-events: auto !important;
 }
