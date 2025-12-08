@@ -61,15 +61,25 @@ async function getUltraWideCameraId() {
 async function startCamera() {
     try {
         const deviceId = await getUltraWideCameraId();
+
         const isLandscape = window.innerWidth > window.innerHeight;
 
         const constraints = {
             video: {
                 deviceId: deviceId ? { exact: deviceId } : undefined,
                 facingMode: { ideal: "environment" },
-                width: isLandscape ? { ideal: 1920 } : { ideal: 1280 },
-                height: isLandscape ? { ideal: 1080 } : { ideal: 720 },
-                aspectRatio: isLandscape ? { exact: 16 / 9 } : undefined
+                width: isLandscape
+                    ? { ideal: 1920 }
+                    : { ideal: 1280 },
+                height: isLandscape
+                    ? { ideal: 1080 }
+                    : { ideal: 720 },
+                aspectRatio: isLandscape
+                    ? { exact: 16 / 9 }
+                    : undefined,
+                advanced: [
+                    { zoom: 0 }
+                ]
             },
             audio: false
         };
@@ -145,52 +155,6 @@ async function callVisionTextDetection(base64Image) {
     }
 }
 
-/* =====================================================
-   OCR前処理（安全版：軽い補正）
-===================================================== */
-function preprocessCanvasForOCR(src) {
-    const scale = 1.3;
-
-    const c = document.createElement("canvas");
-    c.width = Math.floor(src.width * scale);
-    c.height = Math.floor(src.height * scale);
-
-    const pctx = c.getContext("2d");
-    pctx.drawImage(src, 0, 0, c.width, c.height);
-
-    const img = pctx.getImageData(0, 0, c.width, c.height);
-    const d = img.data;
-    const contrast = 1.2;
-
-    for (let i = 0; i < d.length; i += 4) {
-        const r = d[i];
-        const g = d[i + 1];
-        const b = d[i + 2];
-
-        let gray = (r * 0.3 + g * 0.59 + b * 0.11);
-        gray = (gray - 128) * contrast + 128;
-        gray = Math.max(0, Math.min(255, gray));
-
-        d[i] = d[i + 1] = d[i + 2] = gray;
-    }
-
-    pctx.putImageData(img, 0, 0);
-    return c;
-}
-
-/* canvas → OCR（前処理適用版） */
-async function detectThreeDigitFromCanvas(c) {
-    const enhanced = preprocessCanvasForOCR(c);
-    const dataUrl = enhanced.toDataURL("image/jpeg", 0.92);
-    const base64 = dataUrl.split(",")[1];
-
-    const resp = await callVisionTextDetection(base64);
-    if (!resp?.responses?.[0]) return [];
-    const textAnn = resp.responses[0].textAnnotations;
-    if (!textAnn) return [];
-    return parseTextAnnotationsFor3Digit(textAnn);
-}
-
 /* 3桁抽出 */
 function parseTextAnnotationsFor3Digit(textAnn) {
     if (!textAnn || !Array.isArray(textAnn)) return [];
@@ -212,6 +176,17 @@ function parseTextAnnotationsFor3Digit(textAnn) {
         out.push({ number: txt, x: x0, y: y0, w, h });
     }
     return out;
+}
+
+/* canvas → OCR */
+async function detectThreeDigitFromCanvas(c) {
+    const dataUrl = c.toDataURL("image/jpeg", 0.9);
+    const base64 = dataUrl.split(",")[1];
+    const resp = await callVisionTextDetection(base64);
+    if (!resp?.responses?.[0]) return [];
+    const textAnn = resp.responses[0].textAnnotations;
+    if (!textAnn) return [];
+    return parseTextAnnotationsFor3Digit(textAnn);
 }
 
 /* フレームコピー */
