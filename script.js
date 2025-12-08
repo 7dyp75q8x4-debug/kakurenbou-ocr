@@ -13,11 +13,11 @@ const clearBtn = document.getElementById("clear-btn");
 const qResultsEl = document.getElementById("q-results");
 const aResultsEl = document.getElementById("a-results");
 
-let currentMode = "Q";               
+let currentMode = "Q";
 let stream = null;
 
-let lastQNumbers = [];               
-let answerHistory = new Set();       
+let lastQNumbers = [];
+let answerHistory = new Set();
 
 let visionApiKey = localStorage.getItem("vision_api_key");
 
@@ -40,49 +40,57 @@ async function askForApiKeyIfNeeded() {
 }
 
 /* =====================================================
-   iPhone用：超広角カメラのdeviceId取得
+   外カメラ（超広角優先・内カメラ除外）
+   - 可能な場合ラベルで0.5/ultra/超広角を優先
+   - ラベル取得のため一度 getUserMedia を呼んでから enumerateDevices
 ===================================================== */
-async function getUltraWideCameraId() {
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const videoDevices = devices.filter(d => d.kind === "videoinput");
+async function getBackUltraWideCameraId() {
+    try {
+        // 権限付与してラベルを取得しやすくする（失敗しても続行）
+        await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+    } catch (e) {
+        // ignore
+    }
 
-    const ultra = videoDevices.find(d =>
-        d.label.includes("0.5") ||
-        d.label.toLowerCase().includes("ultra") ||
-        d.label.includes("超広角")
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const cams = devices.filter(d => d.kind === "videoinput");
+
+    // back cameras = exclude front/user/face
+    const back = cams.filter(d => !/front|user|face/i.test(d.label));
+
+    const ultra = back.find(d =>
+        (d.label || "").includes("0.5") ||
+        (d.label || "").toLowerCase().includes("ultra") ||
+        (d.label || "").includes("超広角")
     );
 
-    return ultra?.deviceId || videoDevices[0]?.deviceId || null;
+    if (ultra) return ultra.deviceId;
+    if (back[0]) return back[0].deviceId;
+    return cams[0]?.deviceId || null;
 }
 
 /* =====================================================
-   カメラ起動（横画面16:9 + 超広角優先）
+   カメラ起動（横画面16:9 + 外カメラ優先）
 ===================================================== */
 async function startCamera() {
     try {
-        const deviceId = await getUltraWideCameraId();
-
+        const deviceId = await getBackUltraWideCameraId();
         const isLandscape = window.innerWidth > window.innerHeight;
 
         const constraints = {
             video: {
                 deviceId: deviceId ? { exact: deviceId } : undefined,
                 facingMode: { ideal: "environment" },
-                width: isLandscape
-                    ? { ideal: 1920 }
-                    : { ideal: 1280 },
-                height: isLandscape
-                    ? { ideal: 1080 }
-                    : { ideal: 720 },
-                aspectRatio: isLandscape
-                    ? { exact: 16 / 9 }
-                    : undefined,
-                advanced: [
-                    { zoom: 0 }
-                ]
+                width: isLandscape ? { ideal: 1920 } : { ideal: 1280 },
+                height: isLandscape ? { ideal: 1080 } : { ideal: 720 },
+                aspectRatio: isLandscape ? { exact: 16 / 9 } : undefined
             },
             audio: false
         };
+
+        if (stream) {
+            stream.getTracks().forEach(t => t.stop());
+        }
 
         stream = await navigator.mediaDevices.getUserMedia(constraints);
 
@@ -109,7 +117,7 @@ window.addEventListener("orientationchange", async () => {
 });
 
 /* =====================================================
-   モード切替
+   モード切替（トグル確実に働くよう click handler）
 ===================================================== */
 function setMode(mode) {
     currentMode = mode;
@@ -121,12 +129,11 @@ function setMode(mode) {
         qBtn.classList.remove("active");
     }
 }
-
 qBtn.addEventListener("click", () => setMode("Q"));
 aBtn.addEventListener("click", () => setMode("A"));
 
 /* =====================================================
-   Vision API
+   Vision API 呼び出し
 ===================================================== */
 async function callVisionTextDetection(base64Image) {
     if (!visionApiKey) {
@@ -155,7 +162,9 @@ async function callVisionTextDetection(base64Image) {
     }
 }
 
-/* 3桁抽出 */
+/* =====================================================
+   3桁抽出
+===================================================== */
 function parseTextAnnotationsFor3Digit(textAnn) {
     if (!textAnn || !Array.isArray(textAnn)) return [];
     const out = [];
@@ -199,7 +208,7 @@ function captureVideoFrameToCanvas() {
 }
 
 /* =====================================================
-   Qモード
+   Qモード（元の表示サイズで出す）
 ===================================================== */
 async function runQModeScan() {
     if (!video.videoWidth) return;
@@ -247,7 +256,7 @@ async function runQModeScan() {
 }
 
 /* =====================================================
-   Aモード
+   Aモード（元の振る舞いを維持）
 ===================================================== */
 async function runAModeScan() {
     if (!video.videoWidth) return;
@@ -311,7 +320,7 @@ async function captureOnce() {
 }
 
 /* =====================================================
-   長押し
+   長押し（1秒間隔）
 ===================================================== */
 let ocrInterval = null;
 
@@ -337,7 +346,8 @@ camBtn.addEventListener("mouseleave", stopPress);
 
 camBtn.addEventListener("touchstart", e => { e.preventDefault(); startPress(); }, { passive: false });
 window.addEventListener("touchend", stopPress);
-camBtn.addEventListener("click", e => e.preventDefault());
+
+camBtn.addEventListener("click", e => e.preventDefault()); // 防止フォーカス移動
 
 /* =====================================================
    クリア
