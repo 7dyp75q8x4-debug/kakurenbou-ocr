@@ -126,3 +126,21 @@ html, body {
     position: relative;
     z-index: 10;
 }
+
+#video,
+#canvas {
+    pointer-events: none !important;
+    z-index: 1;
+}
+
+#buttons {
+    position: relative;
+    z-index: 9999;
+    pointer-events: auto !important;
+}
+
+.mode-btn,
+.yellow-btn,
+.blue-btn {
+    pointer-events: auto !important;
+}
