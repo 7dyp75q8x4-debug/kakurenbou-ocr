@@ -10,7 +10,7 @@ const aBtn = document.getElementById("aMode");
 const camBtn = document.getElementById("camera-btn");
 const clearBtn = document.getElementById("clear-btn");
 
-// ★ ガチゴミ箱
+// ガチゴミ箱（赤） — HTML に存在する前提
 const hardClearBtn = document.getElementById("hard-clear-btn");
 
 const qResultsEl = document.getElementById("q-results");
@@ -167,6 +167,7 @@ async function callVisionTextDetection(base64Image) {
         });
         return await res.json();
     } catch (e) {
+        console.error("Vision API call failed:", e);
         return null;
     }
 }
@@ -368,7 +369,7 @@ async function captureOnce() {
 }
 
 /* =====================================================
-   長押し
+   長押し撮影（カメラボタン）
 ===================================================== */
 let ocrInterval = null;
 
@@ -396,17 +397,18 @@ window.addEventListener("touchend", stopPress);
 camBtn.addEventListener("click", e => e.preventDefault());
 
 /* =====================================================
-   通常クリア
+   通常クリア（青ボタン） — お題＆検出結果のみリセット
 ===================================================== */
 clearBtn.addEventListener("click", () => {
     qResultsEl.innerHTML = "";
     aResultsEl.innerHTML = "";
     lastQNumbers = [];
     answerHistory.clear();
+    // savedANumbers は残す（Aで保存したデータは維持）
 });
 
 /* =====================================================
-   ✅ ガチゴミ箱（完全リセット）復活
+   ✅ ガチゴミ箱（赤ボタン） — 完全リセット（保存含む）
 ===================================================== */
 if (hardClearBtn) {
     hardClearBtn.addEventListener("click", () => {
