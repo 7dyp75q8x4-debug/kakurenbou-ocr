@@ -1,16 +1,13 @@
 /* =====================================================
-   要素
+   要素取得
 ===================================================== */
 const video = document.getElementById("video");
 const canvas = document.getElementById("canvas");
-const ctx = canvas.getContext("2d");
-
 const qBtn = document.getElementById("qMode");
 const aBtn = document.getElementById("aMode");
 const camBtn = document.getElementById("camera-btn");
 const clearBtn = document.getElementById("clear-btn");
 const hardClearBtn = document.getElementById("hard-clear-btn");
-
 const qResultsEl = document.getElementById("q-results");
 const aResultsEl = document.getElementById("a-results");
 
@@ -19,222 +16,268 @@ const aResultsEl = document.getElementById("a-results");
 ===================================================== */
 let currentMode = "Q";
 let stream = null;
-
-let currentQNumbers = [];
-let savedNumbers = new Map(); // number => {number, img}
-
+let qNumbers = [];
+let savedNumbers = new Map(); // number => dataURL (A時の切り抜き)
 let visionApiKey = localStorage.getItem("vision_api_key");
-const INTERVAL_MS = 800;
+let ocrInterval = null;
+const INTERVAL_MS = 1000;
 
 /* =====================================================
-   APIKEY
+   APIキー
 ===================================================== */
 async function askForApiKeyIfNeeded() {
     if (visionApiKey) return;
     const key = prompt("Google Vision API キーを入力してください");
-    if (!key) return askForApiKeyIfNeeded();
-    visionApiKey = key.trim();
-    localStorage.setItem("vision_api_key", visionApiKey);
+    if (key && key.trim()) {
+        visionApiKey = key.trim();
+        localStorage.setItem("vision_api_key", visionApiKey);
+        return;
+    }
+    alert("APIキーが必要です");
 }
 
 /* =====================================================
-   Camera
+   カメラ
 ===================================================== */
-async function getUltraWideCameraId() {
+async function getCameraId() {
     const devices = await navigator.mediaDevices.enumerateDevices();
-    const cams = devices.filter(d => d.kind === "videoinput");
-    const ultra = cams.find(d =>
+    const videoDevices = devices.filter(d => d.kind === "videoinput");
+    const ultra = videoDevices.find(d =>
         d.label.includes("0.5") ||
         d.label.toLowerCase().includes("ultra") ||
         d.label.includes("超広角")
     );
-    return ultra?.deviceId || cams[0]?.deviceId || null;
+    return ultra?.deviceId || videoDevices[0]?.deviceId || null;
 }
 
 async function startCamera() {
-    const deviceId = await getUltraWideCameraId();
-    stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-            deviceId: deviceId ? { exact: deviceId } : undefined,
-            facingMode: { ideal: "environment" }
-        },
-        audio: false
-    });
-    video.srcObject = stream;
-    await video.play().catch(()=>{});
+    try {
+        const id = await getCameraId();
+        stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+                deviceId: id ? { exact: id } : undefined,
+                facingMode: { ideal: "environment" }
+            },
+            audio: false
+        });
+        video.srcObject = stream;
+        await video.play().catch(()=>{});
+        canvas.width = video.videoWidth || 1280;
+        canvas.height = video.videoHeight || 720;
+    } catch (e) {
+        alert("カメラ起動失敗");
+        console.error(e);
+    }
 }
 
+window.addEventListener("orientationchange", async () => {
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    await startCamera();
+});
+
 /* =====================================================
-   mode
+   モード切替
 ===================================================== */
-function setMode(mode) {
-    currentMode = mode;
-    qBtn.classList.toggle("active", mode==="Q");
-    aBtn.classList.toggle("active", mode==="A");
+function setMode(m) {
+    currentMode = m;
+    if (m === "Q") {
+        qBtn.classList.add("active");
+        aBtn.classList.remove("active");
+    } else {
+        aBtn.classList.add("active");
+        qBtn.classList.remove("active");
+    }
 }
+
 qBtn.onclick = () => setMode("Q");
 aBtn.onclick = () => setMode("A");
 
 /* =====================================================
-   OCR
+   Vision
 ===================================================== */
 async function callVision(base64) {
+    if (!visionApiKey) return null;
     const url = `https://vision.googleapis.com/v1/images:annotate?key=${visionApiKey}`;
     const body = {
-        requests: [{
-            image: { content: base64 },
-            features: [{ type: "TEXT_DETECTION" }]
+        requests:[{
+            image:{content:base64},
+            features:[{type:"TEXT_DETECTION",maxResults:50}]
         }]
     };
-    const r = await fetch(url, {
+    const r = await fetch(url,{
         method:"POST",
-        headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify(body)
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify(body)
     });
     return await r.json();
 }
 
-function extract3digit(textAnn) {
-    if(!textAnn) return [];
-    return textAnn.slice(1)
-        .filter(t=>/^\d{3}$/.test(t.description?.trim()))
-        .map(t=>{
-            const v = t.boundingPoly.vertices;
-            return {
-                number: t.description.trim(),
-                x: v[0].x||0, y: v[0].y||0,
-                w: (v[1].x||0)-(v[0].x||0),
-                h: (v[2].y||0)-(v[0].y||0)
-            };
+function parse3Digit(texts){
+    if(!texts) return [];
+    const out=[];
+    for(let i=1;i<texts.length;i++){
+        const t=texts[i]?.description?.trim();
+        if(!/^\d{3}$/.test(t)) continue;
+        const v=texts[i].boundingPoly?.vertices||[];
+        const x0=v[0]?.x||0, y0=v[0]?.y||0;
+        const x1=v[1]?.x||x0, y2=v[2]?.y||y0;
+        out.push({
+            number:t,
+            x:x0,y:y0,
+            w:Math.max(x1-x0,8),
+            h:Math.max(y2-y0,8)
         });
+    }
+    return out;
 }
 
-function captureFrame() {
-    const c = document.createElement("canvas");
-    c.width = video.videoWidth;
-    c.height = video.videoHeight;
-    c.getContext("2d").drawImage(video,0,0);
+/* =====================================================
+   Canvas
+===================================================== */
+function captureFrame(){
+    const c=document.createElement("canvas");
+    c.width=video.videoWidth||canvas.width;
+    c.height=video.videoHeight||canvas.height;
+    c.getContext("2d").drawImage(video,0,0,c.width,c.height);
     return c;
 }
 
-async function detect3digits(canvas) {
-    const base64 = canvas.toDataURL("image/jpeg").split(",")[1];
-    const res = await callVision(base64);
-    return extract3digit(res.responses[0].textAnnotations);
+async function detect(c){
+    const base64=c.toDataURL("image/jpeg",0.95).split(",")[1];
+    const res=await callVision(base64);
+    const texts=res?.responses?.[0]?.textAnnotations;
+    return parse3Digit(texts);
 }
 
 /* =====================================================
-   render
+   共通描画
 ===================================================== */
-function renderResult(targetEl, data, color="black") {
-    const wrap = document.createElement("div");
-    wrap.className = "quest-item";
+function renderResult(item, frame, color){
+    const mx = 25, mt=40, mb=100;
+    const sx=Math.max(item.x-mx,0);
+    const sy=Math.max(item.y-mt,0);
+    const sw=item.w+mx*2;
+    const sh=item.h+mt+mb;
+    const cut=document.createElement("canvas");
+    cut.width=sw; cut.height=sh;
+    cut.getContext("2d").drawImage(frame,sx,sy,sw,sh,0,0,sw,sh);
 
-    const img = document.createElement("img");
-    img.className = "quest-thumb";
-    img.src = data.img;
-
-    const txt = document.createElement("div");
-    txt.className = "quest-text";
-    txt.style.color = color;
-    txt.innerText = data.number;
-
-    wrap.appendChild(img);
-    wrap.appendChild(txt);
-    targetEl.appendChild(wrap);
+    const w=document.createElement("div");
+    w.className="quest-item";
+    const img=document.createElement("img");
+    img.className="quest-thumb";
+    img.src=cut.toDataURL();
+    const txt=document.createElement("div");
+    txt.className="quest-text";
+    txt.style.color=color;
+    txt.innerText=item.number;
+    w.appendChild(img);
+    w.appendChild(txt);
+    return {wrapper:w, imgData:img.src};
 }
 
 /* =====================================================
-   Q mode
+   Qモード
 ===================================================== */
-async function runQ() {
-    if (!video.videoWidth) return;
-    qResultsEl.innerHTML = "";
-    currentQNumbers = [];
+async function runQ(){
+    const frame=captureFrame();
+    const found=await detect(frame);
+    qNumbers = found.map(f=>f.number);
+    qResultsEl.innerHTML="";
 
-    const frame = captureFrame();
-    const detected = await detect3digits(frame);
+    found.forEach(item=>{
+        const {wrapper}=renderResult(item,frame,"red");
+        qResultsEl.appendChild(wrapper);
+    });
 
-    detected.forEach(d=>{
-        currentQNumbers.push(d.number);
-
-        const cut = document.createElement("canvas");
-        cut.width = d.w+120; cut.height = d.h+120;
-        cut.getContext("2d").drawImage(frame, d.x-60,d.y-60,d.w+120,d.h+120,0,0,d.w+120,d.h+120);
-
-        const img = cut.toDataURL();
-        renderResult(qResultsEl, {number:d.number,img}, "red");
-
-        // ★ saved と照合し即復元
-        if(savedNumbers.has(d.number)){
-            renderResult(aResultsEl, savedNumbers.get(d.number), "black");
+    // Qの数字が saved にあれば即A出力
+    qNumbers.forEach(num=>{
+        if(savedNumbers.has(num)){
+            const imgData=savedNumbers.get(num);
+            const w=document.createElement("div");
+            w.className="quest-item";
+            const img=document.createElement("img");
+            img.className="quest-thumb";
+            img.src=imgData;
+            const txt=document.createElement("div");
+            txt.className="quest-text";
+            txt.style.color="black";
+            txt.innerText=num;
+            w.appendChild(img); w.appendChild(txt);
+            aResultsEl.appendChild(w);
         }
     });
 }
 
 /* =====================================================
-   A mode
+   Aモード
 ===================================================== */
-async function runA() {
-    if (!video.videoWidth) return;
-
-    const frame = captureFrame();
-    const detected = await detect3digits(frame);
-
-    detected.forEach(d=>{
-        const cut = document.createElement("canvas");
-        cut.width = d.w+120;
-        cut.height = d.h+120;
-        cut.getContext("2d").drawImage(frame,d.x-60,d.y-60,d.w+120,d.h+120,0,0,d.w+120,d.h+120);
-        const img = cut.toDataURL();
-
-        const data = { number:d.number, img };
-
-        // 常に保存
-        savedNumbers.set(d.number, data);
-
-        // 現在のお題に含まれていれば表示
-        if(currentQNumbers.includes(d.number)){
-            renderResult(aResultsEl, data, "black");
-        }
+async function runA(){
+    const frame=captureFrame();
+    const found=await detect(frame);
+    const seen = new Set();
+    found.forEach(item=>{
+        const {wrapper, imgData}=renderResult(item,frame,"black");
+        aResultsEl.appendChild(wrapper);
+        savedNumbers.set(item.number,imgData);
+        seen.add(item.number);
     });
 }
 
 /* =====================================================
-   capture button
+   撮影
 ===================================================== */
-async function captureOnce() {
-    if(currentMode==="Q") runQ();
-    else runA();
+async function captureOnce(){
+    if(currentMode==="Q") await runQ();
+    else await runA();
 }
 
-let timer=null;
-camBtn.addEventListener("touchstart",e=>{e.preventDefault();if(timer)return;captureOnce();timer=setInterval(captureOnce,INTERVAL_MS)});
-window.addEventListener("touchend",()=>{clearInterval(timer);timer=null});
-camBtn.addEventListener("mousedown",()=>{if(timer)return;captureOnce();timer=setInterval(captureOnce,INTERVAL_MS)});
-window.addEventListener("mouseup",()=>{clearInterval(timer);timer=null});
+/* =====================================================
+   長押し
+===================================================== */
+function startPress(){
+    if(ocrInterval) return;
+    camBtn.classList.add("pressing");
+    captureOnce();
+    ocrInterval=setInterval(captureOnce,INTERVAL_MS);
+}
+function stopPress(){
+    if(!ocrInterval) return;
+    camBtn.classList.remove("pressing");
+    clearInterval(ocrInterval);
+    ocrInterval=null;
+}
+
+camBtn.addEventListener("mousedown",e=>{e.preventDefault();startPress();});
+window.addEventListener("mouseup",stopPress);
+camBtn.addEventListener("mouseleave",stopPress);
+camBtn.addEventListener("touchstart",e=>{e.preventDefault();startPress();},{passive:false});
+window.addEventListener("touchend",stopPress);
+camBtn.addEventListener("click",e=>e.preventDefault());
 
 /* =====================================================
-   clear buttons
+   クリア系
 ===================================================== */
-clearBtn.onclick = ()=>{
+clearBtn.onclick=()=>{
     qResultsEl.innerHTML="";
     aResultsEl.innerHTML="";
+    qNumbers=[];
 };
 
 hardClearBtn.onclick=()=>{
-    if(!confirm("新規でかくれんぼを開始しますか？\n保存した数字は全てリセットされます"))return;
+    const ok=confirm("新規でかくれんぼを開始しますか？\n読み取って保存した数字は全てリセットされます");
+    if(!ok) return;
     qResultsEl.innerHTML="";
     aResultsEl.innerHTML="";
+    qNumbers=[];
     savedNumbers.clear();
-    currentQNumbers=[];
 };
 
 /* =====================================================
-   init
+   初期化
 ===================================================== */
-window.onload=async ()=>{
+window.addEventListener("DOMContentLoaded",async()=>{
     await askForApiKeyIfNeeded();
     await startCamera();
     setMode("Q");
-};
+});
