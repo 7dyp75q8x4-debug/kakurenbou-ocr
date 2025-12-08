@@ -346,3 +346,81 @@ window.onload = async () => {
     await startCamera();
     setMode("Q");
 };
+
+// --------------------
+// ボタンクリック不可を即直す最短パッチ
+// 貼る場所: script.js の最後（初期化ハンドラの後）
+// --------------------
+(function ensureButtonsClickable() {
+    function forceButtonLayer() {
+        try {
+            const buttons = document.getElementById('buttons');
+            const videoEl = document.getElementById('video');
+            const canvasEl = document.getElementById('canvas');
+            const camWrap = document.getElementById('camera-wrapper');
+            const right = document.getElementById('right-panel');
+            const q = document.getElementById('qMode');
+            const a = document.getElementById('aMode');
+
+            // 1) video / canvas / camera wrapper が pointer を奪わないようにする
+            [videoEl, canvasEl, camWrap].forEach(el => {
+                if (!el) return;
+                el.style.pointerEvents = 'none';
+                // safe z-index baseline so buttons can be above
+                el.style.zIndex = '1';
+            });
+
+            // 2) buttons を最前面に（見た目は変えない）
+            if (buttons) {
+                buttons.style.position = 'relative';
+                buttons.style.zIndex = '999999';
+                buttons.style.pointerEvents = 'auto';
+                // 明示的にタッチ対象を有効化
+                Array.from(buttons.querySelectorAll('button, .mode-btn, .yellow-btn, .blue-btn')).forEach(b => {
+                    b.style.pointerEvents = 'auto';
+                    b.disabled = false;
+                });
+            }
+
+            // 3) DOM上で buttons を right-panel の最後に移して確実に前面にする（見た目は同じ）
+            if (right && buttons && right.lastElementChild !== buttons) {
+                right.appendChild(buttons);
+            }
+
+            // 4) 再保証: モードボタンのイベントが外れてないか解除して再登録
+            if (q && a) {
+                q.disabled = false;
+                a.disabled = false;
+                // re-bind safe handlers if none exist
+                if (!q.onclick) q.onclick = () => { setMode('Q'); };
+                if (!a.onclick) a.onclick = () => { setMode('A'); };
+            }
+
+            // 5) ちょっとだけ遅延して再チェック（レンダリングタイミング対策）
+            setTimeout(() => {
+                // Re-assert pointer-events none just in case something overrides later
+                [videoEl, canvasEl, camWrap].forEach(el => {
+                    if (!el) return;
+                    el.style.pointerEvents = 'none';
+                });
+            }, 150);
+
+            console.info("[fix] buttons brought to front and video/canvas pointer-events disabled");
+        } catch (err) {
+            console.error("[fix] ensureButtonsClickable failed:", err);
+        }
+    }
+
+    // 実行タイミング: DOM ready とカメラ起動後の両方で確実に適用
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+        setTimeout(forceButtonLayer, 50);
+    } else {
+        window.addEventListener('DOMContentLoaded', () => setTimeout(forceButtonLayer, 50));
+    }
+
+    // さらに startCamera や orientationchange 後にも再適用（stream 再作成でレイヤーが変わることがあるため）
+    window.addEventListener('load', () => setTimeout(forceButtonLayer, 100));
+    window.addEventListener('orientationchange', () => setTimeout(forceButtonLayer, 200));
+    // 連続的に保険（ボタン押せなかったときのため）
+    setInterval(forceButtonLayer, 4000);
+})();
