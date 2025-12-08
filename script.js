@@ -8,56 +8,32 @@ const ctx = canvas.getContext("2d");
 const qBtn = document.getElementById("qMode");
 const aBtn = document.getElementById("aMode");
 const camBtn = document.getElementById("camera-btn");
+
+// 通常クリア
 const clearBtn = document.getElementById("clear-btn");
+
+// ガチゴミ箱
 const hardClearBtn = document.getElementById("hard-clear-btn");
 
 const qResultsEl = document.getElementById("q-results");
 const aResultsEl = document.getElementById("a-results");
 
-let currentMode = "Q";               
+let currentMode = "Q";
 let stream = null;
 
-let lastQNumbers = [];               
-let answerHistory = new Set();       
+let lastQNumbers = [];
+let answerHistory = new Set();
 
-// ✅ Aモード記録メモリ
-let savedAnswerMemory = new Set();
+// Aモードで一度でも認識した数字を保存
+let savedNumbers = new Set();
 
 let visionApiKey = localStorage.getItem("vision_api_key");
 
 const INTERVAL_MS = 1000;
 
 /* =====================================================
-   ガチゴミ箱（confirm安定版）
+   APIキー入力
 ===================================================== */
-hardClearBtn.addEventListener("click", () => {
-    // iOS Chrome対策：同期タイミングで実行
-    setTimeout(() => {
-        const ok = window.confirm(
-            "新規でかくれんぼを開始しますか？\n読み取って保存した数字は全てリセットされます"
-        );
-        if (!ok) return;
-
-        qResultsEl.innerHTML = "";
-        aResultsEl.innerHTML = "";
-        lastQNumbers = [];
-        answerHistory.clear();
-        savedAnswerMemory.clear();
-    }, 50);
-});
-
-/* =====================================================
-   通常クリア
-===================================================== */
-clearBtn.addEventListener("click", () => {
-    qResultsEl.innerHTML = "";
-    aResultsEl.innerHTML = "";
-    lastQNumbers = [];
-    answerHistory.clear();
-});
-
-/* ---- 以降はあなたの元コードそのまま ---- */
-
 async function askForApiKeyIfNeeded() {
     if (visionApiKey) return;
     const key = prompt("Google Vision API キーを入力してください");
@@ -70,6 +46,9 @@ async function askForApiKeyIfNeeded() {
     await askForApiKeyIfNeeded();
 }
 
+/* =====================================================
+   iPhone用：超広角カメラのdeviceId取得
+===================================================== */
 async function getUltraWideCameraId() {
     const devices = await navigator.mediaDevices.enumerateDevices();
     const videoDevices = devices.filter(d => d.kind === "videoinput");
@@ -83,40 +62,47 @@ async function getUltraWideCameraId() {
     return ultra?.deviceId || videoDevices[0]?.deviceId || null;
 }
 
+/* =====================================================
+   カメラ起動
+===================================================== */
 async function startCamera() {
     try {
         const deviceId = await getUltraWideCameraId();
-        const isLandscape = window.innerWidth > window.innerHeight;
 
-        const constraints = {
+        stream = await navigator.mediaDevices.getUserMedia({
             video: {
                 deviceId: deviceId ? { exact: deviceId } : undefined,
-                facingMode: { ideal: "environment" },
-                width: isLandscape ? { ideal: 1920 } : { ideal: 1280 },
-                height: isLandscape ? { ideal: 1080 } : { ideal: 720 },
-                aspectRatio: isLandscape ? { exact: 16/9 } : undefined
+                facingMode: { ideal: "environment" }
             },
             audio: false
-        };
+        });
 
-        stream = await navigator.mediaDevices.getUserMedia(constraints);
         video.srcObject = stream;
         await video.play().catch(()=>{});
 
         canvas.width = video.videoWidth || 1280;
         canvas.height = video.videoHeight || 720;
+
     } catch (e) {
-        alert("カメラ起動失敗: " + e.message);
+        console.error("Camera start error:", e);
+        alert("カメラを開始できませんでした");
     }
 }
 
+/* =====================================================
+   向き変更対応
+===================================================== */
 window.addEventListener("orientationchange", async () => {
     if (stream) stream.getTracks().forEach(t => t.stop());
     await startCamera();
 });
 
+/* =====================================================
+   モード
+===================================================== */
 function setMode(mode) {
     currentMode = mode;
+
     if (mode === "Q") {
         qBtn.classList.add("active");
         aBtn.classList.remove("active");
@@ -129,31 +115,292 @@ function setMode(mode) {
 qBtn.addEventListener("click", () => setMode("Q"));
 aBtn.addEventListener("click", () => setMode("A"));
 
+/* =====================================================
+   Vision API
+===================================================== */
 async function callVisionTextDetection(base64Image) {
     if (!visionApiKey) return null;
+
     const url = `https://vision.googleapis.com/v1/images:annotate?key=${visionApiKey}`;
-    const body = { requests:[{ image:{content:base64Image},features:[{type:"TEXT_DETECTION",maxResults:50}]}] };
-    const res = await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
-    return await res.json();
-}
+    const body = {
+        requests: [{
+            image: { content: base64Image },
+            features: [{ type: "TEXT_DETECTION", maxResults: 100 }]
+        }]
+    };
 
-function parseTextAnnotationsFor3Digit(textAnn) {
-    if (!textAnn) return [];
-    return textAnn
-        .slice(1)
-        .filter(t => /^\d{3}$/.test(t.description?.trim()))
-        .map(t => {
-            const v=t.boundingPoly.vertices;
-            return {number:t.description.trim(),x:v[0].x||0,y:v[0].y||0,w:Math.max((v[1].x-v[0].x)||8,8),h:Math.max((v[2].y-v[0].y)||8,8)};
+    try {
+        const res = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body)
         });
+        return await res.json();
+    } catch {
+        return null;
+    }
 }
 
+/* =====================================================
+   OCR結果 → 3桁抽出
+===================================================== */
+function parseTextAnnotationsFor3Digit(textAnn) {
+    if (!textAnn || !Array.isArray(textAnn)) return [];
+    const out = [];
+
+    for (let i = 1; i < textAnn.length; i++) {
+        const ta = textAnn[i];
+        if (!ta?.description) continue;
+        const txt = ta.description.trim();
+        if (!/^\d{3}$/.test(txt)) continue;
+
+        const verts = ta.boundingPoly?.vertices || [];
+        const x0 = verts[0]?.x || 0;
+        const y0 = verts[0]?.y || 0;
+        const x1 = verts[1]?.x || x0;
+        const y2 = verts[2]?.y || y0;
+
+        const w = Math.max(x1 - x0, 8);
+        const h = Math.max(y2 - y0, 8);
+
+        out.push({ number: txt, x: x0, y: y0, w, h });
+    }
+
+    return out;
+}
+
+/* =====================================================
+   canvas → OCR
+===================================================== */
+async function detectThreeDigitFromCanvas(c) {
+    const dataUrl = c.toDataURL("image/jpeg", 0.95);
+    const base64 = dataUrl.split(",")[1];
+
+    const resp = await callVisionTextDetection(base64);
+    if (!resp?.responses?.[0]) return [];
+
+    const textAnn = resp.responses[0].textAnnotations;
+    if (!textAnn) return [];
+
+    return parseTextAnnotationsFor3Digit(textAnn);
+}
+
+/* =====================================================
+   フレームコピー
+===================================================== */
 function captureVideoFrameToCanvas() {
     const c = document.createElement("canvas");
-    c.width  = video.videoWidth;
-    c.height = video.videoHeight;
-    c.getContext("2d").drawImage(video,0,0,c.width,c.height);
+    c.width = video.videoWidth || canvas.width;
+    c.height = video.videoHeight || canvas.height;
+    c.getContext("2d").drawImage(video, 0, 0, c.width, c.height);
     return c;
 }
 
-// 以下 Qモード/Aモード処理は元コードを維持
+/* =====================================================
+   Qモード
+===================================================== */
+async function runQModeScan() {
+    if (!video.videoWidth) return;
+
+    const frame = captureVideoFrameToCanvas();
+    const detected = await detectThreeDigitFromCanvas(frame);
+
+    const uniqueMap = new Map();
+    detected.forEach(item => {
+        if (!uniqueMap.has(item.number)) uniqueMap.set(item.number, item);
+    });
+
+    const uniqueDetected = [...uniqueMap.values()];
+    lastQNumbers = uniqueDetected.map(d => d.number);
+
+    qResultsEl.innerHTML = "";
+
+    const margin = 60;
+
+    uniqueDetected.forEach(item => {
+        const sx = Math.max(item.x - margin, 0);
+        const sy = Math.max(item.y - margin, 0);
+        const sw = item.w + margin * 2;
+        const sh = item.h + margin * 2;
+
+        const cut = document.createElement("canvas");
+        cut.width = sw;
+        cut.height = sh;
+
+        cut.getContext("2d").drawImage(frame, sx, sy, sw, sh, 0, 0, sw, sh);
+
+        const wrapper = document.createElement("div");
+        wrapper.className = "quest-item";
+
+        const img = document.createElement("img");
+        img.className = "quest-thumb";
+        img.src = cut.toDataURL();
+
+        const txt = document.createElement("div");
+        txt.className = "quest-text";
+        txt.innerText = item.number;
+        txt.style.color = "red";
+
+        wrapper.appendChild(img);
+        wrapper.appendChild(txt);
+        qResultsEl.appendChild(wrapper);
+    });
+
+    // ★ここで「保存済み」と突合してA風に表示
+    showAutoResultsFromSaved(uniqueDetected, frame);
+}
+
+/* =====================================================
+   Aモード
+===================================================== */
+async function runAModeScan() {
+    if (!video.videoWidth) return;
+    if (lastQNumbers.length === 0) return;
+
+    const frame = captureVideoFrameToCanvas();
+    const detected = await detectThreeDigitFromCanvas(frame);
+
+    const uniqueMap = new Map();
+    detected.forEach(item => {
+        if (!uniqueMap.has(item.number)) uniqueMap.set(item.number, item);
+    });
+
+    const uniqueDetected = [...uniqueMap.values()];
+
+    const tightTop = 40;
+    const tightBottom = 100;
+    const tightSide = 25;
+
+    uniqueDetected.forEach(item => {
+        if (!lastQNumbers.includes(item.number)) return;
+
+        // Aで認識した数字を保存
+        savedNumbers.add(item.number);
+
+        if (answerHistory.has(item.number)) return;
+        answerHistory.add(item.number);
+
+        renderAResult(item, frame, tightSide, tightTop, tightBottom);
+    });
+}
+
+/* =====================================================
+   A表示 共通
+===================================================== */
+function renderAResult(item, frame, tightSide, tightTop, tightBottom) {
+    const sx = Math.max(item.x - tightSide, 0);
+    const sy = Math.max(item.y - tightTop, 0);
+    const sw = item.w + tightSide * 2;
+    const sh = item.h + tightTop + tightBottom;
+
+    const cut = document.createElement("canvas");
+    cut.width = sw;
+    cut.height = sh;
+    cut.getContext("2d").drawImage(frame, sx, sy, sw, sh, 0, 0, sw, sh);
+
+    const wrapper = document.createElement("div");
+    wrapper.className = "quest-item";
+
+    const img = document.createElement("img");
+    img.className = "quest-thumb";
+    img.src = cut.toDataURL();
+
+    const txt = document.createElement("div");
+    txt.className = "quest-text";
+    txt.innerText = item.number;
+    txt.style.color = "black";
+
+    wrapper.appendChild(img);
+    wrapper.appendChild(txt);
+    aResultsEl.appendChild(wrapper);
+}
+
+/* =====================================================
+   保存済み番号をQ読み取り時に自動表示
+===================================================== */
+function showAutoResultsFromSaved(qDetected, frame) {
+    const tightTop = 40;
+    const tightBottom = 100;
+    const tightSide = 25;
+
+    qDetected.forEach(item => {
+        if (!savedNumbers.has(item.number)) return;
+        if (answerHistory.has(item.number)) return;
+
+        answerHistory.add(item.number);
+        renderAResult(item, frame, tightSide, tightTop, tightBottom);
+    });
+}
+
+/* =====================================================
+   単発キャプチャ
+===================================================== */
+async function captureOnce() {
+    if (currentMode === "Q") {
+        await runQModeScan();
+    } else {
+        await runAModeScan();
+    }
+}
+
+/* =====================================================
+   長押し
+===================================================== */
+let ocrInterval = null;
+
+function startPress() {
+    if (ocrInterval) return;
+    camBtn.classList.add("pressing");
+    captureOnce();
+    ocrInterval = setInterval(() => {
+        captureOnce();
+    }, INTERVAL_MS);
+}
+
+function stopPress() {
+    if (!ocrInterval) return;
+    camBtn.classList.remove("pressing");
+    clearInterval(ocrInterval);
+    ocrInterval = null;
+}
+
+camBtn.addEventListener("mousedown", e => { e.preventDefault(); startPress(); });
+window.addEventListener("mouseup", stopPress);
+camBtn.addEventListener("mouseleave", stopPress);
+
+camBtn.addEventListener("touchstart", e => { e.preventDefault(); startPress(); }, { passive: false });
+window.addEventListener("touchend", stopPress);
+camBtn.addEventListener("click", e => e.preventDefault());
+
+/* =====================================================
+   通常クリア
+===================================================== */
+clearBtn.addEventListener("click", () => {
+    qResultsEl.innerHTML = "";
+    aResultsEl.innerHTML = "";
+    lastQNumbers = [];
+    answerHistory.clear();
+});
+
+/* =====================================================
+   ガチゴミ箱（完全リセット）
+===================================================== */
+hardClearBtn.addEventListener("click", () => {
+    const ok = confirm("新規でかくれんぼを開始しますか？\n読み取って保存した数字は全てリセットされます");
+    if (!ok) return;
+
+    qResultsEl.innerHTML = "";
+    aResultsEl.innerHTML = "";
+    lastQNumbers = [];
+    answerHistory.clear();
+    savedNumbers.clear();
+});
+
+/* =====================================================
+   初期化
+===================================================== */
+window.addEventListener("DOMContentLoaded", async () => {
+    await askForApiKeyIfNeeded();
+    await startCamera();
+    setMode("Q");
+});
