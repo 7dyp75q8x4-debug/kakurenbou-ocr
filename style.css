@@ -1,147 +1,168 @@
-html, body {
+body {
     margin: 0;
-    padding: 0;
-    height: 100%;
-    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-    background: #000;
-    color: white;
     overflow: hidden;
+    font-family: sans-serif;
+    -webkit-user-select: none;
+    user-select: none; /* テキスト選択防止 */
 }
 
+/* 全体：左右に配置 */
 #container {
     display: flex;
+    width: 100vw;
     height: 100vh;
 }
 
-/* 左パネル */
+/* 左側エリア */
 #left-panel {
-    width: 50%;
-    border-right: 1px solid #222;
-    display: flex;
-    flex-direction: column;
+    flex: 1;
+    background: #ffffff;
+    position: relative;
+    padding: 20px;
+    box-sizing: border-box;
+    overflow-y: auto;
 }
 
+/* 検出候補ヘッダ */
 #left-header {
-    height: 40px;
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 0 10px;
-    background: #000;
+    margin-bottom: 8px;
 }
 
 #dot {
     width: 10px;
     height: 10px;
-    background: red;
+    background: #00cc33;
     border-radius: 50%;
+    display: inline-block;
 }
 
 #label {
-    font-size: 14px;
-}
-
-#q-results,
-#a-results {
-    flex: 1;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    padding: 4px;
-}
-
-/* 件数アイテムサイズを元の小ささに戻す */
-.quest-item {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.quest-thumb {
-    width: 72px;     /* ← 元サイズ寄り */
-    height: auto;
-    border-radius: 4px;
-}
-
-.quest-text {
-    font-size: 16px;
+    font-size: 28px;
     font-weight: bold;
 }
 
 /* 右パネル */
 #right-panel {
-    width: 50%;
+    width: 40%;
+    padding: 20px;
+    box-sizing: border-box;
     display: flex;
     flex-direction: column;
-    align-items: center;
 }
 
+/* カメラ */
 #camera-wrapper {
     width: 100%;
-    aspect-ratio: 16 / 9;
+    border-radius: 20px;
+    overflow: hidden;
+    aspect-ratio: 9 / 16;
     background: black;
-    position: relative;
-    z-index: 1;
 }
 
 #video {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    pointer-events: none;   /* ← ボタンを塞がないように */
 }
 
-/* ボタン */
+/* ボタン行 */
 #buttons {
-    width: 100%;
+    margin-top: 20px;
     display: flex;
-    justify-content: space-around;
-    align-items: center;
-    padding: 8px 0;
-    z-index: 10;
-    position: relative;
+    gap: 15px;
+    justify-content: space-between;
+    align-items:center;
 }
 
-.mode-btn {
-    width: 44px;
-    height: 44px;
-    border-radius: 8px;
-    font-size: 16px;
+.gray-btn, .yellow-btn, .blue-btn {
+    flex: 1;
+    padding: 12px;
+    font-size: 20px;
+    border-radius: 12px;
     border: none;
-    background: #333;
-    color: white;
-    pointer-events: auto;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.gray-btn { background: #eeeeee; }
+
+.yellow-btn {
+    background: #ffe36d;
+    transition: background 0.15s, opacity 0.15s;
+}
+
+.blue-btn { background: #99ccff; }
+
+#clear-text {
+    text-align: center;
+    margin-top: 12px;
+    font-size: 22px;
+    font-weight: bold;
+}
+
+/* モードボタン */
+.mode-btn {
+    background: #e0e0e0;
+    color: #333;
+    border: none;
+    padding: 10px 20px;
+    font-size: 20px;
+    border-radius: 12px;
+    margin-right: 10px;
+    transition: 0.15s;
+    -webkit-user-select: none;
+    user-select: none;
 }
 
 .mode-btn.active {
-    background: #666;
+    background: #4d86ff;
+    color: white;
+    font-weight: bold;
 }
 
-.yellow-btn {
+/* 左上に並べる「お題パネル」 */
+.quest-item {
+    display: inline-block;
+    margin: 5px;
+    text-align: center;
+}
+
+.quest-thumb {
     width: 70px;
     height: 70px;
-    border-radius: 50%;
-    background: #ffc107;
-    font-size: 28px;
-    border: none;
+    object-fit: cover;
+    border-radius: 6px;
+    border: 1px solid #999;
 }
 
-.blue-btn {
-    width: 50px;
-    height: 50px;
-    border-radius: 50%;
-    background: #2196f3;
-    font-size: 22px;
-    border: none;
+.quest-text {
+    font-size: 16px;
+    color: red; /* Qは赤（AはJSで黒に差し替え） */
+    font-weight: bold;
+    margin-top: 4px;
 }
 
-.trash-wrap {
-    display: flex;
-    gap: 8px;
+/* 📷 ボタン押下中の色（JS が pressing クラスを付与） */
+.yellow-btn.pressing { background: #ffcc33 !important; }
+
+/* カメラボタン長押し中の色変化（IDにも対応） */
+#camera-btn.pressing {
+    background-color: #ffcc00 !important;
+    opacity: 0.85;
 }
 
-#clear-text {
-    font-size: 12px;
-    margin-bottom: 8px;
+/* 微調整：q-results/a-results スタイル */
+#q-results, #a-results {
+    margin-top: 12px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+}
+
+/* a-item/q-item can reuse quest-item layout */
+.a-item, .q-item { /* kept for compatibility */
+    display:inline-block;
 }
