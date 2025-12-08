@@ -68,18 +68,10 @@ async function startCamera() {
             video: {
                 deviceId: deviceId ? { exact: deviceId } : undefined,
                 facingMode: { ideal: "environment" },
-                width: isLandscape
-                    ? { ideal: 1920 }
-                    : { ideal: 1280 },
-                height: isLandscape
-                    ? { ideal: 1080 }
-                    : { ideal: 720 },
-                aspectRatio: isLandscape
-                    ? { exact: 16 / 9 }
-                    : undefined,
-                advanced: [
-                    { zoom: 0 }
-                ]
+                width: isLandscape ? { ideal: 1920 } : { ideal: 1280 },
+                height: isLandscape ? { ideal: 1080 } : { ideal: 720 },
+                aspectRatio: isLandscape ? { exact: 16 / 9 } : undefined,
+                advanced: [{ zoom: 0 }]
             },
             audio: false
         };
@@ -99,12 +91,10 @@ async function startCamera() {
 }
 
 /* =====================================================
-   向きが変わったら再起動（16:9維持）
+   向きが変わったら再起動
 ===================================================== */
 window.addEventListener("orientationchange", async () => {
-    if (stream) {
-        stream.getTracks().forEach(t => t.stop());
-    }
+    if (stream) stream.getTracks().forEach(t => t.stop());
     await startCamera();
 });
 
@@ -121,7 +111,6 @@ function setMode(mode) {
         qBtn.classList.remove("active");
     }
 }
-
 qBtn.addEventListener("click", () => setMode("Q"));
 aBtn.addEventListener("click", () => setMode("A"));
 
@@ -155,33 +144,50 @@ async function callVisionTextDetection(base64Image) {
     }
 }
 
-/* 3桁抽出 */
-function parseTextAnnotationsFor3Digit(textAnn) {
-    if (!textAnn || !Array.isArray(textAnn)) return [];
-    const out = [];
-    for (let i = 1; i < textAnn.length; i++) {
-        const ta = textAnn[i];
-        if (!ta?.description) continue;
-        const txt = ta.description.trim();
-        if (!/^\d{3}$/.test(txt)) continue;
+/* =====================================================
+   OCR用 前処理（小さい数字強化）
+===================================================== */
+function preprocessCanvasForOCR(src) {
+    const scale = 2.5;
 
-        const verts = ta.boundingPoly?.vertices || [];
-        const x0 = verts[0]?.x || 0;
-        const y0 = verts[0]?.y || 0;
-        const x1 = verts[1]?.x || x0;
-        const y2 = verts[2]?.y || y0;
-        const w = Math.max(x1 - x0, 8);
-        const h = Math.max(y2 - y0, 8);
+    const c = document.createElement("canvas");
+    c.width = Math.floor(src.width * scale);
+    c.height = Math.floor(src.height * scale);
 
-        out.push({ number: txt, x: x0, y: y0, w, h });
+    const pctx = c.getContext("2d");
+
+    pctx.imageSmoothingEnabled = false;
+    pctx.drawImage(src, 0, 0, c.width, c.height);
+
+    const img = pctx.getImageData(0, 0, c.width, c.height);
+    const d = img.data;
+
+    const contrast = 1.6;
+
+    for (let i = 0; i < d.length; i += 4) {
+        const r = d[i];
+        const g = d[i + 1];
+        const b = d[i + 2];
+
+        let gray = (r * 0.3 + g * 0.59 + b * 0.11);
+        gray = (gray - 128) * contrast + 128;
+        gray = Math.max(0, Math.min(255, gray));
+
+        d[i] = d[i + 1] = d[i + 2] = gray;
     }
-    return out;
+
+    pctx.putImageData(img, 0, 0);
+    return c;
 }
 
-/* canvas → OCR */
+/* =====================================================
+   canvas → OCR（強化版）
+===================================================== */
 async function detectThreeDigitFromCanvas(c) {
-    const dataUrl = c.toDataURL("image/jpeg", 0.9);
+    const enhanced = preprocessCanvasForOCR(c);
+    const dataUrl = enhanced.toDataURL("image/png");
     const base64 = dataUrl.split(",")[1];
+
     const resp = await callVisionTextDetection(base64);
     if (!resp?.responses?.[0]) return [];
     const textAnn = resp.responses[0].textAnnotations;
