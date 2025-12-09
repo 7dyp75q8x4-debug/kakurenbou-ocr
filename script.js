@@ -21,7 +21,6 @@ let visionApiKey = null;
 
 const INTERVAL_MS = 1000;
 
-// ================== APIキー ==================
 async function askForApiKeyIfNeeded() {
     visionApiKey = localStorage.getItem("vision_api_key");
     if (visionApiKey) return;
@@ -35,7 +34,6 @@ async function askForApiKeyIfNeeded() {
     localStorage.setItem("vision_api_key", visionApiKey);
 }
 
-// ================== カメラ ==================
 async function startCamera() {
     try {
         if (stream) stream.getTracks().forEach(t => t.stop());
@@ -64,7 +62,6 @@ async function startCamera() {
 
 window.addEventListener("orientationchange", startCamera);
 
-// ================== モード ==================
 function setMode(mode) {
     currentMode = mode;
     qBtn.classList.toggle("active", mode === "Q");
@@ -74,7 +71,6 @@ function setMode(mode) {
 qBtn.onclick = () => setMode("Q");
 aBtn.onclick = () => setMode("A");
 
-// ================== 正規化 ==================
 function normalizeNumber(raw) {
     if (!raw) return "";
     const map = {"０":"0","１":"1","２":"2","３":"3","４":"4","５":"5","６":"6","７":"7","８":"8","９":"9"};
@@ -83,7 +79,6 @@ function normalizeNumber(raw) {
     return s.replace(/[^\d]/g, "");
 }
 
-// ================== Vision ==================
 async function callVision(img) {
     if (!visionApiKey) return null;
 
@@ -101,7 +96,6 @@ async function callVision(img) {
     return res ? res.json() : null;
 }
 
-// ================== 3桁抽出 ==================
 function parseDigits(texts) {
     if (!Array.isArray(texts)) return [];
 
@@ -123,7 +117,6 @@ function parseDigits(texts) {
     return out;
 }
 
-// ================== キャプチャ ==================
 function captureFrame() {
     const c = document.createElement("canvas");
     c.width = video.videoWidth || canvas.width;
@@ -132,14 +125,14 @@ function captureFrame() {
     return c;
 }
 
-// ================== OCR ==================
 async function detectFromCanvas(c) {
     const base64 = c.toDataURL("image/jpeg", 0.9).split(",")[1];
     const resp = await callVision(base64);
     return parseDigits(resp?.responses?.[0]?.textAnnotations);
 }
 
-// ================== Qモード ==================
+/* ===== ここから変更部分 ===== */
+
 async function runQMode() {
     if (!video.videoWidth) return;
 
@@ -157,11 +150,14 @@ async function runQMode() {
 
     detected.forEach(d => {
         const cut = document.createElement("canvas");
+        const margin = 80;
 
-        const margin = 100;
+        // === 中心基準に変更 ===
+        const cx = d.x + d.w / 2;
+        const cy = d.y + d.h / 2;
 
-        const sx = Math.max(d.x - margin, 0);
-        const sy = Math.max(d.y - margin, 0);
+        const sx = Math.max(cx - (d.w / 2) - margin, 0);
+        const sy = Math.max(cy - (d.h / 2) - margin, 0);
         const sw = d.w + margin * 2;
         const sh = d.h + margin * 2;
 
@@ -191,7 +187,6 @@ async function runQMode() {
     syncAnswers();
 }
 
-// ================== Aモード ==================
 async function runAMode() {
     if (!video.videoWidth) return;
 
@@ -204,10 +199,14 @@ async function runAMode() {
     const detected = [...uniq.values()];
 
     detected.forEach(d => {
-        const mTop = 60, mBottom = 120, mSide = 45;
+        const mTop = 40, mBottom = 100, mSide = 25;
 
-        const sx = Math.max(d.x - mSide, 0);
-        const sy = Math.max(d.y - mTop, 0);
+        // === 中心基準に変更 ===
+        const cx = d.x + d.w / 2;
+        const cy = d.y + d.h / 2;
+
+        const sx = Math.max(cx - (d.w / 2) - mSide, 0);
+        const sy = Math.max(cy - (d.h / 2) - mTop, 0);
         const sw = d.w + mSide * 2;
         const sh = d.h + mTop + mBottom;
 
@@ -223,7 +222,8 @@ async function runAMode() {
     syncAnswers();
 }
 
-// ================== 照合 ==================
+/* ===== ここまで変更部分 ===== */
+
 function syncAnswers() {
     lastQNumbers.forEach(num => {
         if (!savedANumbers.has(num)) return;
@@ -250,13 +250,11 @@ function syncAnswers() {
     });
 }
 
-// ================== 撮影 ==================
 async function captureOnce() {
     if (currentMode === "Q") return runQMode();
     return runAMode();
 }
 
-// ================== 長押し ==================
 let timer = null;
 let pressing = false;
 
@@ -288,7 +286,6 @@ document.addEventListener("mouseup", endPress);
 document.addEventListener("touchend", endPress);
 camBtn.addEventListener("mouseleave", endPress);
 
-// ================== クリア ==================
 clearBtn.onclick = () => {
     qResults.innerHTML = "";
     aResults.innerHTML = "";
@@ -296,7 +293,6 @@ clearBtn.onclick = () => {
     answerHistory.clear();
 };
 
-// ================== 初期化 ==================
 window.addEventListener("load", async () => {
     await askForApiKeyIfNeeded();
     await startCamera();
