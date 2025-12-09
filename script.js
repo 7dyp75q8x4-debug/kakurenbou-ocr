@@ -200,6 +200,60 @@ async function runQMode() {
         qResults.appendChild(wrap);
     });
 
+    // ================== Qモード ==================
+async function runQMode() {
+    if (!video.videoWidth) return;
+
+    const frame = captureFrame();
+    const list = await detectFromCanvas(frame);
+
+    const uniq = new Map();
+    list.forEach(d => { if (!uniq.has(d.number)) uniq.set(d.number, d); });
+
+    const detected = [...uniq.values()];
+    lastQNumbers = detected.map(d => d.number);
+
+    qResults.innerHTML = "";
+    aResults.innerHTML = "";
+
+    detected.forEach(d => {
+        const cut = document.createElement("canvas");
+
+        // ==== トリミング範囲（数式部分だけ調整）====
+        const marginLeft   = Math.round(d.w * 0.15);
+        const marginRight  = Math.round(d.w * 0.15);
+        const marginTop    = Math.round(d.h * 0.10);
+        const marginBottom = Math.round(d.h * 1.20); // ← 英字ゾーン専用
+        // ===========================================
+
+        const sx = Math.max(d.x - marginLeft, 0);
+        const sy = Math.max(d.y - marginTop, 0);
+        const sw = d.w + marginLeft + marginRight;
+        const sh = d.h + marginTop + marginBottom;
+
+        cut.width = sw;
+        cut.height = sh;
+
+        cut.getContext("2d").drawImage(frame, sx, sy, sw, sh, 0, 0, sw, sh);
+
+        const wrap = document.createElement("div");
+        wrap.className = "quest-item";
+
+        const img = document.createElement("img");
+        img.className = "quest-thumb";
+        img.src = cut.toDataURL();
+
+        const txt = document.createElement("div");
+        txt.className = "quest-text";
+        txt.style.color = "red";
+        txt.innerText = d.number;
+
+        wrap.appendChild(img);
+        wrap.appendChild(txt);
+
+        qResults.appendChild(wrap);
+    });
+
     syncAnswers();
 }
 
@@ -216,13 +270,13 @@ async function runAMode() {
     const detected = [...uniq.values()];
 
     detected.forEach(d => {
-        // ====== ここを調整しています（Aモード） ======
-        // Qモード同様に下／右をより広めに取り、英字が切れないよう重点を置く
-        const marginLeft = 80;
-        const marginRight = 140;
-        const marginTop = 70;
-        const marginBottom = 170;
-        // ============================================
+
+        // ==== トリミング範囲（数式部分だけ調整）====
+        const marginLeft   = Math.round(d.w * 0.15);
+        const marginRight  = Math.round(d.w * 0.15);
+        const marginTop    = Math.round(d.h * 0.10);
+        const marginBottom = Math.round(d.h * 1.20); // ← 英字ゾーン専用
+        // ===========================================
 
         const sx = Math.max(d.x - marginLeft, 0);
         const sy = Math.max(d.y - marginTop, 0);
