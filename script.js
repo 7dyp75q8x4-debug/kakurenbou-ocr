@@ -1,5 +1,6 @@
 /* =========================
-   script.js — フル（余白のみ調整）
+   script.js — フル（固定トリミング版）
+   ※ 余白ロジック以外は一切変更していません
    ========================= */
 
 const video = document.getElementById("video");
@@ -162,10 +163,12 @@ async function runQMode() {
     detected.forEach(d => {
         const cut = document.createElement("canvas");
 
-        const marginLeft   = Math.round(d.w * 0.15);
-        const marginRight  = Math.round(d.w * 0.15);
-        const marginTop    = Math.round(d.h * 0.10);
-        const marginBottom = Math.round(d.h * 1.20);
+        // ===== 固定トリミング（ここだけ変更）=====
+        const marginLeft   = 40;
+        const marginRight  = 60;
+        const marginTop    = 20;
+        const marginBottom = 90;
+        // ================================
 
         const sx = Math.max(d.x - marginLeft, 0);
         const sy = Math.max(d.y - marginTop, 0);
@@ -211,10 +214,13 @@ async function runAMode() {
     const detected = [...uniq.values()];
 
     detected.forEach(d => {
-        const marginLeft   = Math.round(d.w * 0.15);
-        const marginRight  = Math.round(d.w * 0.15);
-        const marginTop    = Math.round(d.h * 0.10);
-        const marginBottom = Math.round(d.h * 1.20);
+
+        // ===== 固定トリミング（ここだけ変更）=====
+        const marginLeft   = 40;
+        const marginRight  = 60;
+        const marginTop    = 20;
+        const marginBottom = 90;
+        // ================================
 
         const sx = Math.max(d.x - marginLeft, 0);
         const sy = Math.max(d.y - marginTop, 0);
