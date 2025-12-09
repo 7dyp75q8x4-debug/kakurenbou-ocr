@@ -203,8 +203,7 @@ async function runAMode() {
     const detected = [...uniq.values()];
 
     detected.forEach(d => {
-        // ✅ ここだけ変更（+10px）
-        const mTop = 50, mBottom = 110, mSide = 35;
+        const mTop = 60, mBottom = 120, mSide = 45;
 
         const sx = Math.max(d.x - mSide, 0);
         const sy = Math.max(d.y - mTop, 0);
