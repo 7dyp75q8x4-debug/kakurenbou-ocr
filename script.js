@@ -157,7 +157,8 @@ async function runQMode() {
 
     detected.forEach(d => {
         const cut = document.createElement("canvas");
-        const margin = 60;
+
+        const margin = 80;   // ← ここだけ変更
 
         const sx = Math.max(d.x - margin, 0);
         const sy = Math.max(d.y - margin, 0);
@@ -203,7 +204,7 @@ async function runAMode() {
     const detected = [...uniq.values()];
 
     detected.forEach(d => {
-        const mTop = 60, mBottom = 120, mSide = 45;
+        const mTop = 40, mBottom = 100, mSide = 25;
 
         const sx = Math.max(d.x - mSide, 0);
         const sy = Math.max(d.y - mTop, 0);
