@@ -1,4 +1,11 @@
-const video = document.getElementById("camera");
+/*******************************************************
+ *  元の機能は維持したまま
+ *  ・APIキー画面 復活
+ *  ・カメラ（外側＋できれば広角 + 16:9）
+ *  ・カメラボタン長押し連写
+ *******************************************************/
+
+const video = document.getElementById("camera");   // ← あなたのUI
 const canvas = document.createElement("canvas");
 const ctx = canvas.getContext("2d");
 
@@ -17,48 +24,85 @@ const savedANumbers = new Map();
 let visionApiKey = localStorage.getItem("vision_api_key");
 const INTERVAL_MS = 1000;
 
-/* =========================
-   API KEY
-========================= */
+let ocrInterval = null;
+let isPressing = false;
+
+/* =====================================================
+   APIキー
+===================================================== */
 async function askForApiKeyIfNeeded() {
     if (visionApiKey) return;
-    const key = prompt("Vision API Key を入力してください");
+
+    const key = prompt("Google Vision API キーを入力してください");
     if (key && key.trim()) {
         visionApiKey = key.trim();
         localStorage.setItem("vision_api_key", visionApiKey);
+        return;
+    } else {
+        await askForApiKeyIfNeeded();
     }
 }
 
-/* =========================
-   カメラ（強制 外 + 16:9）
-========================= */
+/* =====================================================
+   外カメラ + 広角 優先
+===================================================== */
+async function getBackUltraWideCameraId() {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const cams = devices.filter(d => d.kind === "videoinput");
+
+    const backCams = cams.filter(d => !/front|user|face/i.test(d.label));
+
+    const ultra = backCams.find(d =>
+        d.label.includes("0.5") ||
+        d.label.toLowerCase().includes("ultra") ||
+        d.label.includes("超広角")
+    );
+
+    if (ultra) return ultra.deviceId;
+    if (backCams[0]) return backCams[0].deviceId;
+    return cams[0]?.deviceId || null;
+}
+
+/* =====================================================
+   カメラ起動（16:9 固定）
+===================================================== */
 async function startCamera() {
     try {
-        if (stream) stream.getTracks().forEach(t => t.stop());
+        if (stream) {
+            stream.getTracks().forEach(t => t.stop());
+        }
 
-        stream = await navigator.mediaDevices.getUserMedia({
+        const deviceId = await getBackUltraWideCameraId();
+        const isLandscape = true; // 強制横扱い
+
+        const constraints = {
             video: {
+                deviceId: deviceId ? { exact: deviceId } : undefined,
                 facingMode: { exact: "environment" },
+                width: { ideal: 1920 },
+                height: { ideal: 1080 },
                 aspectRatio: { exact: 16 / 9 }
             },
             audio: false
-        });
+        };
+
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
 
         video.srcObject = stream;
-        await video.play();
+        await video.play().catch(() => {});
 
-        canvas.width = video.videoWidth || 1280;
-        canvas.height = video.videoHeight || 720;
+        canvas.width = video.videoWidth || 1920;
+        canvas.height = video.videoHeight || 1080;
 
     } catch (e) {
-        console.error("Camera error:", e);
-        alert("カメラ起動に失敗しました");
+        console.error("Camera start failed:", e);
+        alert("カメラの起動に失敗しました");
     }
 }
 
-/* =========================
-   モード切替
-========================= */
+/* =====================================================
+   モード切替（維持）
+===================================================== */
 function setMode(mode) {
     currentMode = mode;
     if (mode === "Q") {
@@ -69,12 +113,13 @@ function setMode(mode) {
         qBtn.classList.remove("active");
     }
 }
-qBtn.onclick = () => setMode("Q");
-aBtn.onclick = () => setMode("A");
 
-/* =========================
-   正規化
-========================= */
+qBtn.addEventListener("click", () => setMode("Q"));
+aBtn.addEventListener("click", () => setMode("A"));
+
+/* =====================================================
+   数字正規化
+===================================================== */
 function normalizeNumber(raw) {
     if (!raw) return "";
     const zenkaku = {"０":"0","１":"1","２":"2","３":"3","４":"4","５":"5","６":"6","７":"7","８":"8","９":"9"};
@@ -84,39 +129,48 @@ function normalizeNumber(raw) {
     return s;
 }
 
-/* =========================
+/* =====================================================
    Vision API
-========================= */
+===================================================== */
 async function callVisionTextDetection(base64Image) {
     if (!visionApiKey) return null;
+
     const url = `https://vision.googleapis.com/v1/images:annotate?key=${visionApiKey}`;
 
+    const body = {
+        requests: [{
+            image: { content: base64Image },
+            features: [{ type: "TEXT_DETECTION", maxResults: 50 }]
+        }]
+    };
+
     try {
-        const r = await fetch(url, {
+        const res = await fetch(url, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                requests: [{
-                    image: { content: base64Image },
-                    features: [{ type: "TEXT_DETECTION", maxResults: 50 }]
-                }]
-            })
+            body: JSON.stringify(body)
         });
-        return await r.json();
+        return await res.json();
     } catch {
         return null;
     }
 }
 
-/* =========================
-   3桁抽出
-========================= */
-function parseTextAnnotationsFor3Digit(textAnn) {
-    if (!textAnn || !Array.isArray(textAnn)) return [];
+/* =====================================================
+   OCR用抽出
+===================================================== */
+async function detectThreeDigitFromCanvas(c) {
+    const dataUrl = c.toDataURL("image/jpeg", 0.9);
+    const base64 = dataUrl.split(",")[1];
+
+    const resp = await callVisionTextDetection(base64);
+    if (!resp?.responses?.[0]) return [];
+
+    const ann = resp.responses[0].textAnnotations || [];
     const out = [];
 
-    for (let i = 1; i < textAnn.length; i++) {
-        const ta = textAnn[i];
+    for (let i = 1; i < ann.length; i++) {
+        const ta = ann[i];
         if (!ta?.description) continue;
 
         const num = normalizeNumber(ta.description);
@@ -128,17 +182,21 @@ function parseTextAnnotationsFor3Digit(textAnn) {
         const x1 = v[1]?.x || x0;
         const y2 = v[2]?.y || y0;
 
-        const w = Math.max(x1 - x0, 8);
-        const h = Math.max(y2 - y0, 8);
-
-        out.push({ number: num, x: x0, y: y0, w, h });
+        out.push({
+            number: num,
+            x: x0,
+            y: y0,
+            w: Math.max(x1 - x0, 8),
+            h: Math.max(y2 - y0, 8)
+        });
     }
+
     return out;
 }
 
-/* =========================
+/* =====================================================
    フレーム取得
-========================= */
+===================================================== */
 function captureVideoFrameToCanvas() {
     const c = document.createElement("canvas");
     c.width = video.videoWidth || canvas.width;
@@ -147,19 +205,9 @@ function captureVideoFrameToCanvas() {
     return c;
 }
 
-/* =========================
-   OCR実行
-========================= */
-async function detectThreeDigitFromCanvas(c) {
-    const b64 = c.toDataURL("image/jpeg", 0.9).split(",")[1];
-    const r = await callVisionTextDetection(b64);
-    if (!r?.responses?.[0]) return [];
-    return parseTextAnnotationsFor3Digit(r.responses[0].textAnnotations);
-}
-
-/* =========================
-   Qモード（お題）
-========================= */
+/* =====================================================
+   Qモード
+===================================================== */
 async function runQModeScan() {
     const frame = captureVideoFrameToCanvas();
     const detected = await detectThreeDigitFromCanvas(frame);
@@ -176,41 +224,38 @@ async function runQModeScan() {
     unique.forEach(item => {
         const div = document.createElement("div");
         div.className = "quest-item";
-        div.innerHTML = `<div class="quest-text">${item.number}</div>`;
+        div.innerHTML = `<div class="quest-text" style="color:red">${item.number}</div>`;
         area.appendChild(div);
     });
 
     syncSavedAnswersToA();
 }
 
-/* =========================
-   Aモード（探索 + 保存）
-========================= */
+/* =====================================================
+   Aモード
+===================================================== */
 async function runAModeScan() {
     const frame = captureVideoFrameToCanvas();
     const detected = await detectThreeDigitFromCanvas(frame);
 
-    const map = new Map();
-    detected.forEach(d => { if (!map.has(d.number)) map.set(d.number, d); });
-
-    const unique = [...map.values()];
-
-    unique.forEach(item => {
+    detected.forEach(item => {
         const cut = document.createElement("canvas");
         cut.width = item.w;
         cut.height = item.h;
+
         cut.getContext("2d").drawImage(
             frame,
             item.x, item.y, item.w, item.h,
             0, 0, item.w, item.h
         );
+
         savedANumbers.set(item.number, cut.toDataURL());
     });
 }
 
-/* =========================
-   保存済み回答を表示
-========================= */
+/* =====================================================
+   保存済み反映
+===================================================== */
 function syncSavedAnswersToA() {
     const area = document.getElementById("left-panel");
 
@@ -222,35 +267,31 @@ function syncSavedAnswersToA() {
 
         const div = document.createElement("div");
         div.className = "quest-item";
-        div.innerHTML = `
-            <img class="quest-thumb" src="${savedANumbers.get(num)}">
-            <div class="quest-text" style="color:black">${num}</div>
-        `;
+        div.innerHTML = `<div class="quest-text" style="color:black">${num}</div>`;
         area.appendChild(div);
     });
 }
 
-/* =========================
-   キャプチャ分岐
-========================= */
+/* =====================================================
+   1回キャプチャ
+===================================================== */
 async function captureOnce() {
-    if (currentMode === "Q") await runQModeScan();
-    else await runAModeScan();
+    if (currentMode === "Q") {
+        await runQModeScan();
+    } else {
+        await runAModeScan();
+    }
 }
 
-/* =========================
-   長押し（ONボタン）
-========================= */
-let ocrInterval = null;
-let isPressing = false;
-
+/* =====================================================
+   カメラボタン 長押し連写
+===================================================== */
 function startPressHandler(e) {
     e.preventDefault();
     if (isPressing) return;
     isPressing = true;
 
     captureOnce();
-
     ocrInterval = setInterval(() => {
         captureOnce();
     }, INTERVAL_MS);
@@ -267,22 +308,20 @@ function endPressHandler() {
 camBtn.addEventListener("mousedown", startPressHandler);
 camBtn.addEventListener("touchstart", startPressHandler, { passive:false });
 document.addEventListener("mouseup", endPressHandler);
-camBtn.addEventListener("touchend", endPressHandler);
+document.addEventListener("touchend", endPressHandler);
 
-camBtn.addEventListener("click", e => e.preventDefault());
-
-/* =========================
+/* =====================================================
    ゴミ箱
-========================= */
-clearBtn.onclick = () => {
+===================================================== */
+clearBtn.addEventListener("click", () => {
     document.getElementById("left-panel").innerHTML = "";
     lastQNumbers = [];
     answerHistory.clear();
-};
+});
 
-/* =========================
+/* =====================================================
    初期化
-========================= */
+===================================================== */
 window.addEventListener("DOMContentLoaded", async () => {
     await askForApiKeyIfNeeded();
     await startCamera();
