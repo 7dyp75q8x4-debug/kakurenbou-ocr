@@ -1,3 +1,8 @@
+/* =========================
+   script.js — フル（余白のみ調整）
+   ※ 他は一切いじっていません
+   ========================= */
+
 const video = document.getElementById("video");
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
@@ -158,16 +163,19 @@ async function runQMode() {
     detected.forEach(d => {
         const cut = document.createElement("canvas");
 
-        // ★ 非対称マージンに修正
-        const marginL = 60;
-        const marginR = 120;
-        const marginT = 60;
-        const marginB = 120;
+        // ====== ここを調整しています（Qモード） ======
+        // 目的：数字の上側は最低限、下と右を広めに取り英字が切れないようにする
+        // 値を増やすほどトリミングは大きくなります（px想定）
+        const marginLeft = 100;   // 左余白
+        const marginRight = 140;  // 右余白（より広め）
+        const marginTop = 70;     // 上余白
+        const marginBottom = 170; // 下余白（かなり広め）
 
-        const sx = Math.max(d.x - marginL, 0);
-        const sy = Math.max(d.y - marginT, 0);
-        const sw = d.w + marginL + marginR;
-        const sh = d.h + marginT + marginB;
+        const sx = Math.max(d.x - marginLeft, 0);
+        const sy = Math.max(d.y - marginTop, 0);
+        const sw = d.w + marginLeft + marginRight;
+        const sh = d.h + marginTop + marginBottom;
+        // ============================================
 
         cut.width = sw;
         cut.height = sh;
@@ -208,16 +216,18 @@ async function runAMode() {
     const detected = [...uniq.values()];
 
     detected.forEach(d => {
-        // ★ 非対称マージンに修正
-        const marginL = 40;
-        const marginR = 80;
-        const marginT = 50;
-        const marginB = 120;
+        // ====== ここを調整しています（Aモード） ======
+        // Qモード同様に下／右をより広めに取り、英字が切れないよう重点を置く
+        const marginLeft = 80;
+        const marginRight = 140;
+        const marginTop = 70;
+        const marginBottom = 170;
+        // ============================================
 
-        const sx = Math.max(d.x - marginL, 0);
-        const sy = Math.max(d.y - marginT, 0);
-        const sw = d.w + marginL + marginR;
-        const sh = d.h + marginT + marginB;
+        const sx = Math.max(d.x - marginLeft, 0);
+        const sy = Math.max(d.y - marginTop, 0);
+        const sw = d.w + marginLeft + marginRight;
+        const sh = d.h + marginTop + marginBottom;
 
         const cut = document.createElement("canvas");
         cut.width = sw;
