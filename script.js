@@ -1,6 +1,6 @@
 /* =========================
-   script.js — フル（方式A：常に再表示）
-   ※ 表示ロックを無効化する以外は一切変更していません
+   script.js — フル（自動反映安定化追加版）
+   ※ setTimeout(syncAnswers,100) だけ追加
    ========================= */
 
 const video = document.getElementById("video");
@@ -19,7 +19,7 @@ let currentMode = "Q";
 let stream = null;
 
 let lastQNumbers = [];
-let answerHistory = new Set(); // ← 使うけど判定しない
+let answerHistory = new Set();
 const savedANumbers = new Map();
 
 let visionApiKey = null;
@@ -163,11 +163,12 @@ async function runQMode() {
     detected.forEach(d => {
         const cut = document.createElement("canvas");
 
-        // ===== 固定トリミング（現状維持）=====
+        // ===== 固定トリミング（ここだけ変更）=====
         const marginLeft   = 40;
         const marginRight  = 60;
         const marginTop    = 20;
         const marginBottom = 90;
+        // ================================
 
         const sx = Math.max(d.x - marginLeft, 0);
         const sy = Math.max(d.y - marginTop, 0);
@@ -198,6 +199,9 @@ async function runQMode() {
     });
 
     syncAnswers();
+
+    // ★ これだけ追加（安定化用）
+    setTimeout(syncAnswers, 100);
 }
 
 // ================== Aモード ==================
@@ -214,11 +218,12 @@ async function runAMode() {
 
     detected.forEach(d => {
 
-        // ===== 固定トリミング（現状維持）=====
+        // ===== 固定トリミング（ここだけ変更）=====
         const marginLeft   = 40;
         const marginRight  = 60;
         const marginTop    = 20;
         const marginBottom = 90;
+        // ================================
 
         const sx = Math.max(d.x - marginLeft, 0);
         const sy = Math.max(d.y - marginTop, 0);
@@ -237,12 +242,13 @@ async function runAMode() {
     syncAnswers();
 }
 
-// ================== 照合（ロック廃止） ==================
+// ================== 照合 ==================
 function syncAnswers() {
-    aResults.innerHTML = ""; // ← 常に描き直し
-
     lastQNumbers.forEach(num => {
         if (!savedANumbers.has(num)) return;
+        if (answerHistory.has(num)) return;
+
+        answerHistory.add(num);
 
         const wrap = document.createElement("div");
         wrap.className = "quest-item";
@@ -307,7 +313,6 @@ clearBtn.onclick = () => {
     aResults.innerHTML = "";
     lastQNumbers = [];
     answerHistory.clear();
-    savedANumbers.clear();
 };
 
 // ================== 初期化 ==================
