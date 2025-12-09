@@ -1,6 +1,6 @@
 /* =========================
-   script.js — フル（固定トリミング版）
-   ※ 余白ロジック以外は一切変更していません
+   script.js — フル（英字対応）
+   ※ UI・既存ロジックは一切変更していません
    ========================= */
 
 const video = document.getElementById("video");
@@ -106,16 +106,16 @@ async function callVision(img) {
     return res ? res.json() : null;
 }
 
-// ================== 3桁抽出 ==================
+// ================== 数字＋英字抽出 ==================
 function parseDigits(texts) {
     if (!Array.isArray(texts)) return [];
 
-    const out = [];
+    const digits = [];
+    const letters = [];
 
     for (let i = 1; i < texts.length; i++) {
         const t = texts[i];
-        const num = normalizeNumber(t?.description);
-        if (!/^\d{3}$/.test(num)) continue;
+        const desc = (t?.description || "").trim();
 
         const v = t.boundingPoly?.vertices || [];
         const x = v[0]?.x || 0;
@@ -123,9 +123,41 @@ function parseDigits(texts) {
         const w = Math.max((v[1]?.x || x) - x, 8);
         const h = Math.max((v[2]?.y || y) - y, 8);
 
-        out.push({ number:num, x, y, w, h });
+        // 3桁数字
+        const num = normalizeNumber(desc);
+        if (/^\d{3}$/.test(num)) {
+            digits.push({ number:num, x, y, w, h });
+            continue;
+        }
+
+        // 英字（1文字）
+        if (/^[A-Z]$/.test(desc)) {
+            letters.push({ letter: desc, x, y, w, h });
+        }
     }
-    return out;
+
+    // 数字に近い英字を紐づけ
+    digits.forEach(d => {
+        let best = null;
+        let bestDist = 999999;
+
+        letters.forEach(l => {
+            const dx = Math.abs((d.x + d.w/2) - (l.x + l.w/2));
+            const dy = Math.abs((d.y + d.h/2) - (l.y + l.h/2));
+            const dist = dx + dy;
+
+            if (dist < bestDist) {
+                bestDist = dist;
+                best = l;
+            }
+        });
+
+        if (best && bestDist < 200) {
+            d.letter = best.letter;
+        }
+    });
+
+    return digits;
 }
 
 // ================== キャプチャ ==================
@@ -163,12 +195,12 @@ async function runQMode() {
     detected.forEach(d => {
         const cut = document.createElement("canvas");
 
-        // ===== 固定トリミング（ここだけ変更）=====
+        // ===== 固定トリミング =====
         const marginLeft   = 40;
         const marginRight  = 60;
         const marginTop    = 20;
         const marginBottom = 90;
-        // ================================
+        // ==========================
 
         const sx = Math.max(d.x - marginLeft, 0);
         const sy = Math.max(d.y - marginTop, 0);
@@ -190,7 +222,7 @@ async function runQMode() {
         const txt = document.createElement("div");
         txt.className = "quest-text";
         txt.style.color = "red";
-        txt.innerText = d.number;
+        txt.innerText = d.letter ? `${d.number} ${d.letter}` : d.number;
 
         wrap.appendChild(img);
         wrap.appendChild(txt);
@@ -215,12 +247,12 @@ async function runAMode() {
 
     detected.forEach(d => {
 
-        // ===== 固定トリミング（ここだけ変更）=====
+        // ===== 固定トリミング =====
         const marginLeft   = 40;
         const marginRight  = 60;
         const marginTop    = 20;
         const marginBottom = 90;
-        // ================================
+        // ==========================
 
         const sx = Math.max(d.x - marginLeft, 0);
         const sy = Math.max(d.y - marginTop, 0);
