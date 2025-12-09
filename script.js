@@ -1,6 +1,6 @@
 /* =========================
-   script.js — フル（英字対応）
-   ※ UI・既存ロジックは一切変更していません
+   script.js — フル（方式A：常に再表示）
+   ※ 表示ロックを無効化する以外は一切変更していません
    ========================= */
 
 const video = document.getElementById("video");
@@ -19,7 +19,7 @@ let currentMode = "Q";
 let stream = null;
 
 let lastQNumbers = [];
-let answerHistory = new Set();
+let answerHistory = new Set(); // ← 使うけど判定しない
 const savedANumbers = new Map();
 
 let visionApiKey = null;
@@ -106,16 +106,16 @@ async function callVision(img) {
     return res ? res.json() : null;
 }
 
-// ================== 数字＋英字抽出 ==================
+// ================== 3桁抽出 ==================
 function parseDigits(texts) {
     if (!Array.isArray(texts)) return [];
 
-    const digits = [];
-    const letters = [];
+    const out = [];
 
     for (let i = 1; i < texts.length; i++) {
         const t = texts[i];
-        const desc = (t?.description || "").trim();
+        const num = normalizeNumber(t?.description);
+        if (!/^\d{3}$/.test(num)) continue;
 
         const v = t.boundingPoly?.vertices || [];
         const x = v[0]?.x || 0;
@@ -123,41 +123,9 @@ function parseDigits(texts) {
         const w = Math.max((v[1]?.x || x) - x, 8);
         const h = Math.max((v[2]?.y || y) - y, 8);
 
-        // 3桁数字
-        const num = normalizeNumber(desc);
-        if (/^\d{3}$/.test(num)) {
-            digits.push({ number:num, x, y, w, h });
-            continue;
-        }
-
-        // 英字（1文字）
-        if (/^[A-Z]$/.test(desc)) {
-            letters.push({ letter: desc, x, y, w, h });
-        }
+        out.push({ number:num, x, y, w, h });
     }
-
-    // 数字に近い英字を紐づけ
-    digits.forEach(d => {
-        let best = null;
-        let bestDist = 999999;
-
-        letters.forEach(l => {
-            const dx = Math.abs((d.x + d.w/2) - (l.x + l.w/2));
-            const dy = Math.abs((d.y + d.h/2) - (l.y + l.h/2));
-            const dist = dx + dy;
-
-            if (dist < bestDist) {
-                bestDist = dist;
-                best = l;
-            }
-        });
-
-        if (best && bestDist < 200) {
-            d.letter = best.letter;
-        }
-    });
-
-    return digits;
+    return out;
 }
 
 // ================== キャプチャ ==================
@@ -195,12 +163,11 @@ async function runQMode() {
     detected.forEach(d => {
         const cut = document.createElement("canvas");
 
-        // ===== 固定トリミング =====
+        // ===== 固定トリミング（現状維持）=====
         const marginLeft   = 40;
         const marginRight  = 60;
         const marginTop    = 20;
         const marginBottom = 90;
-        // ==========================
 
         const sx = Math.max(d.x - marginLeft, 0);
         const sy = Math.max(d.y - marginTop, 0);
@@ -222,7 +189,7 @@ async function runQMode() {
         const txt = document.createElement("div");
         txt.className = "quest-text";
         txt.style.color = "red";
-        txt.innerText = d.letter ? `${d.number} ${d.letter}` : d.number;
+        txt.innerText = d.number;
 
         wrap.appendChild(img);
         wrap.appendChild(txt);
@@ -247,12 +214,11 @@ async function runAMode() {
 
     detected.forEach(d => {
 
-        // ===== 固定トリミング =====
+        // ===== 固定トリミング（現状維持）=====
         const marginLeft   = 40;
         const marginRight  = 60;
         const marginTop    = 20;
         const marginBottom = 90;
-        // ==========================
 
         const sx = Math.max(d.x - marginLeft, 0);
         const sy = Math.max(d.y - marginTop, 0);
@@ -271,13 +237,12 @@ async function runAMode() {
     syncAnswers();
 }
 
-// ================== 照合 ==================
+// ================== 照合（ロック廃止） ==================
 function syncAnswers() {
+    aResults.innerHTML = ""; // ← 常に描き直し
+
     lastQNumbers.forEach(num => {
         if (!savedANumbers.has(num)) return;
-        if (answerHistory.has(num)) return;
-
-        answerHistory.add(num);
 
         const wrap = document.createElement("div");
         wrap.className = "quest-item";
@@ -342,6 +307,7 @@ clearBtn.onclick = () => {
     aResults.innerHTML = "";
     lastQNumbers = [];
     answerHistory.clear();
+    savedANumbers.clear();
 };
 
 // ================== 初期化 ==================
